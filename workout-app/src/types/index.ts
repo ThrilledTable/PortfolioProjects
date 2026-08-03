@@ -65,7 +65,10 @@ export interface Mesocycle {
   name: string;
   weeks: number;
   days: MesoDay[];
+  deloadWeeks: number[];
 }
+
+export type SetType = 'warmup' | 'working' | 'drop';
 
 export interface LoggedSet {
   id: string;
@@ -73,6 +76,7 @@ export interface LoggedSet {
   reps: string;
   rir: string;
   logged: boolean;
+  type: SetType;
 }
 
 export interface SessionExercise {
@@ -89,6 +93,8 @@ export interface WorkoutSession {
   dayId: string;
   dayName: string;
   date: string;
+  completedAt?: string;
+  notes?: string;
   exercises: SessionExercise[];
 }
 

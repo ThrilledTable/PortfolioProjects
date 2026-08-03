@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
@@ -10,24 +10,41 @@ import MuscleTag from '../components/MuscleTag';
 import RestTimerBar from '../components/RestTimerBar';
 import { colors, radius, spacing } from '../theme/theme';
 import { WorkoutStackParamList } from '../navigation/types';
-import { Exercise, LoggedSet, MuscleGroup, SessionExercise, TemplateExercise } from '../types';
+import { Exercise, LoggedSet, MuscleGroup, SessionExercise, SetType, TemplateExercise } from '../types';
+import { getAverageLoggedRir, ProgressionSuggestion, suggestProgression } from '../utils/progression';
+import { formatDuration } from '../utils/format';
+import { computeSessionSummary } from '../utils/sessionSummary';
 
 type Props = NativeStackScreenProps<WorkoutStackParamList, 'WorkoutHome'>;
 
+const SET_TYPE_ICON: Record<SetType, keyof typeof Ionicons.glyphMap> = {
+  working: 'ellipsis-vertical',
+  warmup: 'flame',
+  drop: 'trending-down',
+};
+
+const SET_TYPE_COLOR: Record<SetType, string> = {
+  working: colors.textMuted,
+  warmup: '#f6a35c',
+  drop: colors.accent,
+};
+
 function SetRow({
-  index,
   set,
   onUpdate,
   onToggle,
+  onOpenMenu,
 }: {
-  index: number;
   set: LoggedSet;
   onUpdate: (field: 'weight' | 'reps' | 'rir', value: string) => void;
   onToggle: () => void;
+  onOpenMenu: () => void;
 }) {
   return (
-    <View style={styles.setRow}>
-      <Ionicons name="ellipsis-vertical" size={14} color={colors.textMuted} style={{ width: 20 }} />
+    <View style={[styles.setRow, set.type === 'warmup' && styles.setRowWarmup]}>
+      <Pressable onPress={onOpenMenu} hitSlop={10} style={{ width: 20 }}>
+        <Ionicons name={SET_TYPE_ICON[set.type]} size={14} color={SET_TYPE_COLOR[set.type]} />
+      </Pressable>
       <TextInput
         style={styles.weightInput}
         value={set.weight}
@@ -59,11 +76,27 @@ function SetRow({
   );
 }
 
+function ProgressionBadge({ suggestion }: { suggestion: ProgressionSuggestion | 'deload' | null }) {
+  if (!suggestion || suggestion === 'maintain') return null;
+  const config: Record<'increase' | 'decrease' | 'deload', { label: string; color: string }> = {
+    increase: { label: '▲ Try heavier', color: colors.success },
+    decrease: { label: '▼ Ease up', color: '#f6a35c' },
+    deload: { label: 'Deload — reduce load', color: '#e0b23c' },
+  };
+  const { label, color } = config[suggestion];
+  return (
+    <View style={[styles.suggestionBadge, { borderColor: color }]}>
+      <Text style={[styles.suggestionText, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
 function ExerciseCard({
   exercise,
   templateExercise,
   sessionExercise,
   sessionId,
+  suggestion,
   onHistory,
   onSetLogged,
 }: {
@@ -71,19 +104,33 @@ function ExerciseCard({
   templateExercise: TemplateExercise;
   sessionExercise: SessionExercise;
   sessionId: string;
+  suggestion: ProgressionSuggestion | 'deload' | null;
   onHistory: () => void;
   onSetLogged: (restSeconds: number) => void;
 }) {
   const updateSetField = useStore((s) => s.updateSetField);
   const toggleSetLogged = useStore((s) => s.toggleSetLogged);
+  const setLoggedSetType = useStore((s) => s.setLoggedSetType);
   const addSet = useStore((s) => s.addSet);
+  const removeSet = useStore((s) => s.removeSet);
+
+  const openSetMenu = (setId: string) => {
+    Alert.alert('Set Options', undefined, [
+      { text: 'Warm-up Set', onPress: () => setLoggedSetType(sessionId, sessionExercise.id, setId, 'warmup') },
+      { text: 'Working Set', onPress: () => setLoggedSetType(sessionId, sessionExercise.id, setId, 'working') },
+      { text: 'Drop Set', onPress: () => setLoggedSetType(sessionId, sessionExercise.id, setId, 'drop') },
+      { text: 'Delete Set', style: 'destructive', onPress: () => removeSet(sessionId, sessionExercise.id, setId) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
 
   return (
     <View style={styles.exerciseCard}>
       <View style={styles.exerciseHeaderRow}>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, gap: 4 }}>
           <Text style={styles.exerciseName}>{exercise.name}</Text>
           <Text style={styles.exerciseEquipment}>{exercise.equipment}</Text>
+          <ProgressionBadge suggestion={suggestion} />
         </View>
         <Pressable onPress={onHistory} hitSlop={10} style={{ marginRight: spacing.sm }}>
           <Ionicons name="time-outline" size={20} color={colors.textSecondary} />
@@ -101,7 +148,6 @@ function ExerciseCard({
       {sessionExercise.sets.map((set, i) => (
         <SetRow
           key={set.id}
-          index={i}
           set={set}
           onUpdate={(field, value) => updateSetField(sessionId, sessionExercise.id, set.id, field, value)}
           onToggle={() => {
@@ -111,6 +157,7 @@ function ExerciseCard({
               onSetLogged(templateExercise.sets[i]?.restSeconds ?? 90);
             }
           }}
+          onOpenMenu={() => openSetMenu(set.id)}
         />
       ))}
 
@@ -129,10 +176,13 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   const sessions = useStore((s) => s.sessions);
   const getOrCreateSession = useStore((s) => s.getOrCreateSession);
   const stepDay = useStore((s) => s.stepDay);
+  const completeSession = useStore((s) => s.completeSession);
+  const updateSessionNotes = useStore((s) => s.updateSessionNotes);
   const tabNavigation = useNavigation<BottomTabNavigationProp<Record<string, undefined>>>();
 
   const meso = active ? mesocycles.find((m) => m.id === active.mesoId) : undefined;
   const day = meso && active ? meso.days[active.dayIndex] : undefined;
+  const isDeloadWeek = !!(meso && active && meso.deloadWeeks.includes(active.week));
 
   const [sessionId, setSessionId] = useState<string | null>(null);
 
@@ -176,6 +226,18 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
     setRestTimer({ secondsLeft: seconds, totalSeconds: seconds, running: true });
   };
 
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    if (!session || session.completedAt) return;
+    const interval = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [session?.id, session?.completedAt]);
+
+  const summary = useMemo(
+    () => (session ? computeSessionSummary(session, exerciseById) : null),
+    [session, exerciseById]
+  );
+
   if (!active || !meso || !day) {
     return (
       <ScreenContainer style={styles.emptyState}>
@@ -189,17 +251,28 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
     );
   }
 
-  if (!session) {
+  if (!session || !summary) {
     return <ScreenContainer />;
   }
+
+  const elapsedSeconds = session.completedAt
+    ? Math.max(0, (new Date(session.completedAt).getTime() - new Date(session.date).getTime()) / 1000)
+    : Math.max(0, (nowTick - new Date(session.date).getTime()) / 1000);
 
   return (
     <ScreenContainer>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>
-            WEEK {active.week} <Text style={styles.headerTitleMuted}>DAY {active.dayIndex + 1}</Text>
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={styles.headerTitle}>
+              WEEK {active.week} <Text style={styles.headerTitleMuted}>DAY {active.dayIndex + 1}</Text>
+            </Text>
+            {isDeloadWeek && (
+              <View style={styles.deloadBadge}>
+                <Text style={styles.deloadBadgeText}>DELOAD</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.headerSubtitle}>{day.name} · {meso.name}</Text>
         </View>
         <Pressable onPress={() => stepDay(-1)} hitSlop={10} style={{ marginRight: spacing.sm }}>
@@ -211,6 +284,44 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+        <View style={styles.sessionCard}>
+          <View style={styles.sessionStatusRow}>
+            <Pressable
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              onPress={() => completeSession(session.id)}
+            >
+              <Ionicons
+                name={session.completedAt ? 'checkmark-circle' : 'time-outline'}
+                size={18}
+                color={session.completedAt ? colors.success : colors.textSecondary}
+              />
+              <Text style={[styles.sessionStatusText, session.completedAt && { color: colors.success }]}>
+                {session.completedAt ? `Completed · ${formatDuration(elapsedSeconds)}` : formatDuration(elapsedSeconds)}
+              </Text>
+            </Pressable>
+            {!session.completedAt && (
+              <Pressable style={styles.finishButton} onPress={() => completeSession(session.id)}>
+                <Text style={styles.finishButtonText}>Finish Workout</Text>
+              </Pressable>
+            )}
+          </View>
+          {session.completedAt && (
+            <View style={styles.summaryStatsRow}>
+              <Text style={styles.summaryStat}>{summary.totalSets} sets</Text>
+              <Text style={styles.summaryStat}>{summary.totalVolume.toLocaleString()} lbs volume</Text>
+              <Text style={styles.summaryStat}>{summary.muscleCount} muscle groups</Text>
+            </View>
+          )}
+          <TextInput
+            style={styles.notesInput}
+            placeholder="Add a note about this session..."
+            placeholderTextColor={colors.textMuted}
+            value={session.notes ?? ''}
+            onChangeText={(v) => updateSessionNotes(session.id, v)}
+            multiline
+          />
+        </View>
+
         {day.exercises.length === 0 && (
           <Text style={styles.empty}>This day has no exercises yet. Edit it from the Mesos tab.</Text>
         )}
@@ -220,6 +331,15 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
           if (!exercise || !sessionExercise) return null;
           const prevExercise = idx > 0 ? exerciseById.get(day.exercises[idx - 1].exerciseId) : undefined;
           const showTag = !prevExercise || prevExercise.muscleGroup !== exercise.muscleGroup;
+
+          const prevWeekExercise = useStore
+            .getState()
+            .getPreviousSessionExercise(meso.id, day.id, te.exerciseId, active.week);
+          const targetRir = te.sets[0]?.rir ?? 3;
+          const suggestion: ProgressionSuggestion | 'deload' | null = isDeloadWeek
+            ? 'deload'
+            : suggestProgression(targetRir, getAverageLoggedRir(prevWeekExercise?.sets ?? []));
+
           return (
             <View key={te.id}>
               {showTag && (
@@ -232,6 +352,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
                 templateExercise={te}
                 sessionExercise={sessionExercise}
                 sessionId={session.id}
+                suggestion={suggestion}
                 onHistory={() => navigation.navigate('ExerciseHistory', { exerciseId: exercise.id })}
                 onSetLogged={startRestTimer}
               />
@@ -276,12 +397,59 @@ const styles = StyleSheet.create({
   headerTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: '800', letterSpacing: 0.5 },
   headerTitleMuted: { color: colors.textSecondary },
   headerSubtitle: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
+  deloadBadge: {
+    backgroundColor: '#e0b23c33',
+    borderWidth: 1,
+    borderColor: '#e0b23c',
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  deloadBadgeText: { color: '#e0b23c', fontSize: 10, fontWeight: '800' },
   emptyState: { alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.sm },
   emptyTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '700', marginTop: spacing.sm },
   emptySubtitle: { color: colors.textSecondary, fontSize: 14, textAlign: 'center' },
   emptyButton: { marginTop: spacing.md, backgroundColor: colors.accent, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: 12 },
   emptyButtonText: { color: '#fff', fontWeight: '700' },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: spacing.lg },
+  sessionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  sessionStatusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sessionStatusText: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
+  finishButton: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+  },
+  finishButtonText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  summaryStatsRow: { flexDirection: 'row', gap: spacing.md },
+  summaryStat: { color: colors.textPrimary, fontSize: 12, fontWeight: '600' },
+  notesInput: {
+    backgroundColor: colors.inputBackground,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    color: colors.textPrimary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    fontSize: 13,
+    minHeight: 36,
+  },
+  suggestionBadge: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 2,
+  },
+  suggestionText: { fontSize: 11, fontWeight: '700' },
   exerciseCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -290,10 +458,11 @@ const styles = StyleSheet.create({
   },
   exerciseHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.sm },
   exerciseName: { color: colors.textPrimary, fontSize: 17, fontWeight: '800' },
-  exerciseEquipment: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
+  exerciseEquipment: { color: colors.textSecondary, fontSize: 13 },
   colHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   colHeader: { color: colors.textMuted, fontSize: 11, fontWeight: '700', textAlign: 'center', width: 44 },
   setRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.xs },
+  setRowWarmup: { opacity: 0.55 },
   weightInput: {
     flex: 1,
     minWidth: 0,

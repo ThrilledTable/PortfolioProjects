@@ -10,6 +10,7 @@ import {
   WorkoutSession,
   SessionExercise,
   LoggedSet,
+  SetType,
   ActivePosition,
 } from '../types';
 import { SEED_EXERCISES } from '../data/seedExercises';
@@ -38,7 +39,7 @@ interface StoreState {
   deleteTemplate: (id: string) => void;
   duplicateTemplate: (id: string) => void;
 
-  addMesocycle: (name: string, weeks: number, days: MesoDay[]) => Mesocycle;
+  addMesocycle: (name: string, weeks: number, days: MesoDay[], deloadWeeks?: number[]) => Mesocycle;
   updateMesocycle: (id: string, patch: Partial<Omit<Mesocycle, 'id'>>) => void;
   deleteMesocycle: (id: string) => void;
   duplicateMesocycle: (id: string) => void;
@@ -56,10 +57,24 @@ interface StoreState {
     value: string
   ) => void;
   toggleSetLogged: (sessionId: string, sessionExerciseId: string, setId: string) => void;
+  setLoggedSetType: (
+    sessionId: string,
+    sessionExerciseId: string,
+    setId: string,
+    type: SetType
+  ) => void;
   addSet: (sessionId: string, sessionExerciseId: string) => void;
   removeSet: (sessionId: string, sessionExerciseId: string, setId: string) => void;
+  completeSession: (sessionId: string) => void;
+  updateSessionNotes: (sessionId: string, notes: string) => void;
 
   getExerciseHistory: (exerciseId: string) => ExerciseHistoryEntry[];
+  getPreviousSessionExercise: (
+    mesoId: string,
+    dayId: string,
+    exerciseId: string,
+    beforeWeek: number
+  ) => SessionExercise | undefined;
 }
 
 const makeLoggedSet = (rir: number): LoggedSet => ({
@@ -68,6 +83,36 @@ const makeLoggedSet = (rir: number): LoggedSet => ({
   reps: '',
   rir: String(rir),
   logged: false,
+  type: 'working',
+});
+
+const findPreviousSession = (
+  sessions: WorkoutSession[],
+  mesoId: string,
+  dayId: string,
+  beforeWeek: number
+): WorkoutSession | undefined => {
+  const candidates = sessions.filter(
+    (s) => s.mesoId === mesoId && s.dayId === dayId && s.week < beforeWeek
+  );
+  if (candidates.length === 0) return undefined;
+  return candidates.reduce((latest, s) => (s.week > latest.week ? s : latest));
+};
+
+const buildSessionExercise = (
+  te: TemplateExercise,
+  prevExercise?: SessionExercise
+): SessionExercise => ({
+  id: genId(),
+  exerciseId: te.exerciseId,
+  sets: te.sets.map((ts, i) => {
+    const base = makeLoggedSet(ts.rir);
+    const prevSet = prevExercise?.sets[i];
+    if (prevSet && prevSet.logged && prevSet.reps !== '') {
+      return { ...base, weight: prevSet.weight, reps: prevSet.reps };
+    }
+    return base;
+  }),
 });
 
 const cloneExercises = (exercises: TemplateExercise[]): TemplateExercise[] =>
@@ -121,8 +166,8 @@ export const useStore = create<StoreState>()(
         });
       },
 
-      addMesocycle: (name, weeks, days) => {
-        const meso: Mesocycle = { id: genId(), name, weeks, days };
+      addMesocycle: (name, weeks, days, deloadWeeks = []) => {
+        const meso: Mesocycle = { id: genId(), name, weeks, days, deloadWeeks };
         set((s) => ({ mesocycles: [...s.mesocycles, meso] }));
         return meso;
       },
@@ -157,6 +202,7 @@ export const useStore = create<StoreState>()(
             id: genId(),
             name: `${source.name} Copy`,
             weeks: source.weeks,
+            deloadWeeks: [...source.deloadWeeks],
             days: source.days.map((d) => ({
               id: genId(),
               name: d.name,
@@ -205,11 +251,13 @@ export const useStore = create<StoreState>()(
             (te) => !existing.exercises.some((se) => se.exerciseId === te.exerciseId)
           );
           if (missing.length > 0) {
-            const newSessionExercises: SessionExercise[] = missing.map((te) => ({
-              id: genId(),
-              exerciseId: te.exerciseId,
-              sets: te.sets.map((ts) => makeLoggedSet(ts.rir)),
-            }));
+            const prevSession = findPreviousSession(sessions, mesoId, day.id, week);
+            const newSessionExercises: SessionExercise[] = missing.map((te) =>
+              buildSessionExercise(
+                te,
+                prevSession?.exercises.find((se) => se.exerciseId === te.exerciseId)
+              )
+            );
             set((s) => ({
               sessions: s.sessions.map((sess) =>
                 sess.id !== existing.id
@@ -221,11 +269,13 @@ export const useStore = create<StoreState>()(
           return existing.id;
         }
 
-        const sessionExercises: SessionExercise[] = day.exercises.map((te) => ({
-          id: genId(),
-          exerciseId: te.exerciseId,
-          sets: te.sets.map((ts) => makeLoggedSet(ts.rir)),
-        }));
+        const prevSession = findPreviousSession(sessions, mesoId, day.id, week);
+        const sessionExercises: SessionExercise[] = day.exercises.map((te) =>
+          buildSessionExercise(
+            te,
+            prevSession?.exercises.find((se) => se.exerciseId === te.exerciseId)
+          )
+        );
 
         const session: WorkoutSession = {
           id: genId(),
@@ -285,6 +335,26 @@ export const useStore = create<StoreState>()(
         }));
       },
 
+      setLoggedSetType: (sessionId, sessionExerciseId, setId, type) => {
+        set((s) => ({
+          sessions: s.sessions.map((sess) =>
+            sess.id !== sessionId
+              ? sess
+              : {
+                  ...sess,
+                  exercises: sess.exercises.map((se) =>
+                    se.id !== sessionExerciseId
+                      ? se
+                      : {
+                          ...se,
+                          sets: se.sets.map((st) => (st.id === setId ? { ...st, type } : st)),
+                        }
+                  ),
+                }
+          ),
+        }));
+      },
+
       addSet: (sessionId, sessionExerciseId) => {
         set((s) => ({
           sessions: s.sessions.map((sess) =>
@@ -323,6 +393,27 @@ export const useStore = create<StoreState>()(
                 }
           ),
         }));
+      },
+
+      completeSession: (sessionId) => {
+        set((s) => ({
+          sessions: s.sessions.map((sess) =>
+            sess.id !== sessionId
+              ? sess
+              : { ...sess, completedAt: sess.completedAt ? undefined : new Date().toISOString() }
+          ),
+        }));
+      },
+
+      updateSessionNotes: (sessionId, notes) => {
+        set((s) => ({
+          sessions: s.sessions.map((sess) => (sess.id !== sessionId ? sess : { ...sess, notes })),
+        }));
+      },
+
+      getPreviousSessionExercise: (mesoId, dayId, exerciseId, beforeWeek) => {
+        const prevSession = findPreviousSession(get().sessions, mesoId, dayId, beforeWeek);
+        return prevSession?.exercises.find((se) => se.exerciseId === exerciseId);
       },
 
       getExerciseHistory: (exerciseId) => {

@@ -8,6 +8,7 @@ import ExercisePickerModal from '../components/ExercisePickerModal';
 import TemplatePickerModal from '../components/TemplatePickerModal';
 import ExerciseTargetCard from '../components/ExerciseTargetCard';
 import ReorderExercisesModal from '../components/ReorderExercisesModal';
+import VolumeSummary from '../components/VolumeSummary';
 import { colors, radius, spacing } from '../theme/theme';
 import { MesosStackParamList } from '../navigation/types';
 import { MesoDay, TemplateExercise } from '../types';
@@ -33,10 +34,17 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
 
   const [name, setName] = useState(existing?.name ?? '');
   const [weeks, setWeeks] = useState(String(existing?.weeks ?? 4));
+  const [deloadWeeks, setDeloadWeeks] = useState<number[]>(existing?.deloadWeeks ?? []);
   const [days, setDays] = useState<MesoDay[]>(existing?.days ?? []);
   const [exercisePickerDayId, setExercisePickerDayId] = useState<string | null>(null);
   const [templatePickerDayId, setTemplatePickerDayId] = useState<string | null>(null);
   const [reorderDayId, setReorderDayId] = useState<string | null>(null);
+
+  const toggleDeloadWeek = (weekNum: number) => {
+    setDeloadWeeks((prev) =>
+      prev.includes(weekNum) ? prev.filter((w) => w !== weekNum) : [...prev, weekNum]
+    );
+  };
 
   const addDay = () => {
     setDays((prev) => [
@@ -103,10 +111,16 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
     }
     const weeksNum = Math.max(1, Number(weeks) || 1);
     const finalDays = days.map((d) => ({ ...d, muscleGroups: deriveMuscleGroups(d) }));
+    const finalDeloadWeeks = deloadWeeks.filter((w) => w <= weeksNum);
     if (existing) {
-      updateMesocycle(existing.id, { name: name.trim(), weeks: weeksNum, days: finalDays });
+      updateMesocycle(existing.id, {
+        name: name.trim(),
+        weeks: weeksNum,
+        days: finalDays,
+        deloadWeeks: finalDeloadWeeks,
+      });
     } else {
-      addMesocycle(name.trim(), weeksNum, finalDays);
+      addMesocycle(name.trim(), weeksNum, finalDays, finalDeloadWeeks);
     }
     navigation.goBack();
   };
@@ -145,6 +159,24 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
           onChangeText={(v) => setWeeks(v.replace(/[^0-9]/g, ''))}
           keyboardType="number-pad"
         />
+
+        <Text style={styles.label}>Deload Weeks</Text>
+        <View style={styles.weekChipRow}>
+          {Array.from({ length: Math.max(1, Number(weeks) || 1) }, (_, i) => i + 1).map((w) => {
+            const selected = deloadWeeks.includes(w);
+            return (
+              <Pressable
+                key={w}
+                style={[styles.weekChip, selected && styles.weekChipSelected]}
+                onPress={() => toggleDeloadWeek(w)}
+              >
+                <Text style={[styles.weekChipText, selected && styles.weekChipTextSelected]}>W{w}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <VolumeSummary days={days} />
 
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.label}>Days</Text>
@@ -238,8 +270,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.md },
   addExerciseButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  weekChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  weekChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  weekChipSelected: { backgroundColor: '#e0b23c33', borderColor: '#e0b23c' },
+  weekChipText: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
+  weekChipTextSelected: { color: '#e0b23c' },
   addExerciseText: { color: colors.accent, fontWeight: '600', fontSize: 13 },
   dayCard: {
     backgroundColor: colors.surfaceAlt,
