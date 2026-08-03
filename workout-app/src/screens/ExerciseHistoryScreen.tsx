@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useStore } from '../store/useStore';
 import ScreenContainer from '../components/ScreenContainer';
@@ -26,16 +27,33 @@ export default function ExerciseHistoryScreen({ route }: Props) {
     [sessions, exerciseId]
   );
 
+  const topWeightBySession = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const entry of history) {
+      const weights = entry.sets.map((s) => Number(s.weight)).filter((w) => !Number.isNaN(w) && w > 0);
+      if (weights.length > 0) map.set(entry.sessionId, Math.max(...weights));
+    }
+    return map;
+  }, [history]);
+
   const chartPoints: ChartPoint[] = useMemo(() => {
     return [...history]
       .reverse()
       .map((entry) => {
-        const weights = entry.sets.map((s) => Number(s.weight)).filter((w) => !Number.isNaN(w) && w > 0);
-        if (weights.length === 0) return null;
-        return { date: entry.date, value: Math.max(...weights) };
+        const value = topWeightBySession.get(entry.sessionId);
+        return value === undefined ? null : { date: entry.date, value };
       })
       .filter((p): p is ChartPoint => p !== null);
-  }, [history]);
+  }, [history, topWeightBySession]);
+
+  const prSessionId = useMemo(() => {
+    if (topWeightBySession.size < 2) return null;
+    let best: { sessionId: string; value: number } | null = null;
+    for (const [sessionId, value] of topWeightBySession) {
+      if (!best || value > best.value) best = { sessionId, value };
+    }
+    return best?.sessionId ?? null;
+  }, [topWeightBySession]);
 
   return (
     <ScreenContainer style={{ padding: spacing.md }}>
@@ -53,9 +71,17 @@ export default function ExerciseHistoryScreen({ route }: Props) {
         keyExtractor={(item) => item.sessionId}
         contentContainerStyle={{ paddingBottom: spacing.xl }}
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <View style={[styles.card, item.sessionId === prSessionId && styles.cardPr]}>
             <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Week {item.week} · {item.dayName}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.cardTitle}>Week {item.week} · {item.dayName}</Text>
+                {item.sessionId === prSessionId && (
+                  <View style={styles.prBadge}>
+                    <Ionicons name="trophy" size={11} color={colors.background} />
+                    <Text style={styles.prBadgeText}>PR</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.cardDate}>{formatDate(item.date)}</Text>
             </View>
             {item.sets.map((s, i) => (
@@ -83,6 +109,17 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     gap: 6,
   },
+  cardPr: { borderWidth: 1, borderColor: '#e0b23c' },
+  prBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#e0b23c',
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  prBadgeText: { color: colors.background, fontSize: 10, fontWeight: '800' },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   cardTitle: { color: colors.textPrimary, fontWeight: '700', fontSize: 15 },
   cardDate: { color: colors.textMuted, fontSize: 13 },

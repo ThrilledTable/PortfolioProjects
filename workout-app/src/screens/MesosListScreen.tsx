@@ -14,11 +14,21 @@ export default function MesosListScreen({ navigation }: Props) {
   const active = useStore((s) => s.active);
   const setActive = useStore((s) => s.setActive);
   const deleteMesocycle = useStore((s) => s.deleteMesocycle);
+  const duplicateMesocycle = useStore((s) => s.duplicateMesocycle);
 
-  const confirmDelete = (id: string, name: string) => {
-    Alert.alert('Delete Mesocycle', `Delete "${name}"?`, [
+  const showActions = (id: string, name: string) => {
+    Alert.alert(name, undefined, [
+      { text: 'Duplicate', onPress: () => duplicateMesocycle(id) },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () =>
+          Alert.alert('Delete Mesocycle', `Delete "${name}"?`, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: () => deleteMesocycle(id) },
+          ]),
+      },
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteMesocycle(id) },
     ]);
   };
 
@@ -40,7 +50,7 @@ export default function MesosListScreen({ navigation }: Props) {
             <Pressable
               style={[styles.card, isActive && styles.cardActive]}
               onPress={() => navigation.navigate('MesoEditor', { mesoId: item.id })}
-              onLongPress={() => confirmDelete(item.id, item.name)}
+              onLongPress={() => showActions(item.id, item.name)}
             >
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{item.name}</Text>

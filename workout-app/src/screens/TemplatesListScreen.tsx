@@ -12,11 +12,21 @@ type Props = NativeStackScreenProps<TemplatesStackParamList, 'TemplatesList'>;
 export default function TemplatesListScreen({ navigation }: Props) {
   const templates = useStore((s) => s.templates);
   const deleteTemplate = useStore((s) => s.deleteTemplate);
+  const duplicateTemplate = useStore((s) => s.duplicateTemplate);
 
-  const confirmDelete = (id: string, name: string) => {
-    Alert.alert('Delete Template', `Delete "${name}"?`, [
+  const showActions = (id: string, name: string) => {
+    Alert.alert(name, undefined, [
+      { text: 'Duplicate', onPress: () => duplicateTemplate(id) },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () =>
+          Alert.alert('Delete Template', `Delete "${name}"?`, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: () => deleteTemplate(id) },
+          ]),
+      },
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteTemplate(id) },
     ]);
   };
 
@@ -36,7 +46,7 @@ export default function TemplatesListScreen({ navigation }: Props) {
           <Pressable
             style={styles.card}
             onPress={() => navigation.navigate('TemplateEditor', { templateId: item.id })}
-            onLongPress={() => confirmDelete(item.id, item.name)}
+            onLongPress={() => showActions(item.id, item.name)}
           >
             <Text style={styles.name}>{item.name}</Text>
             <Text style={styles.meta}>{item.exercises.length} exercise{item.exercises.length === 1 ? '' : 's'}</Text>

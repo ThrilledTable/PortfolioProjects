@@ -36,10 +36,12 @@ interface StoreState {
   addTemplate: (name: string, exercises: TemplateExercise[]) => Template;
   updateTemplate: (id: string, patch: Partial<Omit<Template, 'id'>>) => void;
   deleteTemplate: (id: string) => void;
+  duplicateTemplate: (id: string) => void;
 
   addMesocycle: (name: string, weeks: number, days: MesoDay[]) => Mesocycle;
   updateMesocycle: (id: string, patch: Partial<Omit<Mesocycle, 'id'>>) => void;
   deleteMesocycle: (id: string) => void;
+  duplicateMesocycle: (id: string) => void;
 
   setActive: (mesoId: string, week: number, dayIndex: number) => void;
   clearActive: () => void;
@@ -67,6 +69,13 @@ const makeLoggedSet = (rir: number): LoggedSet => ({
   rir: String(rir),
   logged: false,
 });
+
+const cloneExercises = (exercises: TemplateExercise[]): TemplateExercise[] =>
+  exercises.map((te) => ({
+    id: genId(),
+    exerciseId: te.exerciseId,
+    sets: te.sets.map((s) => ({ ...s, id: genId() })),
+  }));
 
 export const useStore = create<StoreState>()(
   persist(
@@ -99,6 +108,18 @@ export const useStore = create<StoreState>()(
       deleteTemplate: (id) => {
         set((s) => ({ templates: s.templates.filter((t) => t.id !== id) }));
       },
+      duplicateTemplate: (id) => {
+        set((s) => {
+          const source = s.templates.find((t) => t.id === id);
+          if (!source) return s;
+          const copy: Template = {
+            id: genId(),
+            name: `${source.name} Copy`,
+            exercises: cloneExercises(source.exercises),
+          };
+          return { templates: [...s.templates, copy] };
+        });
+      },
 
       addMesocycle: (name, weeks, days) => {
         const meso: Mesocycle = { id: genId(), name, weeks, days };
@@ -106,15 +127,45 @@ export const useStore = create<StoreState>()(
         return meso;
       },
       updateMesocycle: (id, patch) => {
-        set((s) => ({
-          mesocycles: s.mesocycles.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-        }));
+        set((s) => {
+          const mesocycles = s.mesocycles.map((m) => (m.id === id ? { ...m, ...patch } : m));
+          if (s.active?.mesoId !== id) return { mesocycles };
+          const updated = mesocycles.find((m) => m.id === id);
+          if (!updated) return { mesocycles };
+          if (updated.days.length === 0) {
+            return { mesocycles, active: null };
+          }
+          const week = Math.min(s.active.week, updated.weeks);
+          const dayIndex = Math.min(s.active.dayIndex, updated.days.length - 1);
+          if (week === s.active.week && dayIndex === s.active.dayIndex) {
+            return { mesocycles };
+          }
+          return { mesocycles, active: { mesoId: id, week, dayIndex } };
+        });
       },
       deleteMesocycle: (id) => {
         set((s) => ({
           mesocycles: s.mesocycles.filter((m) => m.id !== id),
           active: s.active?.mesoId === id ? null : s.active,
         }));
+      },
+      duplicateMesocycle: (id) => {
+        set((s) => {
+          const source = s.mesocycles.find((m) => m.id === id);
+          if (!source) return s;
+          const copy: Mesocycle = {
+            id: genId(),
+            name: `${source.name} Copy`,
+            weeks: source.weeks,
+            days: source.days.map((d) => ({
+              id: genId(),
+              name: d.name,
+              muscleGroups: d.muscleGroups,
+              exercises: cloneExercises(d.exercises),
+            })),
+          };
+          return { mesocycles: [...s.mesocycles, copy] };
+        });
       },
 
       setActive: (mesoId, week, dayIndex) => {
@@ -149,7 +200,26 @@ export const useStore = create<StoreState>()(
         const existing = sessions.find(
           (s) => s.mesoId === mesoId && s.week === week && s.dayId === day.id
         );
-        if (existing) return existing.id;
+        if (existing) {
+          const missing = day.exercises.filter(
+            (te) => !existing.exercises.some((se) => se.exerciseId === te.exerciseId)
+          );
+          if (missing.length > 0) {
+            const newSessionExercises: SessionExercise[] = missing.map((te) => ({
+              id: genId(),
+              exerciseId: te.exerciseId,
+              sets: te.sets.map((ts) => makeLoggedSet(ts.rir)),
+            }));
+            set((s) => ({
+              sessions: s.sessions.map((sess) =>
+                sess.id !== existing.id
+                  ? sess
+                  : { ...sess, exercises: [...sess.exercises, ...newSessionExercises] }
+              ),
+            }));
+          }
+          return existing.id;
+        }
 
         const sessionExercises: SessionExercise[] = day.exercises.map((te) => ({
           id: genId(),

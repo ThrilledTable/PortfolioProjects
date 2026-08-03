@@ -143,7 +143,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
     } else {
       setSessionId(null);
     }
-  }, [meso?.id, active?.week, active?.dayIndex, day?.id]);
+  }, [meso?.id, active?.week, active?.dayIndex, day?.id, day?.exercises.length]);
 
   const session = sessionId ? sessions.find((s) => s.id === sessionId) : undefined;
 
