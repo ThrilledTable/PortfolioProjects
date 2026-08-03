@@ -7,9 +7,10 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useStore } from '../store/useStore';
 import ScreenContainer from '../components/ScreenContainer';
 import MuscleTag from '../components/MuscleTag';
+import RestTimerBar from '../components/RestTimerBar';
 import { colors, radius, spacing } from '../theme/theme';
 import { WorkoutStackParamList } from '../navigation/types';
-import { Exercise, LoggedSet, MuscleGroup, SessionExercise } from '../types';
+import { Exercise, LoggedSet, MuscleGroup, SessionExercise, TemplateExercise } from '../types';
 
 type Props = NativeStackScreenProps<WorkoutStackParamList, 'WorkoutHome'>;
 
@@ -60,14 +61,18 @@ function SetRow({
 
 function ExerciseCard({
   exercise,
+  templateExercise,
   sessionExercise,
   sessionId,
   onHistory,
+  onSetLogged,
 }: {
   exercise: Exercise;
+  templateExercise: TemplateExercise;
   sessionExercise: SessionExercise;
   sessionId: string;
   onHistory: () => void;
+  onSetLogged: (restSeconds: number) => void;
 }) {
   const updateSetField = useStore((s) => s.updateSetField);
   const toggleSetLogged = useStore((s) => s.toggleSetLogged);
@@ -99,7 +104,13 @@ function ExerciseCard({
           index={i}
           set={set}
           onUpdate={(field, value) => updateSetField(sessionId, sessionExercise.id, set.id, field, value)}
-          onToggle={() => toggleSetLogged(sessionId, sessionExercise.id, set.id)}
+          onToggle={() => {
+            const wasLogged = set.logged;
+            toggleSetLogged(sessionId, sessionExercise.id, set.id);
+            if (!wasLogged) {
+              onSetLogged(templateExercise.sets[i]?.restSeconds ?? 90);
+            }
+          }}
         />
       ))}
 
@@ -141,6 +152,29 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
     exercises.forEach((e) => map.set(e.id, e));
     return map;
   }, [exercises]);
+
+  const [restTimer, setRestTimer] = useState<{
+    secondsLeft: number;
+    totalSeconds: number;
+    running: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!restTimer?.running) return;
+    const interval = setInterval(() => {
+      setRestTimer((prev) => {
+        if (!prev || !prev.running) return prev;
+        if (prev.secondsLeft <= 1) return null;
+        return { ...prev, secondsLeft: prev.secondsLeft - 1 };
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [restTimer?.running]);
+
+  const startRestTimer = (seconds: number) => {
+    if (seconds <= 0) return;
+    setRestTimer({ secondsLeft: seconds, totalSeconds: seconds, running: true });
+  };
 
   if (!active || !meso || !day) {
     return (
@@ -195,14 +229,35 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
               )}
               <ExerciseCard
                 exercise={exercise}
+                templateExercise={te}
                 sessionExercise={sessionExercise}
                 sessionId={session.id}
                 onHistory={() => navigation.navigate('ExerciseHistory', { exerciseId: exercise.id })}
+                onSetLogged={startRestTimer}
               />
             </View>
           );
         })}
       </ScrollView>
+
+      {restTimer && (
+        <RestTimerBar
+          secondsLeft={restTimer.secondsLeft}
+          totalSeconds={restTimer.totalSeconds}
+          running={restTimer.running}
+          onToggleRunning={() =>
+            setRestTimer((prev) => (prev ? { ...prev, running: !prev.running } : prev))
+          }
+          onAddTime={(delta) =>
+            setRestTimer((prev) => {
+              if (!prev) return prev;
+              const secondsLeft = Math.max(0, prev.secondsLeft + delta);
+              return { ...prev, secondsLeft, totalSeconds: Math.max(prev.totalSeconds, secondsLeft) };
+            })
+          }
+          onSkip={() => setRestTimer(null)}
+        />
+      )}
     </ScreenContainer>
   );
 }

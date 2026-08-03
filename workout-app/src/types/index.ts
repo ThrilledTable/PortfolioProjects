@@ -38,6 +38,7 @@ export interface TargetSet {
   id: string;
   repRange: string;
   rir: number;
+  restSeconds: number;
 }
 
 export interface TemplateExercise {

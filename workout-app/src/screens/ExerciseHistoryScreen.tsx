@@ -4,6 +4,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useStore } from '../store/useStore';
 import ScreenContainer from '../components/ScreenContainer';
 import MuscleTag from '../components/MuscleTag';
+import ProgressChart, { ChartPoint } from '../components/ProgressChart';
 import { colors, radius, spacing } from '../theme/theme';
 import { WorkoutStackParamList, ExercisesStackParamList } from '../navigation/types';
 
@@ -25,6 +26,17 @@ export default function ExerciseHistoryScreen({ route }: Props) {
     [sessions, exerciseId]
   );
 
+  const chartPoints: ChartPoint[] = useMemo(() => {
+    return [...history]
+      .reverse()
+      .map((entry) => {
+        const weights = entry.sets.map((s) => Number(s.weight)).filter((w) => !Number.isNaN(w) && w > 0);
+        if (weights.length === 0) return null;
+        return { date: entry.date, value: Math.max(...weights) };
+      })
+      .filter((p): p is ChartPoint => p !== null);
+  }, [history]);
+
   return (
     <ScreenContainer style={{ padding: spacing.md }}>
       {exercise && (
@@ -32,6 +44,9 @@ export default function ExerciseHistoryScreen({ route }: Props) {
           <Text style={styles.title}>{exercise.name}</Text>
           <MuscleTag muscle={exercise.muscleGroup} />
         </View>
+      )}
+      {chartPoints.length > 0 && (
+        <ProgressChart title="Top Set Weight" unit="lbs" points={chartPoints} />
       )}
       <FlatList
         data={history}

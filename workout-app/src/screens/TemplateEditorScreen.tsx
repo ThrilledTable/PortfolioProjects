@@ -6,6 +6,7 @@ import { useStore } from '../store/useStore';
 import ScreenContainer from '../components/ScreenContainer';
 import ExercisePickerModal from '../components/ExercisePickerModal';
 import ExerciseTargetCard from '../components/ExerciseTargetCard';
+import ReorderExercisesModal from '../components/ReorderExercisesModal';
 import { colors, radius, spacing } from '../theme/theme';
 import { TemplatesStackParamList } from '../navigation/types';
 import { TemplateExercise } from '../types';
@@ -23,11 +24,12 @@ export default function TemplateEditorScreen({ route, navigation }: Props) {
   const [name, setName] = useState(existing?.name ?? '');
   const [exercises, setExercises] = useState<TemplateExercise[]>(existing?.exercises ?? []);
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [reorderVisible, setReorderVisible] = useState(false);
 
   const addExercise = (exerciseId: string) => {
     setExercises((prev) => [
       ...prev,
-      { id: genId(), exerciseId, sets: [{ id: genId(), repRange: '8-12', rir: 3 }] },
+      { id: genId(), exerciseId, sets: [{ id: genId(), repRange: '8-12', rir: 3, restSeconds: 90 }] },
     ]);
   };
 
@@ -73,10 +75,18 @@ export default function TemplateEditorScreen({ route, navigation }: Props) {
 
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.label}>Exercises</Text>
-          <Pressable style={styles.addExerciseButton} onPress={() => setPickerVisible(true)}>
-            <Ionicons name="add" size={16} color={colors.accent} />
-            <Text style={styles.addExerciseText}>Add Exercise</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: spacing.md }}>
+            {exercises.length > 1 && (
+              <Pressable style={styles.addExerciseButton} onPress={() => setReorderVisible(true)}>
+                <Ionicons name="reorder-three" size={16} color={colors.accent} />
+                <Text style={styles.addExerciseText}>Reorder</Text>
+              </Pressable>
+            )}
+            <Pressable style={styles.addExerciseButton} onPress={() => setPickerVisible(true)}>
+              <Ionicons name="add" size={16} color={colors.accent} />
+              <Text style={styles.addExerciseText}>Add Exercise</Text>
+            </Pressable>
+          </View>
         </View>
 
         {exercises.map((te) => (
@@ -106,6 +116,12 @@ export default function TemplateEditorScreen({ route, navigation }: Props) {
         visible={pickerVisible}
         onClose={() => setPickerVisible(false)}
         onSelect={(ex) => addExercise(ex.id)}
+      />
+      <ReorderExercisesModal
+        visible={reorderVisible}
+        exercises={exercises}
+        onClose={() => setReorderVisible(false)}
+        onSave={setExercises}
       />
     </ScreenContainer>
   );

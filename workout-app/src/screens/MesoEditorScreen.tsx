@@ -7,6 +7,7 @@ import ScreenContainer from '../components/ScreenContainer';
 import ExercisePickerModal from '../components/ExercisePickerModal';
 import TemplatePickerModal from '../components/TemplatePickerModal';
 import ExerciseTargetCard from '../components/ExerciseTargetCard';
+import ReorderExercisesModal from '../components/ReorderExercisesModal';
 import { colors, radius, spacing } from '../theme/theme';
 import { MesosStackParamList } from '../navigation/types';
 import { MesoDay, TemplateExercise } from '../types';
@@ -35,6 +36,7 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
   const [days, setDays] = useState<MesoDay[]>(existing?.days ?? []);
   const [exercisePickerDayId, setExercisePickerDayId] = useState<string | null>(null);
   const [templatePickerDayId, setTemplatePickerDayId] = useState<string | null>(null);
+  const [reorderDayId, setReorderDayId] = useState<string | null>(null);
 
   const addDay = () => {
     setDays((prev) => [
@@ -65,12 +67,16 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
     );
   };
 
+  const setDayExercises = (dayId: string, exercises: TemplateExercise[]) => {
+    setDays((prev) => prev.map((d) => (d.id !== dayId ? d : { ...d, exercises })));
+  };
+
   const addExerciseToDay = (dayId: string, exerciseId: string) => {
     setDays((prev) =>
       prev.map((d) =>
         d.id !== dayId
           ? d
-          : { ...d, exercises: [...d.exercises, { id: genId(), exerciseId, sets: [{ id: genId(), repRange: '8-12', rir: 3 }] }] }
+          : { ...d, exercises: [...d.exercises, { id: genId(), exerciseId, sets: [{ id: genId(), repRange: '8-12', rir: 3, restSeconds: 90 }] }] }
       )
     );
   };
@@ -179,6 +185,12 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
                 <Ionicons name="download-outline" size={16} color={colors.accent} />
                 <Text style={styles.addExerciseText}>Load Template</Text>
               </Pressable>
+              {day.exercises.length > 1 && (
+                <Pressable style={styles.dayActionButton} onPress={() => setReorderDayId(day.id)}>
+                  <Ionicons name="reorder-three" size={16} color={colors.accent} />
+                  <Text style={styles.addExerciseText}>Reorder</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         ))}
@@ -204,6 +216,12 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
         visible={templatePickerDayId !== null}
         onClose={() => setTemplatePickerDayId(null)}
         onSelect={(t) => templatePickerDayId && loadTemplateIntoDay(templatePickerDayId, t.exercises)}
+      />
+      <ReorderExercisesModal
+        visible={reorderDayId !== null}
+        exercises={days.find((d) => d.id === reorderDayId)?.exercises ?? []}
+        onClose={() => setReorderDayId(null)}
+        onSave={(next) => reorderDayId && setDayExercises(reorderDayId, next)}
       />
     </ScreenContainer>
   );

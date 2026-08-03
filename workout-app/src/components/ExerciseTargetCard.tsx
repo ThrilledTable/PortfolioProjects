@@ -29,7 +29,15 @@ export default function ExerciseTargetCard({
     const last = templateExercise.sets[templateExercise.sets.length - 1];
     onChange({
       ...templateExercise,
-      sets: [...templateExercise.sets, { id: genId(), repRange: last?.repRange ?? '8-12', rir: last?.rir ?? 3 }],
+      sets: [
+        ...templateExercise.sets,
+        {
+          id: genId(),
+          repRange: last?.repRange ?? '8-12',
+          rir: last?.rir ?? 3,
+          restSeconds: last?.restSeconds ?? 90,
+        },
+      ],
     });
   };
 
@@ -53,9 +61,10 @@ export default function ExerciseTargetCard({
 
       <View style={styles.colHeaderRow}>
         <Text style={styles.colHeader}>SET</Text>
-        <Text style={styles.colHeader}>REP RANGE</Text>
+        <Text style={styles.colHeader}>REPS</Text>
         <Text style={styles.colHeader}>RIR</Text>
-        <View style={{ width: 24 }} />
+        <Text style={styles.colHeader}>REST</Text>
+        <View style={{ width: 20 }} />
       </View>
       {templateExercise.sets.map((s, i) => (
         <View key={s.id} style={styles.setRow}>
@@ -71,6 +80,15 @@ export default function ExerciseTargetCard({
             style={styles.rirInput}
             value={String(s.rir)}
             onChangeText={(v) => updateSet(s.id, { rir: Number(v.replace(/[^0-9]/g, '')) || 0 })}
+            keyboardType="number-pad"
+            placeholderTextColor={colors.textMuted}
+          />
+          <TextInput
+            style={styles.restInput}
+            value={String(s.restSeconds)}
+            onChangeText={(v) =>
+              updateSet(s.id, { restSeconds: Number(v.replace(/[^0-9]/g, '')) || 0 })
+            }
             keyboardType="number-pad"
             placeholderTextColor={colors.textMuted}
           />
@@ -97,12 +115,12 @@ const styles = StyleSheet.create({
   },
   header: { flexDirection: 'row', alignItems: 'flex-start' },
   name: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
-  colHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  colHeader: { color: colors.textMuted, fontSize: 11, fontWeight: '700', width: 70, textAlign: 'center' },
-  setRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  setIndex: { color: colors.textSecondary, width: 70, textAlign: 'center', fontSize: 13 },
+  colHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  colHeader: { color: colors.textMuted, fontSize: 11, fontWeight: '700', width: 56, textAlign: 'center' },
+  setRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  setIndex: { color: colors.textSecondary, width: 56, textAlign: 'center', fontSize: 13 },
   repInput: {
-    width: 70,
+    width: 56,
     textAlign: 'center',
     backgroundColor: colors.inputBackground,
     borderRadius: radius.sm,
@@ -112,7 +130,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   rirInput: {
-    width: 70,
+    width: 56,
+    textAlign: 'center',
+    backgroundColor: colors.inputBackground,
+    borderRadius: radius.sm,
+    paddingVertical: 8,
+    color: colors.textPrimary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  restInput: {
+    width: 56,
     textAlign: 'center',
     backgroundColor: colors.inputBackground,
     borderRadius: radius.sm,
