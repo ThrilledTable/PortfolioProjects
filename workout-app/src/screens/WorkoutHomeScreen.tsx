@@ -10,10 +10,11 @@ import MuscleTag from '../components/MuscleTag';
 import RestTimerBar from '../components/RestTimerBar';
 import { colors, radius, spacing } from '../theme/theme';
 import { WorkoutStackParamList } from '../navigation/types';
-import { Exercise, LoggedSet, MuscleGroup, SessionExercise, SetType, TemplateExercise } from '../types';
+import { Exercise, LoggedSet, MuscleGroup, SessionExercise, SetType, TemplateExercise, WeightUnit } from '../types';
 import { getAverageLoggedRir, ProgressionSuggestion, suggestProgression } from '../utils/progression';
 import { formatDuration } from '../utils/format';
 import { computeSessionSummary } from '../utils/sessionSummary';
+import { convertWeightTotal, formatWeightValue, parseWeightInput } from '../utils/units';
 
 type Props = NativeStackScreenProps<WorkoutStackParamList, 'WorkoutHome'>;
 
@@ -29,13 +30,51 @@ const SET_TYPE_COLOR: Record<SetType, string> = {
   drop: colors.accent,
 };
 
+function WeightInput({
+  lbsValue,
+  unit,
+  onChangeLbs,
+}: {
+  lbsValue: string;
+  unit: WeightUnit;
+  onChangeLbs: (lbsValue: string) => void;
+}) {
+  const [localText, setLocalText] = useState(() => formatWeightValue(lbsValue, unit));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setLocalText(formatWeightValue(lbsValue, unit));
+  }, [lbsValue, unit, focused]);
+
+  return (
+    <TextInput
+      style={styles.weightInput}
+      value={localText}
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        setLocalText(formatWeightValue(lbsValue, unit));
+      }}
+      onChangeText={(v) => {
+        setLocalText(v);
+        onChangeLbs(parseWeightInput(v, unit));
+      }}
+      placeholder={unit}
+      placeholderTextColor={colors.textMuted}
+      keyboardType="decimal-pad"
+    />
+  );
+}
+
 function SetRow({
   set,
+  unit,
   onUpdate,
   onToggle,
   onOpenMenu,
 }: {
   set: LoggedSet;
+  unit: WeightUnit;
   onUpdate: (field: 'weight' | 'reps' | 'rir', value: string) => void;
   onToggle: () => void;
   onOpenMenu: () => void;
@@ -45,14 +84,7 @@ function SetRow({
       <Pressable onPress={onOpenMenu} hitSlop={10} style={{ width: 20 }}>
         <Ionicons name={SET_TYPE_ICON[set.type]} size={14} color={SET_TYPE_COLOR[set.type]} />
       </Pressable>
-      <TextInput
-        style={styles.weightInput}
-        value={set.weight}
-        onChangeText={(v) => onUpdate('weight', v)}
-        placeholder="lbs"
-        placeholderTextColor={colors.textMuted}
-        keyboardType="decimal-pad"
-      />
+      <WeightInput lbsValue={set.weight} unit={unit} onChangeLbs={(v) => onUpdate('weight', v)} />
       <TextInput
         style={styles.repsInput}
         value={set.reps}
@@ -97,6 +129,7 @@ function ExerciseCard({
   sessionExercise,
   sessionId,
   suggestion,
+  unit,
   onHistory,
   onSetLogged,
 }: {
@@ -105,6 +138,7 @@ function ExerciseCard({
   sessionExercise: SessionExercise;
   sessionId: string;
   suggestion: ProgressionSuggestion | 'deload' | null;
+  unit: WeightUnit;
   onHistory: () => void;
   onSetLogged: (restSeconds: number) => void;
 }) {
@@ -149,6 +183,7 @@ function ExerciseCard({
         <SetRow
           key={set.id}
           set={set}
+          unit={unit}
           onUpdate={(field, value) => updateSetField(sessionId, sessionExercise.id, set.id, field, value)}
           onToggle={() => {
             const wasLogged = set.logged;
@@ -178,6 +213,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   const stepDay = useStore((s) => s.stepDay);
   const completeSession = useStore((s) => s.completeSession);
   const updateSessionNotes = useStore((s) => s.updateSessionNotes);
+  const unit = useStore((s) => s.settings.unit);
   const tabNavigation = useNavigation<BottomTabNavigationProp<Record<string, undefined>>>();
 
   const meso = active ? mesocycles.find((m) => m.id === active.mesoId) : undefined;
@@ -308,7 +344,9 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
           {session.completedAt && (
             <View style={styles.summaryStatsRow}>
               <Text style={styles.summaryStat}>{summary.totalSets} sets</Text>
-              <Text style={styles.summaryStat}>{summary.totalVolume.toLocaleString()} lbs volume</Text>
+              <Text style={styles.summaryStat}>
+                {convertWeightTotal(summary.totalVolume, unit).toLocaleString()} {unit} volume
+              </Text>
               <Text style={styles.summaryStat}>{summary.muscleCount} muscle groups</Text>
             </View>
           )}
@@ -353,6 +391,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
                 sessionExercise={sessionExercise}
                 sessionId={session.id}
                 suggestion={suggestion}
+                unit={unit}
                 onHistory={() => navigation.navigate('ExerciseHistory', { exerciseId: exercise.id })}
                 onSetLogged={startRestTimer}
               />

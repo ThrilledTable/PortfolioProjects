@@ -22,4 +22,5 @@ export type ExercisesStackParamList = {
 export type MoreStackParamList = {
   MoreHome: undefined;
   History: undefined;
+  Settings: undefined;
 };

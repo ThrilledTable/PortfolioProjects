@@ -12,6 +12,7 @@ import {
   LoggedSet,
   SetType,
   ActivePosition,
+  Settings,
 } from '../types';
 import { SEED_EXERCISES } from '../data/seedExercises';
 import { genId } from '../utils/id';
@@ -24,12 +25,22 @@ interface ExerciseHistoryEntry {
   sets: LoggedSet[];
 }
 
+export interface BackupData {
+  exercises: Exercise[];
+  templates: Template[];
+  mesocycles: Mesocycle[];
+  sessions: WorkoutSession[];
+  active: ActivePosition | null;
+  settings: Settings;
+}
+
 interface StoreState {
   exercises: Exercise[];
   templates: Template[];
   mesocycles: Mesocycle[];
   sessions: WorkoutSession[];
   active: ActivePosition | null;
+  settings: Settings;
 
   addExercise: (data: Omit<Exercise, 'id' | 'custom'>) => Exercise;
   deleteExercise: (id: string) => void;
@@ -75,6 +86,25 @@ interface StoreState {
     exerciseId: string,
     beforeWeek: number
   ) => SessionExercise | undefined;
+
+  updateSettings: (patch: Partial<Settings>) => void;
+  getBackupData: () => BackupData;
+  restoreFromBackup: (data: BackupData) => void;
+}
+
+const DEFAULT_SETTINGS: Settings = { unit: 'lbs', defaultRestSeconds: 90 };
+
+export function isValidBackupData(data: unknown): data is BackupData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as Record<string, unknown>;
+  return (
+    Array.isArray(d.exercises) &&
+    Array.isArray(d.templates) &&
+    Array.isArray(d.mesocycles) &&
+    Array.isArray(d.sessions) &&
+    typeof d.settings === 'object' &&
+    d.settings !== null
+  );
 }
 
 const makeLoggedSet = (rir: number): LoggedSet => ({
@@ -130,6 +160,7 @@ export const useStore = create<StoreState>()(
       mesocycles: [],
       sessions: [],
       active: null,
+      settings: DEFAULT_SETTINGS,
 
       addExercise: (data) => {
         const exercise: Exercise = { ...data, id: genId(), custom: true };
@@ -416,6 +447,33 @@ export const useStore = create<StoreState>()(
         return prevSession?.exercises.find((se) => se.exerciseId === exerciseId);
       },
 
+      updateSettings: (patch) => {
+        set((s) => ({ settings: { ...s.settings, ...patch } }));
+      },
+
+      getBackupData: () => {
+        const s = get();
+        return {
+          exercises: s.exercises,
+          templates: s.templates,
+          mesocycles: s.mesocycles,
+          sessions: s.sessions,
+          active: s.active,
+          settings: s.settings,
+        };
+      },
+
+      restoreFromBackup: (data) => {
+        set({
+          exercises: data.exercises,
+          templates: data.templates,
+          mesocycles: data.mesocycles,
+          sessions: data.sessions,
+          active: data.active,
+          settings: { ...DEFAULT_SETTINGS, ...data.settings },
+        });
+      },
+
       getExerciseHistory: (exerciseId) => {
         const { sessions } = get();
         const entries: ExerciseHistoryEntry[] = [];
@@ -444,6 +502,7 @@ export const useStore = create<StoreState>()(
         mesocycles: s.mesocycles,
         sessions: s.sessions,
         active: s.active,
+        settings: s.settings,
       }),
     }
   )

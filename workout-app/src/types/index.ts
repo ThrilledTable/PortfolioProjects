@@ -103,3 +103,10 @@ export interface ActivePosition {
   week: number;
   dayIndex: number;
 }
+
+export type WeightUnit = 'lbs' | 'kg';
+
+export interface Settings {
+  unit: WeightUnit;
+  defaultRestSeconds: number;
+}

@@ -31,6 +31,7 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
   const addMesocycle = useStore((s) => s.addMesocycle);
   const updateMesocycle = useStore((s) => s.updateMesocycle);
   const deleteMesocycle = useStore((s) => s.deleteMesocycle);
+  const defaultRestSeconds = useStore((s) => s.settings.defaultRestSeconds);
 
   const [name, setName] = useState(existing?.name ?? '');
   const [weeks, setWeeks] = useState(String(existing?.weeks ?? 4));
@@ -84,7 +85,7 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
       prev.map((d) =>
         d.id !== dayId
           ? d
-          : { ...d, exercises: [...d.exercises, { id: genId(), exerciseId, sets: [{ id: genId(), repRange: '8-12', rir: 3, restSeconds: 90 }] }] }
+          : { ...d, exercises: [...d.exercises, { id: genId(), exerciseId, sets: [{ id: genId(), repRange: '8-12', rir: 3, restSeconds: defaultRestSeconds }] }] }
       )
     );
   };

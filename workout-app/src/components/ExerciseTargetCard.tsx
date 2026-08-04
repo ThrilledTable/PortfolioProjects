@@ -17,6 +17,7 @@ export default function ExerciseTargetCard({
   onRemove: () => void;
 }) {
   const exercise = useStore((s) => s.exercises.find((e) => e.id === templateExercise.exerciseId));
+  const defaultRestSeconds = useStore((s) => s.settings.defaultRestSeconds);
 
   const updateSet = (setId: string, patch: Partial<TargetSet>) => {
     onChange({
@@ -35,7 +36,7 @@ export default function ExerciseTargetCard({
           id: genId(),
           repRange: last?.repRange ?? '8-12',
           rir: last?.rir ?? 3,
-          restSeconds: last?.restSeconds ?? 90,
+          restSeconds: last?.restSeconds ?? defaultRestSeconds,
         },
       ],
     });

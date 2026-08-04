@@ -8,6 +8,7 @@ import MuscleTag from '../components/MuscleTag';
 import ProgressChart, { ChartPoint } from '../components/ProgressChart';
 import { colors, radius, spacing } from '../theme/theme';
 import { WorkoutStackParamList, ExercisesStackParamList } from '../navigation/types';
+import { convertWeightTotal, formatWeightValue } from '../utils/units';
 
 type Props =
   | NativeStackScreenProps<WorkoutStackParamList, 'ExerciseHistory'>
@@ -22,6 +23,7 @@ export default function ExerciseHistoryScreen({ route }: Props) {
   const { exerciseId } = route.params;
   const exercise = useStore((s) => s.exercises.find((e) => e.id === exerciseId));
   const sessions = useStore((s) => s.sessions);
+  const unit = useStore((s) => s.settings.unit);
   const history = useMemo(
     () => useStore.getState().getExerciseHistory(exerciseId),
     [sessions, exerciseId]
@@ -40,11 +42,11 @@ export default function ExerciseHistoryScreen({ route }: Props) {
     return [...history]
       .reverse()
       .map((entry) => {
-        const value = topWeightBySession.get(entry.sessionId);
-        return value === undefined ? null : { date: entry.date, value };
+        const lbsValue = topWeightBySession.get(entry.sessionId);
+        return lbsValue === undefined ? null : { date: entry.date, value: convertWeightTotal(lbsValue, unit) };
       })
       .filter((p): p is ChartPoint => p !== null);
-  }, [history, topWeightBySession]);
+  }, [history, topWeightBySession, unit]);
 
   const prSessionId = useMemo(() => {
     if (topWeightBySession.size < 2) return null;
@@ -64,7 +66,7 @@ export default function ExerciseHistoryScreen({ route }: Props) {
         </View>
       )}
       {chartPoints.length > 0 && (
-        <ProgressChart title="Top Set Weight" unit="lbs" points={chartPoints} />
+        <ProgressChart title="Top Set Weight" unit={unit} points={chartPoints} />
       )}
       <FlatList
         data={history}
@@ -87,7 +89,9 @@ export default function ExerciseHistoryScreen({ route }: Props) {
             {item.sets.map((s, i) => (
               <View key={s.id} style={styles.setRow}>
                 <Text style={styles.setLabel}>Set {i + 1}</Text>
-                <Text style={styles.setValue}>{s.weight || '-'} lbs × {s.reps || '-'} reps @ {s.rir} RIR</Text>
+                <Text style={styles.setValue}>
+                  {formatWeightValue(s.weight, unit) || '-'} {unit} × {s.reps || '-'} reps @ {s.rir} RIR
+                </Text>
               </View>
             ))}
           </View>

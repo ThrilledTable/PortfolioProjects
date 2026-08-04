@@ -20,6 +20,7 @@ export default function TemplateEditorScreen({ route, navigation }: Props) {
   const addTemplate = useStore((s) => s.addTemplate);
   const updateTemplate = useStore((s) => s.updateTemplate);
   const deleteTemplate = useStore((s) => s.deleteTemplate);
+  const defaultRestSeconds = useStore((s) => s.settings.defaultRestSeconds);
 
   const [name, setName] = useState(existing?.name ?? '');
   const [exercises, setExercises] = useState<TemplateExercise[]>(existing?.exercises ?? []);
@@ -29,7 +30,7 @@ export default function TemplateEditorScreen({ route, navigation }: Props) {
   const addExercise = (exerciseId: string) => {
     setExercises((prev) => [
       ...prev,
-      { id: genId(), exerciseId, sets: [{ id: genId(), repRange: '8-12', rir: 3, restSeconds: 90 }] },
+      { id: genId(), exerciseId, sets: [{ id: genId(), repRange: '8-12', rir: 3, restSeconds: defaultRestSeconds }] },
     ]);
   };
 

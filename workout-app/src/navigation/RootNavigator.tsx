@@ -15,6 +15,7 @@ import ExercisesListScreen from '../screens/ExercisesListScreen';
 import AddExerciseScreen from '../screens/AddExerciseScreen';
 import MoreHomeScreen from '../screens/MoreHomeScreen';
 import HistoryScreen from '../screens/HistoryScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
 import {
   WorkoutStackParamList,
@@ -80,6 +81,7 @@ function MoreStackNavigator() {
     <MoreStack.Navigator screenOptions={screenOptions}>
       <MoreStack.Screen name="MoreHome" component={MoreHomeScreen} options={{ title: 'More' }} />
       <MoreStack.Screen name="History" component={HistoryScreen} options={{ title: 'Workout History' }} />
+      <MoreStack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
     </MoreStack.Navigator>
   );
 }

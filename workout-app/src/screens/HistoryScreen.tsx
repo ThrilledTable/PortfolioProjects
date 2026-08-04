@@ -7,6 +7,7 @@ import { colors, radius, spacing } from '../theme/theme';
 import { Exercise, WorkoutSession } from '../types';
 import { computeSessionSummary } from '../utils/sessionSummary';
 import { formatDuration } from '../utils/format';
+import { convertWeightTotal } from '../utils/units';
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -16,6 +17,7 @@ function formatDate(iso: string) {
 export default function HistoryScreen() {
   const sessions = useStore((s) => s.sessions);
   const exercises = useStore((s) => s.exercises);
+  const unit = useStore((s) => s.settings.unit);
 
   const exerciseById = useMemo(() => {
     const map = new Map<string, Exercise>();
@@ -50,7 +52,7 @@ export default function HistoryScreen() {
             <Text style={styles.inProgressText}>In progress</Text>
           )}
           <Text style={styles.stat}>{summary.totalSets} sets</Text>
-          <Text style={styles.stat}>{summary.totalVolume.toLocaleString()} lbs</Text>
+          <Text style={styles.stat}>{convertWeightTotal(summary.totalVolume, unit).toLocaleString()} {unit}</Text>
         </View>
         {!!session.notes && <Text style={styles.notes} numberOfLines={2}>{session.notes}</Text>}
       </View>

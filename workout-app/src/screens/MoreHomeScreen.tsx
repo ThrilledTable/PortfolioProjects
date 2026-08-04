@@ -9,6 +9,7 @@ import { colors, radius, spacing } from '../theme/theme';
 import { MoreStackParamList } from '../navigation/types';
 import { Exercise } from '../types';
 import { computeStreak, computeThisWeekVolume, computeTotalWorkouts } from '../utils/stats';
+import { convertWeightTotal } from '../utils/units';
 
 type Props = NativeStackScreenProps<MoreStackParamList, 'MoreHome'>;
 
@@ -16,6 +17,7 @@ export default function MoreHomeScreen({ navigation }: Props) {
   const clearActive = useStore((s) => s.clearActive);
   const sessions = useStore((s) => s.sessions);
   const exercises = useStore((s) => s.exercises);
+  const unit = useStore((s) => s.settings.unit);
 
   const exerciseById = useMemo(() => {
     const map = new Map<string, Exercise>();
@@ -64,14 +66,20 @@ export default function MoreHomeScreen({ navigation }: Props) {
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{weekVolume.toLocaleString()}</Text>
-          <Text style={styles.statLabel}>This Week (lbs)</Text>
+          <Text style={styles.statValue}>{convertWeightTotal(weekVolume, unit).toLocaleString()}</Text>
+          <Text style={styles.statLabel}>This Week ({unit})</Text>
         </View>
       </View>
 
       <Pressable style={styles.navRow} onPress={() => navigation.navigate('History')}>
         <Ionicons name="time-outline" size={20} color={colors.textPrimary} />
         <Text style={styles.navRowText}>Workout History</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      </Pressable>
+
+      <Pressable style={styles.navRow} onPress={() => navigation.navigate('Settings')}>
+        <Ionicons name="settings-outline" size={20} color={colors.textPrimary} />
+        <Text style={styles.navRowText}>Settings</Text>
         <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </Pressable>
 
