@@ -5,6 +5,7 @@ export type WorkoutStackParamList = {
 
 export type MesosStackParamList = {
   MesosList: undefined;
+  PlanBuilder: undefined;
   MesoEditor: { mesoId?: string };
 };
 
@@ -23,4 +24,12 @@ export type MoreStackParamList = {
   MoreHome: undefined;
   History: undefined;
   Settings: undefined;
+};
+
+export type RootTabParamList = {
+  Workout: undefined;
+  Mesos: { screen: keyof MesosStackParamList } | undefined;
+  Templates: undefined;
+  Exercises: undefined;
+  More: undefined;
 };

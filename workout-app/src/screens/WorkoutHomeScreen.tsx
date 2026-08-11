@@ -9,7 +9,7 @@ import ScreenContainer from '../components/ScreenContainer';
 import MuscleTag from '../components/MuscleTag';
 import RestTimerBar from '../components/RestTimerBar';
 import { colors, radius, spacing } from '../theme/theme';
-import { WorkoutStackParamList } from '../navigation/types';
+import { RootTabParamList, WorkoutStackParamList } from '../navigation/types';
 import { Exercise, LoggedSet, MuscleGroup, SessionExercise, SetType, TemplateExercise, WeightUnit } from '../types';
 import { getAverageLoggedRir, ProgressionSuggestion, suggestProgression } from '../utils/progression';
 import { formatDuration } from '../utils/format';
@@ -214,7 +214,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   const completeSession = useStore((s) => s.completeSession);
   const updateSessionNotes = useStore((s) => s.updateSessionNotes);
   const unit = useStore((s) => s.settings.unit);
-  const tabNavigation = useNavigation<BottomTabNavigationProp<Record<string, undefined>>>();
+  const tabNavigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
 
   const meso = active ? mesocycles.find((m) => m.id === active.mesoId) : undefined;
   const day = meso && active ? meso.days[active.dayIndex] : undefined;
@@ -278,10 +278,13 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
     return (
       <ScreenContainer style={styles.emptyState}>
         <Ionicons name="barbell-outline" size={48} color={colors.textMuted} />
-        <Text style={styles.emptyTitle}>No active mesocycle</Text>
-        <Text style={styles.emptySubtitle}>Create or select a mesocycle to start logging workouts.</Text>
-        <Pressable style={styles.emptyButton} onPress={() => tabNavigation.navigate('Mesos')}>
-          <Text style={styles.emptyButtonText}>Go to Mesos</Text>
+        <Text style={styles.emptyTitle}>No active workout plan</Text>
+        <Text style={styles.emptySubtitle}>Create or select a workout plan to start logging workouts.</Text>
+        <Pressable
+          style={styles.emptyButton}
+          onPress={() => tabNavigation.navigate('Mesos', { screen: 'PlanBuilder' })}
+        >
+          <Text style={styles.emptyButtonText}>Start New Workout Plan</Text>
         </Pressable>
       </ScreenContainer>
     );

@@ -35,8 +35,8 @@ export default function MesosListScreen({ navigation }: Props) {
   return (
     <ScreenContainer style={{ paddingTop: spacing.md, paddingHorizontal: spacing.md }}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>Mesocycles</Text>
-        <Pressable style={styles.addButton} onPress={() => navigation.navigate('MesoEditor', {})}>
+        <Text style={styles.title}>Workout Builder</Text>
+        <Pressable style={styles.addButton} onPress={() => navigation.navigate('PlanBuilder')}>
           <Ionicons name="add" size={22} color={colors.textPrimary} />
         </Pressable>
       </View>
@@ -70,7 +70,7 @@ export default function MesosListScreen({ navigation }: Props) {
           );
         }}
         ListEmptyComponent={
-          <Text style={styles.empty}>No mesocycles yet. Tap + to create your training program.</Text>
+          <Text style={styles.empty}>No workout plans yet. Tap + to build your training program.</Text>
         }
       />
     </ScreenContainer>

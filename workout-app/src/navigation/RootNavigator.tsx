@@ -8,6 +8,7 @@ import { colors } from '../theme/theme';
 import WorkoutHomeScreen from '../screens/WorkoutHomeScreen';
 import ExerciseHistoryScreen from '../screens/ExerciseHistoryScreen';
 import MesosListScreen from '../screens/MesosListScreen';
+import PlanBuilderScreen from '../screens/PlanBuilderScreen';
 import MesoEditorScreen from '../screens/MesoEditorScreen';
 import TemplatesListScreen from '../screens/TemplatesListScreen';
 import TemplateEditorScreen from '../screens/TemplateEditorScreen';
@@ -51,8 +52,9 @@ function WorkoutStackNavigator() {
 function MesosStackNavigator() {
   return (
     <MesosStack.Navigator screenOptions={screenOptions}>
-      <MesosStack.Screen name="MesosList" component={MesosListScreen} options={{ title: 'Mesocycles' }} />
-      <MesosStack.Screen name="MesoEditor" component={MesoEditorScreen} options={{ title: 'Edit Mesocycle' }} />
+      <MesosStack.Screen name="MesosList" component={MesosListScreen} options={{ title: 'Workout Builder' }} />
+      <MesosStack.Screen name="PlanBuilder" component={PlanBuilderScreen} options={{ title: 'New Workout Plan' }} />
+      <MesosStack.Screen name="MesoEditor" component={MesoEditorScreen} options={{ title: 'Edit Workout Plan' }} />
     </MesosStack.Navigator>
   );
 }
@@ -121,7 +123,7 @@ export default function RootNavigator() {
         })}
       >
         <Tab.Screen name="Workout" component={WorkoutStackNavigator} />
-        <Tab.Screen name="Mesos" component={MesosStackNavigator} />
+        <Tab.Screen name="Mesos" component={MesosStackNavigator} options={{ tabBarLabel: 'Builder' }} />
         <Tab.Screen name="Templates" component={TemplatesStackNavigator} />
         <Tab.Screen name="Exercises" component={ExercisesStackNavigator} />
         <Tab.Screen name="More" component={MoreStackNavigator} />
