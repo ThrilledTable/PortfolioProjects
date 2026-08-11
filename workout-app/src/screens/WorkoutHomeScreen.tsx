@@ -10,18 +10,13 @@ import MuscleTag from '../components/MuscleTag';
 import RestTimerBar from '../components/RestTimerBar';
 import { colors, radius, spacing } from '../theme/theme';
 import { RootTabParamList, WorkoutStackParamList } from '../navigation/types';
-import { Exercise, LoggedSet, MuscleGroup, SessionExercise, SetType, TemplateExercise, WeightUnit } from '../types';
-import { getAverageLoggedRir, ProgressionSuggestion, suggestProgression } from '../utils/progression';
+import ExercisePickerModal from '../components/ExercisePickerModal';
+import { Exercise, LoggedSet, MuscleGroup, PainFlag, PumpLevel, SessionExercise, SetType, TemplateExercise, WeightUnit } from '../types';
+import { getAverageLoggedReps, parseRepRange, ProgressionSuggestion, suggestProgression } from '../utils/progression';
 import { formatDuration } from '../utils/format';
 import { computeSessionSummary } from '../utils/sessionSummary';
 import { convertWeightTotal, formatWeightValue, parseWeightInput } from '../utils/units';
-import {
-  bestSetOf,
-  computeSuggestedTarget,
-  parseRepRangeMidpoint,
-  repsForAlternateWeight,
-  SuggestedTarget,
-} from '../utils/suggestion';
+import { bestSetOf, computeSuggestedTarget, repsForAlternateWeight, SuggestedTarget } from '../utils/suggestion';
 
 type Props = NativeStackScreenProps<WorkoutStackParamList, 'WorkoutHome'>;
 
@@ -82,7 +77,7 @@ function SetRow({
 }: {
   set: LoggedSet;
   unit: WeightUnit;
-  onUpdate: (field: 'weight' | 'reps' | 'rir', value: string) => void;
+  onUpdate: (field: 'weight' | 'reps', value: string) => void;
   onToggle: () => void;
   onOpenMenu: () => void;
 }) {
@@ -97,14 +92,6 @@ function SetRow({
         value={set.reps}
         onChangeText={(v) => onUpdate('reps', v)}
         placeholder="reps"
-        placeholderTextColor={colors.textMuted}
-        keyboardType="number-pad"
-      />
-      <TextInput
-        style={styles.rirInput}
-        value={set.rir}
-        onChangeText={(v) => onUpdate('rir', v)}
-        placeholder="RIR"
         placeholderTextColor={colors.textMuted}
         keyboardType="number-pad"
       />
@@ -203,6 +190,7 @@ function ExerciseCard({
   unit,
   onHistory,
   onSetLogged,
+  onExerciseCompletionCheck,
 }: {
   exercise: Exercise;
   templateExercise: TemplateExercise;
@@ -214,6 +202,7 @@ function ExerciseCard({
   unit: WeightUnit;
   onHistory: () => void;
   onSetLogged: (restSeconds: number) => void;
+  onExerciseCompletionCheck: () => void;
 }) {
   const updateSetField = useStore((s) => s.updateSetField);
   const toggleSetLogged = useStore((s) => s.toggleSetLogged);
@@ -260,7 +249,6 @@ function ExerciseCard({
         <View style={{ width: 20 }} />
         <Text style={[styles.colHeader, { flex: 1 }]}>WEIGHT</Text>
         <Text style={[styles.colHeader, { flex: 1 }]}>REPS</Text>
-        <Text style={[styles.colHeader, { flex: 1 }]}>RIR</Text>
         <Text style={styles.colHeader}>LOG</Text>
       </View>
 
@@ -275,6 +263,7 @@ function ExerciseCard({
             toggleSetLogged(sessionId, sessionExercise.id, set.id);
             if (!wasLogged) {
               onSetLogged(templateExercise.sets[i]?.restSeconds ?? 90);
+              onExerciseCompletionCheck();
             }
           }}
           onOpenMenu={() => openSetMenu(set.id)}
@@ -298,6 +287,9 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   const stepDay = useStore((s) => s.stepDay);
   const completeSession = useStore((s) => s.completeSession);
   const updateSessionNotes = useStore((s) => s.updateSessionNotes);
+  const setExercisePain = useStore((s) => s.setExercisePain);
+  const setMuscleFeedback = useStore((s) => s.setMuscleFeedback);
+  const swapDayExercise = useStore((s) => s.swapDayExercise);
   const unit = useStore((s) => s.settings.unit);
   const tabNavigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
 
@@ -306,6 +298,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   const isDeloadWeek = !!(meso && active && meso.deloadWeeks.includes(active.week));
 
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [swapTarget, setSwapTarget] = useState<{ templateExerciseId: string; muscleGroup: MuscleGroup; exerciseId: string } | null>(null);
 
   useEffect(() => {
     if (meso && active && day) {
@@ -382,6 +375,64 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   const elapsedSeconds = session.completedAt
     ? Math.max(0, (new Date(session.completedAt).getTime() - new Date(session.date).getTime()) / 1000)
     : Math.max(0, (nowTick - new Date(session.date).getTime()) / 1000);
+
+  const promptPain = (sessionExerciseId: string, exerciseName: string, onDone?: () => void) => {
+    const answer = (pain: PainFlag) => {
+      setExercisePain(session.id, sessionExerciseId, pain);
+      onDone?.();
+    };
+    Alert.alert(exerciseName, 'Any pain during that exercise?', [
+      { text: 'No pain', onPress: () => answer('none') },
+      { text: 'Mild discomfort', onPress: () => answer('mild') },
+      { text: 'Sharp pain', style: 'destructive', onPress: () => answer('sharp') },
+    ]);
+  };
+
+  const promptEffort = (muscleGroup: MuscleGroup, pump: PumpLevel) => {
+    Alert.alert('Effort level', 'How hard did that feel overall?', [
+      { text: 'Easy', onPress: () => setMuscleFeedback(session.id, muscleGroup, { pump, effort: 'easy' }) },
+      { text: 'Moderate', onPress: () => setMuscleFeedback(session.id, muscleGroup, { pump, effort: 'moderate' }) },
+      { text: 'Hard', onPress: () => setMuscleFeedback(session.id, muscleGroup, { pump, effort: 'hard' }) },
+      { text: 'Max effort', onPress: () => setMuscleFeedback(session.id, muscleGroup, { pump, effort: 'max' }) },
+    ]);
+  };
+
+  const promptMuscleFeedback = (muscleGroup: MuscleGroup) => {
+    Alert.alert(`${muscleGroup} pump`, 'How was your muscle pump for that muscle group?', [
+      { text: 'Low', onPress: () => promptEffort(muscleGroup, 'low') },
+      { text: 'Medium', onPress: () => promptEffort(muscleGroup, 'medium') },
+      { text: 'High', onPress: () => promptEffort(muscleGroup, 'high') },
+    ]);
+  };
+
+  const checkExerciseCompletion = (exercise: Exercise, sessionExercise: SessionExercise) => {
+    const fresh = useStore.getState().sessions.find((s) => s.id === session.id);
+    if (!fresh) return;
+    const se = fresh.exercises.find((e) => e.id === sessionExercise.id);
+    if (!se) return;
+    const exerciseDone = se.sets.length > 0 && se.sets.every((s) => s.type === 'warmup' || s.logged);
+
+    const maybePromptGroup = () => {
+      const groupExercises = day.exercises
+        .map((te) => exerciseById.get(te.exerciseId))
+        .filter((e): e is Exercise => !!e && e.muscleGroup === exercise.muscleGroup);
+      const latest = useStore.getState().sessions.find((s) => s.id === session.id);
+      if (!latest) return;
+      const groupDone = groupExercises.every((ex) => {
+        const gse = latest.exercises.find((s) => s.exerciseId === ex.id);
+        return gse && gse.sets.length > 0 && gse.sets.every((s) => s.type === 'warmup' || s.logged);
+      });
+      if (groupDone && !latest.muscleFeedback?.[exercise.muscleGroup]) {
+        promptMuscleFeedback(exercise.muscleGroup);
+      }
+    };
+
+    if (exerciseDone && se.painFlag === undefined) {
+      promptPain(se.id, exercise.name, maybePromptGroup);
+    } else {
+      maybePromptGroup();
+    }
+  };
 
   return (
     <ScreenContainer>
@@ -461,18 +512,35 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
           const prevWeekExercise = useStore
             .getState()
             .getPreviousSessionExercise(meso.id, day.id, te.exerciseId, active.week);
-          const targetRir = te.sets[0]?.rir ?? 3;
-          const direction = suggestProgression(targetRir, getAverageLoggedRir(prevWeekExercise?.sets ?? []));
+          const repRange = parseRepRange(te.sets[0]?.repRange ?? '8-12');
+          const direction = suggestProgression(repRange, getAverageLoggedReps(prevWeekExercise?.sets ?? []));
           const suggestion: ProgressionSuggestion | 'deload' | null = isDeloadWeek ? 'deload' : direction;
           const prevBestSet = bestSetOf(prevWeekExercise?.sets ?? []);
-          const repTarget = parseRepRangeMidpoint(te.sets[0]?.repRange ?? '8-12');
+          const repTarget = Math.round((repRange.low + repRange.high) / 2);
           const suggestedTarget = computeSuggestedTarget(prevBestSet, direction, repTarget, isDeloadWeek);
+          const lowPumpStreak = showTag
+            ? useStore.getState().getLowPumpStreak(meso.id, day.id, exercise.muscleGroup, active.week)
+            : 0;
 
           return (
             <View key={te.id}>
               {showTag && (
                 <View style={{ marginBottom: spacing.sm, marginTop: idx === 0 ? 0 : spacing.md }}>
                   <MuscleTag muscle={exercise.muscleGroup as MuscleGroup} />
+                </View>
+              )}
+              {showTag && lowPumpStreak >= 2 && (
+                <View style={styles.swapBanner}>
+                  <Text style={styles.swapBannerText}>
+                    Low pump on {exercise.muscleGroup} {lowPumpStreak} sessions in a row.
+                  </Text>
+                  <Pressable
+                    onPress={() =>
+                      setSwapTarget({ templateExerciseId: te.id, muscleGroup: exercise.muscleGroup, exerciseId: te.exerciseId })
+                    }
+                  >
+                    <Text style={styles.swapBannerLink}>Try a different exercise?</Text>
+                  </Pressable>
                 </View>
               )}
               <ExerciseCard
@@ -486,6 +554,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
                 unit={unit}
                 onHistory={() => navigation.navigate('ExerciseHistory', { exerciseId: exercise.id })}
                 onSetLogged={startRestTimer}
+                onExerciseCompletionCheck={() => checkExerciseCompletion(exercise, sessionExercise)}
               />
             </View>
           );
@@ -510,6 +579,16 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
           onSkip={() => setRestTimer(null)}
         />
       )}
+
+      <ExercisePickerModal
+        visible={swapTarget !== null}
+        onClose={() => setSwapTarget(null)}
+        muscleGroupFilter={swapTarget?.muscleGroup}
+        excludeExerciseId={swapTarget?.exerciseId}
+        onSelect={(ex) => {
+          if (swapTarget) swapDayExercise(meso.id, day.id, swapTarget.templateExerciseId, ex.id);
+        }}
+      />
     </ScreenContainer>
   );
 }
@@ -590,6 +669,21 @@ const styles = StyleSheet.create({
   exerciseHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.sm },
   exerciseName: { color: colors.textPrimary, fontSize: 17, fontWeight: '800' },
   exerciseEquipment: { color: colors.textSecondary, fontSize: 13 },
+  swapBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f6a35c22',
+    borderWidth: 1,
+    borderColor: '#f6a35c55',
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  swapBannerText: { color: colors.textSecondary, fontSize: 12, flex: 1 },
+  swapBannerLink: { color: '#f6a35c', fontSize: 12, fontWeight: '700' },
   suggestionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -639,17 +733,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   repsInput: {
-    flex: 1,
-    minWidth: 0,
-    textAlign: 'center',
-    backgroundColor: colors.inputBackground,
-    borderRadius: radius.sm,
-    paddingVertical: 10,
-    color: colors.textPrimary,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  rirInput: {
     flex: 1,
     minWidth: 0,
     textAlign: 'center',

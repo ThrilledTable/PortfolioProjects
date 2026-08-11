@@ -70,7 +70,6 @@ export default function ExerciseTargetCard({
       <View style={styles.colHeaderRow}>
         <Text style={styles.colHeader}>SET</Text>
         <Text style={styles.colHeader}>REPS</Text>
-        <Text style={styles.colHeader}>RIR</Text>
         <Text style={styles.colHeader}>REST</Text>
         <View style={{ width: 20 }} />
       </View>
@@ -82,13 +81,6 @@ export default function ExerciseTargetCard({
             value={s.repRange}
             onChangeText={(v) => updateSet(s.id, { repRange: v })}
             placeholder="8-12"
-            placeholderTextColor={colors.textMuted}
-          />
-          <TextInput
-            style={styles.rirInput}
-            value={String(s.rir)}
-            onChangeText={(v) => updateSet(s.id, { rir: Number(v.replace(/[^0-9]/g, '')) || 0 })}
-            keyboardType="number-pad"
             placeholderTextColor={colors.textMuted}
           />
           <TextInput
@@ -129,16 +121,6 @@ const styles = StyleSheet.create({
   setRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   setIndex: { color: colors.textSecondary, width: 56, textAlign: 'center', fontSize: 13 },
   repInput: {
-    width: 56,
-    textAlign: 'center',
-    backgroundColor: colors.inputBackground,
-    borderRadius: radius.sm,
-    paddingVertical: 8,
-    color: colors.textPrimary,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  rirInput: {
     width: 56,
     textAlign: 'center',
     backgroundColor: colors.inputBackground,

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
-import { Exercise } from '../types';
+import { Exercise, MuscleGroup } from '../types';
 import { colors, radius, spacing } from '../theme/theme';
 import MuscleTag from './MuscleTag';
 
@@ -10,21 +10,27 @@ export default function ExercisePickerModal({
   visible,
   onClose,
   onSelect,
+  muscleGroupFilter,
+  excludeExerciseId,
 }: {
   visible: boolean;
   onClose: () => void;
   onSelect: (exercise: Exercise) => void;
+  muscleGroupFilter?: MuscleGroup;
+  excludeExerciseId?: string;
 }) {
   const exercises = useStore((s) => s.exercises);
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return exercises;
-    return exercises.filter(
-      (e) => e.name.toLowerCase().includes(q) || e.muscleGroup.toLowerCase().includes(q)
-    );
-  }, [exercises, query]);
+    return exercises.filter((e) => {
+      if (muscleGroupFilter && e.muscleGroup !== muscleGroupFilter) return false;
+      if (excludeExerciseId && e.id === excludeExerciseId) return false;
+      if (!q) return true;
+      return e.name.toLowerCase().includes(q) || e.muscleGroup.toLowerCase().includes(q);
+    });
+  }, [exercises, query, muscleGroupFilter, excludeExerciseId]);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>

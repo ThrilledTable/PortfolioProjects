@@ -34,17 +34,6 @@ export function roundToIncrement(value: number, increment = ROUND_INCREMENT_LBS)
   return Math.max(increment, Math.round(value / increment) * increment);
 }
 
-export function parseRepRangeMidpoint(repRange: string, fallback = 10): number {
-  const match = repRange.match(/(\d+)\s*-\s*(\d+)/);
-  if (match) {
-    const lo = Number(match[1]);
-    const hi = Number(match[2]);
-    if (!Number.isNaN(lo) && !Number.isNaN(hi)) return Math.round((lo + hi) / 2);
-  }
-  const single = Number(repRange);
-  return Number.isNaN(single) ? fallback : single;
-}
-
 export function bestSetOf(sets: LoggedSet[]): { weight: number; reps: number } | null {
   let best: { weight: number; reps: number } | null = null;
   for (const s of sets) {

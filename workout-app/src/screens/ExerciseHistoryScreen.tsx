@@ -90,7 +90,7 @@ export default function ExerciseHistoryScreen({ route }: Props) {
               <View key={s.id} style={styles.setRow}>
                 <Text style={styles.setLabel}>Set {i + 1}</Text>
                 <Text style={styles.setValue}>
-                  {formatWeightValue(s.weight, unit) || '-'} {unit} × {s.reps || '-'} reps @ {s.rir} RIR
+                  {formatWeightValue(s.weight, unit) || '-'} {unit} × {s.reps || '-'} reps
                 </Text>
               </View>
             ))}

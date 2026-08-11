@@ -6,10 +6,13 @@ import {
   TemplateExercise,
   Mesocycle,
   MesoDay,
+  MuscleGroup,
+  MuscleFeedback,
   WorkoutSession,
   SessionExercise,
   LoggedSet,
   SetType,
+  PainFlag,
   ActivePosition,
   Settings,
 } from '../types';
@@ -46,6 +49,7 @@ interface StoreState {
   updateMesocycle: (id: string, patch: Partial<Omit<Mesocycle, 'id'>>) => void;
   deleteMesocycle: (id: string) => void;
   duplicateMesocycle: (id: string) => void;
+  swapDayExercise: (mesoId: string, dayId: string, templateExerciseId: string, newExerciseId: string) => void;
 
   setActive: (mesoId: string, week: number, dayIndex: number) => void;
   clearActive: () => void;
@@ -56,7 +60,7 @@ interface StoreState {
     sessionId: string,
     sessionExerciseId: string,
     setId: string,
-    field: 'weight' | 'reps' | 'rir',
+    field: 'weight' | 'reps',
     value: string
   ) => void;
   toggleSetLogged: (sessionId: string, sessionExerciseId: string, setId: string) => void;
@@ -70,6 +74,8 @@ interface StoreState {
   removeSet: (sessionId: string, sessionExerciseId: string, setId: string) => void;
   completeSession: (sessionId: string) => void;
   updateSessionNotes: (sessionId: string, notes: string) => void;
+  setExercisePain: (sessionId: string, sessionExerciseId: string, pain: PainFlag) => void;
+  setMuscleFeedback: (sessionId: string, muscleGroup: MuscleGroup, feedback: MuscleFeedback) => void;
 
   getExerciseHistory: (exerciseId: string) => ExerciseHistoryEntry[];
   getPreviousSessionExercise: (
@@ -78,6 +84,7 @@ interface StoreState {
     exerciseId: string,
     beforeWeek: number
   ) => SessionExercise | undefined;
+  getLowPumpStreak: (mesoId: string, dayId: string, muscleGroup: MuscleGroup, beforeWeek: number) => number;
 
   updateSettings: (patch: Partial<Settings>) => void;
   getBackupData: () => BackupData;
@@ -98,11 +105,15 @@ export function isValidBackupData(data: unknown): data is BackupData {
   );
 }
 
-const makeLoggedSet = (rir: number): LoggedSet => ({
+const MIN_SETS = 1;
+const MAX_SETS = 6;
+const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+const makeLoggedSet = (): LoggedSet => ({
   id: genId(),
   weight: '',
   reps: '',
-  rir: String(rir),
+  rir: '',
   logged: false,
   type: 'working',
 });
@@ -120,21 +131,45 @@ const findPreviousSession = (
   return candidates.reduce((latest, s) => (s.week > latest.week ? s : latest));
 };
 
+// How many sets to add/remove for the next session of this exercise, based on
+// how the previous session felt: sharp pain backs off; a solid pump with
+// capacity to spare adds a set; anything else holds steady. A low pump alone
+// doesn't reduce sets -- that's better solved by swapping the exercise
+// (see getLowPumpStreak), not by training the muscle less.
+const suggestSetCountDelta = (pain?: PainFlag, feedback?: MuscleFeedback): number => {
+  if (pain === 'sharp') return -1;
+  if (!feedback) return 0;
+  const { pump, effort } = feedback;
+  if ((pump === 'medium' || pump === 'high') && (effort === 'easy' || effort === 'moderate')) return 1;
+  return 0;
+};
+
 const buildSessionExercise = (
   te: TemplateExercise,
-  prevExercise?: SessionExercise
-): SessionExercise => ({
-  id: genId(),
-  exerciseId: te.exerciseId,
-  sets: te.sets.map((ts, i) => {
-    const base = makeLoggedSet(ts.rir);
-    const prevSet = prevExercise?.sets[i];
-    if (prevSet && prevSet.logged && prevSet.reps !== '') {
-      return { ...base, weight: prevSet.weight, reps: prevSet.reps };
-    }
-    return base;
-  }),
-});
+  muscleGroup: MuscleGroup | undefined,
+  prevExercise?: SessionExercise,
+  prevSession?: WorkoutSession
+): SessionExercise => {
+  const delta = suggestSetCountDelta(
+    prevExercise?.painFlag,
+    muscleGroup ? prevSession?.muscleFeedback?.[muscleGroup] : undefined
+  );
+  const baseCount = prevExercise ? prevExercise.sets.length : te.sets.length;
+  const targetCount = clamp(baseCount + delta, MIN_SETS, MAX_SETS);
+
+  return {
+    id: genId(),
+    exerciseId: te.exerciseId,
+    sets: Array.from({ length: targetCount }, (_, i) => {
+      const base = makeLoggedSet();
+      const prevSet = prevExercise?.sets[i];
+      if (prevSet && prevSet.logged && prevSet.reps !== '') {
+        return { ...base, weight: prevSet.weight, reps: prevSet.reps };
+      }
+      return base;
+    }),
+  };
+};
 
 const cloneExercises = (exercises: TemplateExercise[]): TemplateExercise[] =>
   exercises.map((te) => ({
@@ -208,6 +243,27 @@ export const useStore = create<StoreState>()(
           return { mesocycles: [...s.mesocycles, copy] };
         });
       },
+      swapDayExercise: (mesoId, dayId, templateExerciseId, newExerciseId) => {
+        set((s) => ({
+          mesocycles: s.mesocycles.map((m) =>
+            m.id !== mesoId
+              ? m
+              : {
+                  ...m,
+                  days: m.days.map((d) =>
+                    d.id !== dayId
+                      ? d
+                      : {
+                          ...d,
+                          exercises: d.exercises.map((te) =>
+                            te.id !== templateExerciseId ? te : { ...te, exerciseId: newExerciseId }
+                          ),
+                        }
+                  ),
+                }
+          ),
+        }));
+      },
 
       setActive: (mesoId, week, dayIndex) => {
         set({ active: { mesoId, week, dayIndex } });
@@ -232,11 +288,13 @@ export const useStore = create<StoreState>()(
       },
 
       getOrCreateSession: (mesoId, week, dayIndex) => {
-        const { sessions, mesocycles } = get();
+        const { sessions, mesocycles, exercises } = get();
         const meso = mesocycles.find((m) => m.id === mesoId);
         if (!meso) throw new Error('Mesocycle not found');
         const day = meso.days[dayIndex];
         if (!day) throw new Error('Day not found');
+        const muscleGroupOf = (exerciseId: string) =>
+          exercises.find((e) => e.id === exerciseId)?.muscleGroup;
 
         const existing = sessions.find(
           (s) => s.mesoId === mesoId && s.week === week && s.dayId === day.id
@@ -250,7 +308,9 @@ export const useStore = create<StoreState>()(
             const newSessionExercises: SessionExercise[] = missing.map((te) =>
               buildSessionExercise(
                 te,
-                prevSession?.exercises.find((se) => se.exerciseId === te.exerciseId)
+                muscleGroupOf(te.exerciseId),
+                prevSession?.exercises.find((se) => se.exerciseId === te.exerciseId),
+                prevSession
               )
             );
             set((s) => ({
@@ -268,7 +328,9 @@ export const useStore = create<StoreState>()(
         const sessionExercises: SessionExercise[] = day.exercises.map((te) =>
           buildSessionExercise(
             te,
-            prevSession?.exercises.find((se) => se.exerciseId === te.exerciseId)
+            muscleGroupOf(te.exerciseId),
+            prevSession?.exercises.find((se) => se.exerciseId === te.exerciseId),
+            prevSession
           )
         );
 
@@ -364,7 +426,7 @@ export const useStore = create<StoreState>()(
                           ...se,
                           sets: [
                             ...se.sets,
-                            makeLoggedSet(Number(se.sets[se.sets.length - 1]?.rir ?? 3)),
+                            makeLoggedSet(),
                           ],
                         }
                   ),
@@ -406,9 +468,52 @@ export const useStore = create<StoreState>()(
         }));
       },
 
+      setExercisePain: (sessionId, sessionExerciseId, pain) => {
+        set((s) => ({
+          sessions: s.sessions.map((sess) =>
+            sess.id !== sessionId
+              ? sess
+              : {
+                  ...sess,
+                  exercises: sess.exercises.map((se) =>
+                    se.id !== sessionExerciseId ? se : { ...se, painFlag: pain }
+                  ),
+                }
+          ),
+        }));
+      },
+
+      setMuscleFeedback: (sessionId, muscleGroup, feedback) => {
+        set((s) => ({
+          sessions: s.sessions.map((sess) =>
+            sess.id !== sessionId
+              ? sess
+              : { ...sess, muscleFeedback: { ...sess.muscleFeedback, [muscleGroup]: feedback } }
+          ),
+        }));
+      },
+
       getPreviousSessionExercise: (mesoId, dayId, exerciseId, beforeWeek) => {
         const prevSession = findPreviousSession(get().sessions, mesoId, dayId, beforeWeek);
         return prevSession?.exercises.find((se) => se.exerciseId === exerciseId);
+      },
+
+      getLowPumpStreak: (mesoId, dayId, muscleGroup, beforeWeek) => {
+        const candidates = get()
+          .sessions.filter(
+            (s) =>
+              s.mesoId === mesoId &&
+              s.dayId === dayId &&
+              s.week < beforeWeek &&
+              s.muscleFeedback?.[muscleGroup]
+          )
+          .sort((a, b) => b.week - a.week);
+        let streak = 0;
+        for (const s of candidates) {
+          if (s.muscleFeedback?.[muscleGroup]?.pump === 'low') streak++;
+          else break;
+        }
+        return streak;
       },
 
       updateSettings: (patch) => {

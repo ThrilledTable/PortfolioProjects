@@ -73,10 +73,20 @@ export interface LoggedSet {
   type: SetType;
 }
 
+export type PainFlag = 'none' | 'mild' | 'sharp';
+export type PumpLevel = 'low' | 'medium' | 'high';
+export type EffortLevel = 'easy' | 'moderate' | 'hard' | 'max';
+
+export interface MuscleFeedback {
+  pump: PumpLevel;
+  effort: EffortLevel;
+}
+
 export interface SessionExercise {
   id: string;
   exerciseId: string;
   sets: LoggedSet[];
+  painFlag?: PainFlag;
 }
 
 export interface WorkoutSession {
@@ -90,6 +100,7 @@ export interface WorkoutSession {
   completedAt?: string;
   notes?: string;
   exercises: SessionExercise[];
+  muscleFeedback?: Partial<Record<MuscleGroup, MuscleFeedback>>;
 }
 
 export interface ActivePosition {
