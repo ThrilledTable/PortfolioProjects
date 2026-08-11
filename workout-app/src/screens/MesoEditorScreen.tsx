@@ -217,7 +217,7 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
     } else {
       addMesocycle(name.trim(), weeksNum, finalDays, finalDeloadWeeks);
     }
-    navigation.goBack();
+    navigation.navigate('MesosList');
   };
 
   const remove = () => {
@@ -229,7 +229,7 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
         style: 'destructive',
         onPress: () => {
           deleteMesocycle(existing.id);
-          navigation.goBack();
+          navigation.navigate('MesosList');
         },
       },
     ]);

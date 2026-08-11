@@ -15,6 +15,13 @@ import { getAverageLoggedRir, ProgressionSuggestion, suggestProgression } from '
 import { formatDuration } from '../utils/format';
 import { computeSessionSummary } from '../utils/sessionSummary';
 import { convertWeightTotal, formatWeightValue, parseWeightInput } from '../utils/units';
+import {
+  bestSetOf,
+  computeSuggestedTarget,
+  parseRepRangeMidpoint,
+  repsForAlternateWeight,
+  SuggestedTarget,
+} from '../utils/suggestion';
 
 type Props = NativeStackScreenProps<WorkoutStackParamList, 'WorkoutHome'>;
 
@@ -123,12 +130,76 @@ function ProgressionBadge({ suggestion }: { suggestion: ProgressionSuggestion | 
   );
 }
 
+function SuggestionRow({
+  target,
+  unit,
+  isDeload,
+  onApply,
+}: {
+  target: SuggestedTarget;
+  unit: WeightUnit;
+  isDeload: boolean;
+  onApply: (weightLbs: string, reps?: string) => void;
+}) {
+  const [adjusting, setAdjusting] = useState(false);
+  const [altWeightText, setAltWeightText] = useState(() => formatWeightValue(String(target.weight), unit));
+
+  const altWeightLbs = Number(parseWeightInput(altWeightText, unit));
+  const hasAltWeight = adjusting && altWeightLbs > 0;
+  const altReps = hasAltWeight ? repsForAlternateWeight(target.oneRepMax, altWeightLbs) : target.reps;
+  const displayWeight = formatWeightValue(String(target.weight), unit);
+
+  const apply = () => {
+    if (hasAltWeight) {
+      onApply(String(altWeightLbs), isDeload ? undefined : String(altReps));
+    } else {
+      onApply(String(target.weight), isDeload ? undefined : String(target.reps));
+    }
+  };
+
+  return (
+    <View style={styles.suggestionRow}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.suggestionRowText}>
+          Suggested: {displayWeight} {unit}
+          {!isDeload && ` × ${target.reps} reps`}
+        </Text>
+        {adjusting && !isDeload && (
+          <View style={styles.adjustRow}>
+            <Text style={styles.adjustLabel}>I have</Text>
+            <TextInput
+              style={styles.adjustInput}
+              value={altWeightText}
+              onChangeText={setAltWeightText}
+              keyboardType="decimal-pad"
+              placeholder={unit}
+              placeholderTextColor={colors.textMuted}
+              autoFocus
+            />
+            <Text style={styles.adjustLabel}>{unit} → try {altReps} reps</Text>
+          </View>
+        )}
+      </View>
+      {!isDeload && (
+        <Pressable onPress={() => setAdjusting((v) => !v)} hitSlop={8}>
+          <Text style={styles.suggestionLink}>{adjusting ? 'Cancel' : 'Different weight?'}</Text>
+        </Pressable>
+      )}
+      <Pressable style={styles.applyButton} onPress={apply}>
+        <Text style={styles.applyButtonText}>Apply</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function ExerciseCard({
   exercise,
   templateExercise,
   sessionExercise,
   sessionId,
   suggestion,
+  suggestedTarget,
+  isDeloadWeek,
   unit,
   onHistory,
   onSetLogged,
@@ -138,6 +209,8 @@ function ExerciseCard({
   sessionExercise: SessionExercise;
   sessionId: string;
   suggestion: ProgressionSuggestion | 'deload' | null;
+  suggestedTarget: SuggestedTarget | null;
+  isDeloadWeek: boolean;
   unit: WeightUnit;
   onHistory: () => void;
   onSetLogged: (restSeconds: number) => void;
@@ -158,6 +231,14 @@ function ExerciseCard({
     ]);
   };
 
+  const applySuggestedTarget = (weightLbs: string, reps?: string) => {
+    sessionExercise.sets.forEach((s) => {
+      if (s.type === 'warmup') return;
+      updateSetField(sessionId, sessionExercise.id, s.id, 'weight', weightLbs);
+      if (reps !== undefined) updateSetField(sessionId, sessionExercise.id, s.id, 'reps', reps);
+    });
+  };
+
   return (
     <View style={styles.exerciseCard}>
       <View style={styles.exerciseHeaderRow}>
@@ -170,6 +251,10 @@ function ExerciseCard({
           <Ionicons name="time-outline" size={20} color={colors.textSecondary} />
         </Pressable>
       </View>
+
+      {suggestedTarget && (
+        <SuggestionRow target={suggestedTarget} unit={unit} isDeload={isDeloadWeek} onApply={applySuggestedTarget} />
+      )}
 
       <View style={styles.colHeaderRow}>
         <View style={{ width: 20 }} />
@@ -377,9 +462,11 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
             .getState()
             .getPreviousSessionExercise(meso.id, day.id, te.exerciseId, active.week);
           const targetRir = te.sets[0]?.rir ?? 3;
-          const suggestion: ProgressionSuggestion | 'deload' | null = isDeloadWeek
-            ? 'deload'
-            : suggestProgression(targetRir, getAverageLoggedRir(prevWeekExercise?.sets ?? []));
+          const direction = suggestProgression(targetRir, getAverageLoggedRir(prevWeekExercise?.sets ?? []));
+          const suggestion: ProgressionSuggestion | 'deload' | null = isDeloadWeek ? 'deload' : direction;
+          const prevBestSet = bestSetOf(prevWeekExercise?.sets ?? []);
+          const repTarget = parseRepRangeMidpoint(te.sets[0]?.repRange ?? '8-12');
+          const suggestedTarget = computeSuggestedTarget(prevBestSet, direction, repTarget, isDeloadWeek);
 
           return (
             <View key={te.id}>
@@ -394,6 +481,8 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
                 sessionExercise={sessionExercise}
                 sessionId={session.id}
                 suggestion={suggestion}
+                suggestedTarget={suggestedTarget}
+                isDeloadWeek={isDeloadWeek}
                 unit={unit}
                 onHistory={() => navigation.navigate('ExerciseHistory', { exerciseId: exercise.id })}
                 onSetLogged={startRestTimer}
@@ -501,6 +590,39 @@ const styles = StyleSheet.create({
   exerciseHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.sm },
   exerciseName: { color: colors.textPrimary, fontSize: 17, fontWeight: '800' },
   exerciseEquipment: { color: colors.textSecondary, fontSize: 13 },
+  suggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.accentMuted,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  suggestionRowText: { color: colors.textPrimary, fontSize: 13, fontWeight: '700' },
+  suggestionLink: { color: colors.accent, fontSize: 12, fontWeight: '700' },
+  adjustRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' },
+  adjustLabel: { color: colors.textSecondary, fontSize: 12 },
+  adjustInput: {
+    backgroundColor: colors.inputBackground,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    color: colors.textPrimary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    width: 64,
+    textAlign: 'center',
+    fontSize: 12,
+  },
+  applyButton: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  applyButtonText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   colHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   colHeader: { color: colors.textMuted, fontSize: 11, fontWeight: '700', textAlign: 'center', width: 44 },
   setRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.xs },
