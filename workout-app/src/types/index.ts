@@ -47,12 +47,6 @@ export interface TemplateExercise {
   sets: TargetSet[];
 }
 
-export interface Template {
-  id: string;
-  name: string;
-  exercises: TemplateExercise[];
-}
-
 export interface MesoDay {
   id: string;
   name: string;

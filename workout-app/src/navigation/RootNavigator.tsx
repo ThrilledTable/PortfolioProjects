@@ -10,8 +10,6 @@ import ExerciseHistoryScreen from '../screens/ExerciseHistoryScreen';
 import MesosListScreen from '../screens/MesosListScreen';
 import PlanBuilderScreen from '../screens/PlanBuilderScreen';
 import MesoEditorScreen from '../screens/MesoEditorScreen';
-import TemplatesListScreen from '../screens/TemplatesListScreen';
-import TemplateEditorScreen from '../screens/TemplateEditorScreen';
 import ExercisesListScreen from '../screens/ExercisesListScreen';
 import AddExerciseScreen from '../screens/AddExerciseScreen';
 import MoreHomeScreen from '../screens/MoreHomeScreen';
@@ -21,7 +19,6 @@ import SettingsScreen from '../screens/SettingsScreen';
 import {
   WorkoutStackParamList,
   MesosStackParamList,
-  TemplatesStackParamList,
   ExercisesStackParamList,
   MoreStackParamList,
 } from './types';
@@ -29,7 +26,6 @@ import {
 const Tab = createBottomTabNavigator();
 const WorkoutStack = createNativeStackNavigator<WorkoutStackParamList>();
 const MesosStack = createNativeStackNavigator<MesosStackParamList>();
-const TemplatesStack = createNativeStackNavigator<TemplatesStackParamList>();
 const ExercisesStack = createNativeStackNavigator<ExercisesStackParamList>();
 const MoreStack = createNativeStackNavigator<MoreStackParamList>();
 
@@ -56,15 +52,6 @@ function MesosStackNavigator() {
       <MesosStack.Screen name="PlanBuilder" component={PlanBuilderScreen} options={{ title: 'New Workout Plan' }} />
       <MesosStack.Screen name="MesoEditor" component={MesoEditorScreen} options={{ title: 'Edit Workout Plan' }} />
     </MesosStack.Navigator>
-  );
-}
-
-function TemplatesStackNavigator() {
-  return (
-    <TemplatesStack.Navigator screenOptions={screenOptions}>
-      <TemplatesStack.Screen name="TemplatesList" component={TemplatesListScreen} options={{ title: 'Templates' }} />
-      <TemplatesStack.Screen name="TemplateEditor" component={TemplateEditorScreen} options={{ title: 'Edit Template' }} />
-    </TemplatesStack.Navigator>
   );
 }
 
@@ -103,7 +90,6 @@ const navTheme: Theme = {
 const tabIcon: Record<string, keyof typeof Ionicons.glyphMap> = {
   Workout: 'calendar-outline',
   Mesos: 'folder-outline',
-  Templates: 'grid-outline',
   Exercises: 'barbell-outline',
   More: 'ellipsis-horizontal-circle-outline',
 };
@@ -124,7 +110,6 @@ export default function RootNavigator() {
       >
         <Tab.Screen name="Workout" component={WorkoutStackNavigator} />
         <Tab.Screen name="Mesos" component={MesosStackNavigator} options={{ tabBarLabel: 'Builder' }} />
-        <Tab.Screen name="Templates" component={TemplatesStackNavigator} />
         <Tab.Screen name="Exercises" component={ExercisesStackNavigator} />
         <Tab.Screen name="More" component={MoreStackNavigator} />
       </Tab.Navigator>

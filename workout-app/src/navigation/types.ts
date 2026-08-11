@@ -9,11 +9,6 @@ export type MesosStackParamList = {
   MesoEditor: { mesoId?: string };
 };
 
-export type TemplatesStackParamList = {
-  TemplatesList: undefined;
-  TemplateEditor: { templateId?: string };
-};
-
 export type ExercisesStackParamList = {
   ExercisesList: undefined;
   ExerciseHistory: { exerciseId: string };
@@ -29,7 +24,6 @@ export type MoreStackParamList = {
 export type RootTabParamList = {
   Workout: undefined;
   Mesos: { screen: keyof MesosStackParamList } | undefined;
-  Templates: undefined;
   Exercises: undefined;
   More: undefined;
 };

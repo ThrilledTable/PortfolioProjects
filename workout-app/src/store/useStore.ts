@@ -3,7 +3,6 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Exercise,
-  Template,
   TemplateExercise,
   Mesocycle,
   MesoDay,
@@ -27,7 +26,6 @@ interface ExerciseHistoryEntry {
 
 export interface BackupData {
   exercises: Exercise[];
-  templates: Template[];
   mesocycles: Mesocycle[];
   sessions: WorkoutSession[];
   active: ActivePosition | null;
@@ -36,7 +34,6 @@ export interface BackupData {
 
 interface StoreState {
   exercises: Exercise[];
-  templates: Template[];
   mesocycles: Mesocycle[];
   sessions: WorkoutSession[];
   active: ActivePosition | null;
@@ -44,11 +41,6 @@ interface StoreState {
 
   addExercise: (data: Omit<Exercise, 'id' | 'custom'>) => Exercise;
   deleteExercise: (id: string) => void;
-
-  addTemplate: (name: string, exercises: TemplateExercise[]) => Template;
-  updateTemplate: (id: string, patch: Partial<Omit<Template, 'id'>>) => void;
-  deleteTemplate: (id: string) => void;
-  duplicateTemplate: (id: string) => void;
 
   addMesocycle: (name: string, weeks: number, days: MesoDay[], deloadWeeks?: number[]) => Mesocycle;
   updateMesocycle: (id: string, patch: Partial<Omit<Mesocycle, 'id'>>) => void;
@@ -99,7 +91,6 @@ export function isValidBackupData(data: unknown): data is BackupData {
   const d = data as Record<string, unknown>;
   return (
     Array.isArray(d.exercises) &&
-    Array.isArray(d.templates) &&
     Array.isArray(d.mesocycles) &&
     Array.isArray(d.sessions) &&
     typeof d.settings === 'object' &&
@@ -156,7 +147,6 @@ export const useStore = create<StoreState>()(
   persist(
     (set, get) => ({
       exercises: SEED_EXERCISES,
-      templates: [],
       mesocycles: [],
       sessions: [],
       active: null,
@@ -169,32 +159,6 @@ export const useStore = create<StoreState>()(
       },
       deleteExercise: (id) => {
         set((s) => ({ exercises: s.exercises.filter((e) => e.id !== id) }));
-      },
-
-      addTemplate: (name, exercises) => {
-        const template: Template = { id: genId(), name, exercises };
-        set((s) => ({ templates: [...s.templates, template] }));
-        return template;
-      },
-      updateTemplate: (id, patch) => {
-        set((s) => ({
-          templates: s.templates.map((t) => (t.id === id ? { ...t, ...patch } : t)),
-        }));
-      },
-      deleteTemplate: (id) => {
-        set((s) => ({ templates: s.templates.filter((t) => t.id !== id) }));
-      },
-      duplicateTemplate: (id) => {
-        set((s) => {
-          const source = s.templates.find((t) => t.id === id);
-          if (!source) return s;
-          const copy: Template = {
-            id: genId(),
-            name: `${source.name} Copy`,
-            exercises: cloneExercises(source.exercises),
-          };
-          return { templates: [...s.templates, copy] };
-        });
       },
 
       addMesocycle: (name, weeks, days, deloadWeeks = []) => {
@@ -455,7 +419,6 @@ export const useStore = create<StoreState>()(
         const s = get();
         return {
           exercises: s.exercises,
-          templates: s.templates,
           mesocycles: s.mesocycles,
           sessions: s.sessions,
           active: s.active,
@@ -466,7 +429,6 @@ export const useStore = create<StoreState>()(
       restoreFromBackup: (data) => {
         set({
           exercises: data.exercises,
-          templates: data.templates,
           mesocycles: data.mesocycles,
           sessions: data.sessions,
           active: data.active,
@@ -498,7 +460,6 @@ export const useStore = create<StoreState>()(
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({
         exercises: s.exercises,
-        templates: s.templates,
         mesocycles: s.mesocycles,
         sessions: s.sessions,
         active: s.active,

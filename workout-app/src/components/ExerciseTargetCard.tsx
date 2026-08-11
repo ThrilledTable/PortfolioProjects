@@ -11,10 +11,12 @@ export default function ExerciseTargetCard({
   templateExercise,
   onChange,
   onRemove,
+  dragHandlers,
 }: {
   templateExercise: TemplateExercise;
   onChange: (next: TemplateExercise) => void;
   onRemove: () => void;
+  dragHandlers?: object;
 }) {
   const exercise = useStore((s) => s.exercises.find((e) => e.id === templateExercise.exerciseId));
   const defaultRestSeconds = useStore((s) => s.settings.defaultRestSeconds);
@@ -58,6 +60,11 @@ export default function ExerciseTargetCard({
         <Pressable onPress={onRemove} hitSlop={10}>
           <Ionicons name="trash-outline" size={20} color={colors.danger} />
         </Pressable>
+        {dragHandlers && (
+          <View {...dragHandlers} hitSlop={10} style={styles.dragHandle}>
+            <Ionicons name="reorder-three" size={22} color={colors.textMuted} />
+          </View>
+        )}
       </View>
 
       <View style={styles.colHeaderRow}>
@@ -114,7 +121,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     gap: spacing.sm,
   },
-  header: { flexDirection: 'row', alignItems: 'flex-start' },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  dragHandle: { paddingLeft: 2 },
   name: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
   colHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   colHeader: { color: colors.textMuted, fontSize: 11, fontWeight: '700', width: 56, textAlign: 'center' },

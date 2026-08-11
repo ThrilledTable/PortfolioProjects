@@ -1,13 +1,11 @@
-import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Alert, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useStore } from '../store/useStore';
 import ScreenContainer from '../components/ScreenContainer';
 import ExercisePickerModal from '../components/ExercisePickerModal';
-import TemplatePickerModal from '../components/TemplatePickerModal';
 import ExerciseTargetCard from '../components/ExerciseTargetCard';
-import ReorderExercisesModal from '../components/ReorderExercisesModal';
 import VolumeSummary from '../components/VolumeSummary';
 import { colors, radius, spacing } from '../theme/theme';
 import { MesosStackParamList } from '../navigation/types';
@@ -16,12 +14,77 @@ import { genId } from '../utils/id';
 
 type Props = NativeStackScreenProps<MesosStackParamList, 'MesoEditor'>;
 
-function cloneTemplateExercises(exercises: TemplateExercise[]): TemplateExercise[] {
-  return exercises.map((te) => ({
-    id: genId(),
-    exerciseId: te.exerciseId,
-    sets: te.sets.map((s) => ({ ...s, id: genId() })),
-  }));
+const DEFAULT_ROW_HEIGHT = 90;
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function indexForOffset(heights: number[], originIndex: number, dy: number) {
+  let idx = originIndex;
+  let remaining = dy;
+  if (dy > 0) {
+    while (idx < heights.length - 1 && remaining >= heights[idx + 1] / 2) {
+      remaining -= heights[idx + 1];
+      idx++;
+    }
+  } else if (dy < 0) {
+    while (idx > 0 && -remaining >= heights[idx - 1] / 2) {
+      remaining += heights[idx - 1];
+      idx--;
+    }
+  }
+  return idx;
+}
+
+function cumulativeOffset(heights: number[], fromIndex: number, toIndex: number) {
+  let sum = 0;
+  if (toIndex > fromIndex) {
+    for (let i = fromIndex + 1; i <= toIndex; i++) sum += heights[i];
+  } else if (toIndex < fromIndex) {
+    for (let i = toIndex; i < fromIndex; i++) sum -= heights[i];
+  }
+  return sum;
+}
+
+function DraggableExerciseRow({
+  isActive,
+  dragY,
+  onGrant,
+  onMove,
+  onRelease,
+  onLayout,
+  children,
+}: {
+  isActive: boolean;
+  dragY: Animated.Value;
+  onGrant: () => void;
+  onMove: (dy: number) => void;
+  onRelease: () => void;
+  onLayout: (height: number) => void;
+  children: (dragHandlers: object) => React.ReactNode;
+}) {
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: onGrant,
+      onPanResponderMove: (_, gesture) => onMove(gesture.dy),
+      onPanResponderRelease: onRelease,
+      onPanResponderTerminate: onRelease,
+    })
+  ).current;
+
+  return (
+    <Animated.View
+      onLayout={(e) => onLayout(e.nativeEvent.layout.height)}
+      style={[
+        isActive && { transform: [{ translateY: dragY }], zIndex: 10 },
+        isActive && styles.rowActive,
+      ]}
+    >
+      {children(panResponder.panHandlers)}
+    </Animated.View>
+  );
 }
 
 export default function MesoEditorScreen({ route, navigation }: Props) {
@@ -38,8 +101,11 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
   const [deloadWeeks, setDeloadWeeks] = useState<number[]>(existing?.deloadWeeks ?? []);
   const [days, setDays] = useState<MesoDay[]>(existing?.days ?? []);
   const [exercisePickerDayId, setExercisePickerDayId] = useState<string | null>(null);
-  const [templatePickerDayId, setTemplatePickerDayId] = useState<string | null>(null);
-  const [reorderDayId, setReorderDayId] = useState<string | null>(null);
+
+  const dragY = useRef(new Animated.Value(0)).current;
+  const [dragActive, setDragActive] = useState<{ dayId: string; id: string } | null>(null);
+  const dragOrigin = useRef<{ dayId: string; id: string; originIndex: number; heights: number[] } | null>(null);
+  const rowHeightsRef = useRef<Record<string, number>>({});
 
   const toggleDeloadWeek = (weekNum: number) => {
     setDeloadWeeks((prev) =>
@@ -76,10 +142,6 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
     );
   };
 
-  const setDayExercises = (dayId: string, exercises: TemplateExercise[]) => {
-    setDays((prev) => prev.map((d) => (d.id !== dayId ? d : { ...d, exercises })));
-  };
-
   const addExerciseToDay = (dayId: string, exerciseId: string) => {
     setDays((prev) =>
       prev.map((d) =>
@@ -90,12 +152,6 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
     );
   };
 
-  const loadTemplateIntoDay = (dayId: string, templateExercises: TemplateExercise[]) => {
-    setDays((prev) =>
-      prev.map((d) => (d.id !== dayId ? d : { ...d, exercises: [...d.exercises, ...cloneTemplateExercises(templateExercises)] }))
-    );
-  };
-
   const deriveMuscleGroups = (day: MesoDay) => {
     const set = new Set<string>();
     for (const te of day.exercises) {
@@ -103,6 +159,44 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
       if (ex) set.add(ex.muscleGroup);
     }
     return Array.from(set) as MesoDay['muscleGroups'];
+  };
+
+  const handleDragGrant = (dayId: string, id: string) => {
+    const day = days.find((d) => d.id === dayId);
+    if (!day) return;
+    const originIndex = day.exercises.findIndex((e) => e.id === id);
+    if (originIndex === -1) return;
+    const heights = day.exercises.map((e) => rowHeightsRef.current[e.id] ?? DEFAULT_ROW_HEIGHT);
+    dragOrigin.current = { dayId, id, originIndex, heights };
+    dragY.setValue(0);
+    setDragActive({ dayId, id });
+  };
+
+  const handleDragMove = (dayId: string, id: string, dy: number) => {
+    const origin = dragOrigin.current;
+    if (!origin || origin.dayId !== dayId || origin.id !== id) return;
+    setDays((prev) =>
+      prev.map((d) => {
+        if (d.id !== dayId) return d;
+        const currentIndex = d.exercises.findIndex((e) => e.id === id);
+        if (currentIndex === -1) return d;
+        const newIndex = clamp(indexForOffset(origin.heights, origin.originIndex, dy), 0, d.exercises.length - 1);
+        let exercises = d.exercises;
+        if (newIndex !== currentIndex) {
+          exercises = [...d.exercises];
+          const [moved] = exercises.splice(currentIndex, 1);
+          exercises.splice(newIndex, 0, moved);
+        }
+        dragY.setValue(dy - cumulativeOffset(origin.heights, origin.originIndex, newIndex));
+        return { ...d, exercises };
+      })
+    );
+  };
+
+  const handleDragRelease = () => {
+    dragOrigin.current = null;
+    setDragActive(null);
+    Animated.timing(dragY, { toValue: 0, duration: 120, useNativeDriver: false }).start();
   };
 
   const save = () => {
@@ -143,7 +237,7 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
 
   return (
     <ScreenContainer style={{ padding: spacing.md }}>
-      <ScrollView keyboardShouldPersistTaps="handled">
+      <ScrollView keyboardShouldPersistTaps="handled" scrollEnabled={dragActive === null}>
         <Text style={styles.label}>Mesocycle Name</Text>
         <TextInput
           style={styles.input}
@@ -201,12 +295,26 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
             </View>
 
             {day.exercises.map((te) => (
-              <ExerciseTargetCard
+              <DraggableExerciseRow
                 key={te.id}
-                templateExercise={te}
-                onChange={(next) => updateDayExercise(day.id, next)}
-                onRemove={() => removeDayExercise(day.id, te.id)}
-              />
+                isActive={dragActive?.dayId === day.id && dragActive?.id === te.id}
+                dragY={dragY}
+                onGrant={() => handleDragGrant(day.id, te.id)}
+                onMove={(dy) => handleDragMove(day.id, te.id, dy)}
+                onRelease={handleDragRelease}
+                onLayout={(height) => {
+                  rowHeightsRef.current[te.id] = height;
+                }}
+              >
+                {(dragHandlers) => (
+                  <ExerciseTargetCard
+                    templateExercise={te}
+                    onChange={(next) => updateDayExercise(day.id, next)}
+                    onRemove={() => removeDayExercise(day.id, te.id)}
+                    dragHandlers={day.exercises.length > 1 ? dragHandlers : undefined}
+                  />
+                )}
+              </DraggableExerciseRow>
             ))}
 
             <View style={styles.dayActionsRow}>
@@ -214,16 +322,6 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
                 <Ionicons name="add" size={16} color={colors.accent} />
                 <Text style={styles.addExerciseText}>Add Exercise</Text>
               </Pressable>
-              <Pressable style={styles.dayActionButton} onPress={() => setTemplatePickerDayId(day.id)}>
-                <Ionicons name="download-outline" size={16} color={colors.accent} />
-                <Text style={styles.addExerciseText}>Load Template</Text>
-              </Pressable>
-              {day.exercises.length > 1 && (
-                <Pressable style={styles.dayActionButton} onPress={() => setReorderDayId(day.id)}>
-                  <Ionicons name="reorder-three" size={16} color={colors.accent} />
-                  <Text style={styles.addExerciseText}>Reorder</Text>
-                </Pressable>
-              )}
             </View>
           </View>
         ))}
@@ -244,17 +342,6 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
         visible={exercisePickerDayId !== null}
         onClose={() => setExercisePickerDayId(null)}
         onSelect={(ex) => exercisePickerDayId && addExerciseToDay(exercisePickerDayId, ex.id)}
-      />
-      <TemplatePickerModal
-        visible={templatePickerDayId !== null}
-        onClose={() => setTemplatePickerDayId(null)}
-        onSelect={(t) => templatePickerDayId && loadTemplateIntoDay(templatePickerDayId, t.exercises)}
-      />
-      <ReorderExercisesModal
-        visible={reorderDayId !== null}
-        exercises={days.find((d) => d.id === reorderDayId)?.exercises ?? []}
-        onClose={() => setReorderDayId(null)}
-        onSave={(next) => reorderDayId && setDayExercises(reorderDayId, next)}
       />
     </ScreenContainer>
   );
@@ -298,6 +385,14 @@ const styles = StyleSheet.create({
   dayNameInput: { color: colors.textPrimary, fontSize: 17, fontWeight: '800', flex: 1 },
   dayActionsRow: { flexDirection: 'row', gap: spacing.md, marginTop: 4 },
   dayActionButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  rowActive: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
   empty: { color: colors.textMuted, textAlign: 'center', marginVertical: spacing.md },
   saveButton: {
     marginTop: spacing.lg,
