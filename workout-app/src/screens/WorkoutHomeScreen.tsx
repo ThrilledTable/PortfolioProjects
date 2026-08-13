@@ -11,6 +11,7 @@ import RestTimerBar from '../components/RestTimerBar';
 import { colors, radius, spacing } from '../theme/theme';
 import { RootTabParamList, WorkoutStackParamList } from '../navigation/types';
 import ExercisePickerModal from '../components/ExercisePickerModal';
+import FormGuideModal from '../components/FormGuideModal';
 import { Exercise, LoggedSet, MuscleGroup, PainFlag, PumpLevel, SessionExercise, SetType, TemplateExercise, WeightUnit } from '../types';
 import { getAverageLoggedReps, parseRepRange, ProgressionSuggestion, suggestProgression } from '../utils/progression';
 import { formatDuration } from '../utils/format';
@@ -189,6 +190,7 @@ function ExerciseCard({
   isDeloadWeek,
   unit,
   onHistory,
+  onShowForm,
   onSetLogged,
   onExerciseCompletionCheck,
 }: {
@@ -201,6 +203,7 @@ function ExerciseCard({
   isDeloadWeek: boolean;
   unit: WeightUnit;
   onHistory: () => void;
+  onShowForm: () => void;
   onSetLogged: (restSeconds: number) => void;
   onExerciseCompletionCheck: () => void;
 }) {
@@ -236,6 +239,9 @@ function ExerciseCard({
           <Text style={styles.exerciseEquipment}>{exercise.equipment}</Text>
           <ProgressionBadge suggestion={suggestion} />
         </View>
+        <Pressable onPress={onShowForm} hitSlop={10} style={{ marginRight: spacing.sm }}>
+          <Ionicons name="body-outline" size={20} color={colors.textSecondary} />
+        </Pressable>
         <Pressable onPress={onHistory} hitSlop={10} style={{ marginRight: spacing.sm }}>
           <Ionicons name="time-outline" size={20} color={colors.textSecondary} />
         </Pressable>
@@ -299,6 +305,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [swapTarget, setSwapTarget] = useState<{ templateExerciseId: string; muscleGroup: MuscleGroup; exerciseId: string } | null>(null);
+  const [formGuideExercise, setFormGuideExercise] = useState<Exercise | null>(null);
 
   useEffect(() => {
     if (meso && active && day) {
@@ -553,6 +560,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
                 isDeloadWeek={isDeloadWeek}
                 unit={unit}
                 onHistory={() => navigation.navigate('ExerciseHistory', { exerciseId: exercise.id })}
+                onShowForm={() => setFormGuideExercise(exercise)}
                 onSetLogged={startRestTimer}
                 onExerciseCompletionCheck={() => checkExerciseCompletion(exercise, sessionExercise)}
               />
@@ -588,6 +596,12 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
         onSelect={(ex) => {
           if (swapTarget) swapDayExercise(meso.id, day.id, swapTarget.templateExerciseId, ex.id);
         }}
+      />
+
+      <FormGuideModal
+        visible={formGuideExercise !== null}
+        exercise={formGuideExercise}
+        onClose={() => setFormGuideExercise(null)}
       />
     </ScreenContainer>
   );
