@@ -91,7 +91,12 @@ interface StoreState {
   restoreFromBackup: (data: BackupData) => void;
 }
 
-const DEFAULT_SETTINGS: Settings = { unit: 'lbs', defaultRestSeconds: 90 };
+const DEFAULT_SETTINGS: Settings = {
+  unit: 'lbs',
+  defaultRestSeconds: 90,
+  restTimerNotifications: true,
+  keepAwakeDuringWorkout: true,
+};
 
 export function isValidBackupData(data: unknown): data is BackupData {
   if (!data || typeof data !== 'object') return false;
@@ -570,6 +575,16 @@ export const useStore = create<StoreState>()(
         active: s.active,
         settings: s.settings,
       }),
+      // The default shallow merge would replace `settings` wholesale, so any
+      // key added after a user's data was written would come back undefined.
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<StoreState>;
+        return {
+          ...current,
+          ...saved,
+          settings: { ...DEFAULT_SETTINGS, ...(saved.settings ?? {}) },
+        };
+      },
     }
   )
 );

@@ -39,13 +39,13 @@ export default function RestTimerBar({
             <Text style={styles.iconButtonText}>-15</Text>
           </Pressable>
           <Pressable style={styles.playButton} onPress={onToggleRunning} hitSlop={8}>
-            <Ionicons name={running ? 'pause' : 'play'} size={18} color="#fff" />
+            <Ionicons name={running ? 'pause' : 'play'} size={22} color="#fff" />
           </Pressable>
           <Pressable style={styles.iconButton} onPress={() => onAddTime(15)} hitSlop={8}>
             <Text style={styles.iconButtonText}>+15</Text>
           </Pressable>
           <Pressable style={styles.skipButton} onPress={onSkip} hitSlop={8}>
-            <Ionicons name="close" size={18} color={colors.textSecondary} />
+            <Ionicons name="close" size={20} color={colors.textSecondary} />
           </Pressable>
         </View>
       </View>
@@ -75,27 +75,30 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'center' },
   label: { color: colors.textSecondary, fontWeight: '700', fontSize: 13, flex: 1 },
-  time: { color: colors.textPrimary, fontWeight: '800', fontSize: 20, marginRight: spacing.md },
+  time: { color: colors.textPrimary, fontWeight: '800', fontSize: 24, marginRight: spacing.md },
   controls: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   iconButton: {
+    minWidth: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
+    paddingVertical: 12,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  iconButtonText: { color: colors.textSecondary, fontWeight: '700', fontSize: 12 },
+  iconButtonText: { color: colors.textSecondary, fontWeight: '700', fontSize: 14 },
   playButton: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     borderRadius: radius.pill,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   skipButton: {
-    width: 28,
-    height: 28,
+    width: 40,
+    height: 40,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,

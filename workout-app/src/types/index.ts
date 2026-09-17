@@ -114,4 +114,8 @@ export type WeightUnit = 'lbs' | 'kg';
 export interface Settings {
   unit: WeightUnit;
   defaultRestSeconds: number;
+  /** Fire a local notification when the rest timer runs out while the app is backgrounded. */
+  restTimerNotifications: boolean;
+  /** Hold the screen on while a workout is in progress. */
+  keepAwakeDuringWorkout: boolean;
 }

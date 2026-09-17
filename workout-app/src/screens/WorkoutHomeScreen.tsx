@@ -19,6 +19,9 @@ import { formatDuration } from '../utils/format';
 import { computeSessionSummary } from '../utils/sessionSummary';
 import { convertWeightTotal, formatWeightValue, parseWeightInput } from '../utils/units';
 import { bestSetOf, computeSuggestedTarget, repsForAlternateWeight, SuggestedTarget } from '../utils/suggestion';
+import { useRestTimer } from '../hooks/useRestTimer';
+import { useKeepAwakeWhile } from '../hooks/useKeepAwakeWhile';
+import { tapFeedback, successFeedback } from '../utils/haptics';
 
 type Props = NativeStackScreenProps<WorkoutStackParamList, 'WorkoutHome'>;
 
@@ -85,7 +88,7 @@ function SetRow({
 }) {
   return (
     <View style={[styles.setRow, set.type === 'warmup' && styles.setRowWarmup]}>
-      <Pressable onPress={onOpenMenu} hitSlop={10} style={{ width: 20 }}>
+      <Pressable onPress={onOpenMenu} hitSlop={14} style={styles.setMenuButton}>
         <Ionicons name={SET_TYPE_ICON[set.type]} size={14} color={SET_TYPE_COLOR[set.type]} />
       </Pressable>
       <WeightInput lbsValue={set.weight} unit={unit} onChangeLbs={(v) => onUpdate('weight', v)} />
@@ -98,7 +101,7 @@ function SetRow({
         keyboardType="number-pad"
       />
       <Pressable style={[styles.logBox, set.logged && styles.logBoxChecked]} onPress={onToggle}>
-        {set.logged && <Ionicons name="checkmark" size={16} color="#fff" />}
+        {set.logged && <Ionicons name="checkmark" size={22} color="#fff" />}
       </Pressable>
     </View>
   );
@@ -232,6 +235,29 @@ function ExerciseCard({
     }
   };
 
+  // Most sets repeat the load of the one before them, so an empty set being
+  // logged fills itself in from the nearest earlier set of the same kind,
+  // falling back to the app's own suggestion. Saves retyping the same numbers
+  // three times per exercise.
+  const prefillSet = (index: number, set: LoggedSet) => {
+    const needsWeight = !set.weight.trim();
+    const needsReps = !set.reps.trim();
+    if (!needsWeight && !needsReps) return;
+    const donor = sessionExercise.sets
+      .slice(0, index)
+      .reverse()
+      .find((s) => s.type === set.type && s.weight.trim() && s.reps.trim());
+    if (needsWeight) {
+      const weight = donor?.weight ?? (suggestedTarget ? String(suggestedTarget.weight) : '');
+      if (weight) updateSetField(sessionId, sessionExercise.id, set.id, 'weight', weight);
+    }
+    if (needsReps) {
+      const reps =
+        donor?.reps ?? (suggestedTarget && !isDeloadWeek ? String(suggestedTarget.reps) : '');
+      if (reps) updateSetField(sessionId, sessionExercise.id, set.id, 'reps', reps);
+    }
+  };
+
   const applySuggestedTarget = (weightLbs: string, reps?: string) => {
     sessionExercise.sets.forEach((s) => {
       if (s.type === 'warmup') return;
@@ -275,7 +301,9 @@ function ExerciseCard({
           onUpdate={(field, value) => updateSetField(sessionId, sessionExercise.id, set.id, field, value)}
           onToggle={() => {
             const wasLogged = set.logged;
+            if (!wasLogged) prefillSet(i, set);
             toggleSetLogged(sessionId, sessionExercise.id, set.id);
+            tapFeedback();
             if (!wasLogged) {
               onSetLogged(templateExercise.sets[i]?.restSeconds ?? 90);
               onExerciseCompletionCheck();
@@ -306,7 +334,8 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   const setMuscleFeedback = useStore((s) => s.setMuscleFeedback);
   const swapDayExercise = useStore((s) => s.swapDayExercise);
   const dialog = useDialog();
-  const unit = useStore((s) => s.settings.unit);
+  const settings = useStore((s) => s.settings);
+  const unit = settings.unit;
   const tabNavigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
 
   const meso = active ? mesocycles.find((m) => m.id === active.mesoId) : undefined;
@@ -334,28 +363,15 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
     return map;
   }, [exercises]);
 
-  const [restTimer, setRestTimer] = useState<{
-    secondsLeft: number;
-    totalSeconds: number;
-    running: boolean;
-  } | null>(null);
+  const {
+    timer: restTimer,
+    start: startRestTimer,
+    toggleRunning: toggleRestTimer,
+    addTime: addRestTime,
+    skip: skipRestTimer,
+  } = useRestTimer(settings.restTimerNotifications);
 
-  useEffect(() => {
-    if (!restTimer?.running) return;
-    const interval = setInterval(() => {
-      setRestTimer((prev) => {
-        if (!prev || !prev.running) return prev;
-        if (prev.secondsLeft <= 1) return null;
-        return { ...prev, secondsLeft: prev.secondsLeft - 1 };
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [restTimer?.running]);
-
-  const startRestTimer = (seconds: number) => {
-    if (seconds <= 0) return;
-    setRestTimer({ secondsLeft: seconds, totalSeconds: seconds, running: true });
-  };
+  useKeepAwakeWhile(settings.keepAwakeDuringWorkout && !!session && !session.completedAt);
 
   const [nowTick, setNowTick] = useState(Date.now());
   useEffect(() => {
@@ -388,6 +404,12 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   if (!session || !summary) {
     return <ScreenContainer />;
   }
+
+  const finishWorkout = () => {
+    completeSession(session.id);
+    skipRestTimer();
+    successFeedback();
+  };
 
   const elapsedSeconds = session.completedAt
     ? Math.max(0, (new Date(session.completedAt).getTime() - new Date(session.date).getTime()) / 1000)
@@ -475,7 +497,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
           <View style={styles.sessionStatusRow}>
             <Pressable
               style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-              onPress={() => completeSession(session.id)}
+              onPress={() => finishWorkout()}
             >
               <Ionicons
                 name={session.completedAt ? 'checkmark-circle' : 'time-outline'}
@@ -487,7 +509,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
               </Text>
             </Pressable>
             {!session.completedAt && (
-              <Pressable style={styles.finishButton} onPress={() => completeSession(session.id)}>
+              <Pressable style={styles.finishButton} onPress={() => finishWorkout()}>
                 <Text style={styles.finishButtonText}>Finish Workout</Text>
               </Pressable>
             )}
@@ -579,17 +601,9 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
           secondsLeft={restTimer.secondsLeft}
           totalSeconds={restTimer.totalSeconds}
           running={restTimer.running}
-          onToggleRunning={() =>
-            setRestTimer((prev) => (prev ? { ...prev, running: !prev.running } : prev))
-          }
-          onAddTime={(delta) =>
-            setRestTimer((prev) => {
-              if (!prev) return prev;
-              const secondsLeft = Math.max(0, prev.secondsLeft + delta);
-              return { ...prev, secondsLeft, totalSeconds: Math.max(prev.totalSeconds, secondsLeft) };
-            })
-          }
-          onSkip={() => setRestTimer(null)}
+          onToggleRunning={toggleRestTimer}
+          onAddTime={addRestTime}
+          onSkip={skipRestTimer}
         />
       )}
 
@@ -740,13 +754,15 @@ const styles = StyleSheet.create({
   colHeader: { color: colors.textMuted, fontSize: 11, fontWeight: '700', textAlign: 'center', width: 44 },
   setRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.xs },
   setRowWarmup: { opacity: 0.55 },
+  setMenuButton: { width: 20, height: 44, alignItems: 'center', justifyContent: 'center' },
   weightInput: {
     flex: 1,
     minWidth: 0,
     textAlign: 'center',
     backgroundColor: colors.inputBackground,
     borderRadius: radius.sm,
-    paddingVertical: 10,
+    paddingVertical: 14,
+    fontSize: 16,
     color: colors.textPrimary,
     borderWidth: 1,
     borderColor: colors.border,
@@ -757,14 +773,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     backgroundColor: colors.inputBackground,
     borderRadius: radius.sm,
-    paddingVertical: 10,
+    paddingVertical: 14,
+    fontSize: 16,
     color: colors.textPrimary,
     borderWidth: 1,
     borderColor: colors.border,
   },
   logBox: {
-    width: 28,
-    height: 28,
+    width: 44,
+    height: 44,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,

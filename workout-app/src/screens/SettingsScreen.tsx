@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
 import ScreenContainer from '../components/ScreenContainer';
@@ -84,6 +84,34 @@ export default function SettingsScreen() {
       />
       <Text style={styles.hint}>Used as the starting rest time when you add a new set to a template or day.</Text>
 
+      <Text style={styles.label}>During a Workout</Text>
+      <View style={styles.toggleRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.toggleTitle}>Rest Timer Alerts</Text>
+          <Text style={styles.toggleHint}>
+            Send a notification when rest is up, so you can put your phone away between sets.
+          </Text>
+        </View>
+        <Switch
+          value={settings.restTimerNotifications}
+          onValueChange={(restTimerNotifications) => updateSettings({ restTimerNotifications })}
+          trackColor={{ false: colors.border, true: colors.accent }}
+        />
+      </View>
+      <View style={styles.toggleRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.toggleTitle}>Keep Screen On</Text>
+          <Text style={styles.toggleHint}>
+            Stop the screen locking while a workout is in progress.
+          </Text>
+        </View>
+        <Switch
+          value={settings.keepAwakeDuringWorkout}
+          onValueChange={(keepAwakeDuringWorkout) => updateSettings({ keepAwakeDuringWorkout })}
+          trackColor={{ false: colors.border, true: colors.accent }}
+        />
+      </View>
+
       <Text style={styles.label}>Backup</Text>
       <Pressable style={styles.actionRow} onPress={handleExport} disabled={exporting}>
         <Ionicons name="download-outline" size={20} color={colors.textPrimary} />
@@ -143,4 +171,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   actionRowText: { color: colors.textPrimary, fontWeight: '600', fontSize: 15 },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  toggleTitle: { color: colors.textPrimary, fontWeight: '600', fontSize: 15 },
+  toggleHint: { color: colors.textMuted, fontSize: 12, marginTop: 2, lineHeight: 16 },
 });

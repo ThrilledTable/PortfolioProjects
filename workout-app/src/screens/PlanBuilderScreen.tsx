@@ -16,6 +16,8 @@ const DAY_OPTIONS = [1, 2, 3, 4, 5, 6];
 export default function PlanBuilderScreen({ navigation }: Props) {
   const exercises = useStore((s) => s.exercises);
   const addMesocycle = useStore((s) => s.addMesocycle);
+  const active = useStore((s) => s.active);
+  const setActive = useStore((s) => s.setActive);
   const defaultRestSeconds = useStore((s) => s.settings.defaultRestSeconds);
   const dialog = useDialog();
 
@@ -38,6 +40,11 @@ export default function PlanBuilderScreen({ navigation }: Props) {
     const weeksNum = Math.max(1, Number(weeks) || 1);
     const days = buildSuggestedDays(daysPerWeek, focusMuscles, exercises, defaultRestSeconds);
     const meso = addMesocycle(name.trim(), weeksNum, days, [weeksNum]);
+    // A first-time user who just generated a plan would otherwise land on the
+    // Workout tab's "No active workout plan" empty state. Only claim the slot
+    // when nothing is active, so building a future block mid-mesocycle does
+    // not quietly reset where someone is in their current one.
+    if (!active) setActive(meso.id, 1, 0);
     navigation.replace('MesoEditor', { mesoId: meso.id });
   };
 
