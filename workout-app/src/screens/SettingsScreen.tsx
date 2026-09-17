@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
 import ScreenContainer from '../components/ScreenContainer';
+import { useDialog } from '../components/DialogProvider';
 import { colors, radius, spacing } from '../theme/theme';
 import { WeightUnit } from '../types';
 import { exportBackup, importBackup } from '../utils/backup';
@@ -12,6 +13,7 @@ export default function SettingsScreen() {
   const updateSettings = useStore((s) => s.updateSettings);
   const getBackupData = useStore((s) => s.getBackupData);
   const restoreFromBackup = useStore((s) => s.restoreFromBackup);
+  const dialog = useDialog();
 
   const [restText, setRestText] = useState(String(settings.defaultRestSeconds));
   const [exporting, setExporting] = useState(false);
@@ -30,7 +32,7 @@ export default function SettingsScreen() {
     const result = await exportBackup(getBackupData());
     setExporting(false);
     if (!result.success) {
-      Alert.alert('Export Failed', result.message ?? 'Something went wrong.');
+      dialog.alert('Export Failed', result.message ?? 'Something went wrong.');
     }
   };
 
@@ -40,26 +42,19 @@ export default function SettingsScreen() {
     setImporting(false);
     if (!result.success || !result.data) {
       if (result.message && result.message !== 'Cancelled.') {
-        Alert.alert('Import Failed', result.message);
+        dialog.alert('Import Failed', result.message);
       }
       return;
     }
     const data = result.data;
-    Alert.alert(
+    const confirmed = await dialog.confirm(
       'Replace All Data?',
-      'This will overwrite every exercise, template, mesocycle, and logged workout currently on this device with the contents of the backup file.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Replace',
-          style: 'destructive',
-          onPress: () => {
-            restoreFromBackup(data);
-            setRestText(String(data.settings.defaultRestSeconds));
-          },
-        },
-      ]
+      'This will overwrite every exercise, workout plan, and logged workout currently on this device with the contents of the backup file.',
+      { confirmLabel: 'Replace', destructive: true }
     );
+    if (!confirmed) return;
+    restoreFromBackup(data);
+    setRestText(String(data.settings.defaultRestSeconds));
   };
 
   return (

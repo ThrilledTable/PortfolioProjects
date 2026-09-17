@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
@@ -12,7 +12,8 @@ import { colors, radius, spacing } from '../theme/theme';
 import { RootTabParamList, WorkoutStackParamList } from '../navigation/types';
 import ExercisePickerModal from '../components/ExercisePickerModal';
 import FormGuideModal from '../components/FormGuideModal';
-import { Exercise, LoggedSet, MuscleGroup, PainFlag, PumpLevel, SessionExercise, SetType, TemplateExercise, WeightUnit } from '../types';
+import { useDialog } from '../components/DialogProvider';
+import { EffortLevel, Exercise, LoggedSet, MuscleGroup, PainFlag, PumpLevel, SessionExercise, SetType, TemplateExercise, WeightUnit } from '../types';
 import { getAverageLoggedReps, parseRepRange, ProgressionSuggestion, suggestProgression } from '../utils/progression';
 import { formatDuration } from '../utils/format';
 import { computeSessionSummary } from '../utils/sessionSummary';
@@ -212,15 +213,23 @@ function ExerciseCard({
   const setLoggedSetType = useStore((s) => s.setLoggedSetType);
   const addSet = useStore((s) => s.addSet);
   const removeSet = useStore((s) => s.removeSet);
+  const dialog = useDialog();
 
-  const openSetMenu = (setId: string) => {
-    Alert.alert('Set Options', undefined, [
-      { text: 'Warm-up Set', onPress: () => setLoggedSetType(sessionId, sessionExercise.id, setId, 'warmup') },
-      { text: 'Working Set', onPress: () => setLoggedSetType(sessionId, sessionExercise.id, setId, 'working') },
-      { text: 'Drop Set', onPress: () => setLoggedSetType(sessionId, sessionExercise.id, setId, 'drop') },
-      { text: 'Delete Set', style: 'destructive', onPress: () => removeSet(sessionId, sessionExercise.id, setId) },
-      { text: 'Cancel', style: 'cancel' },
+  const openSetMenu = async (setId: string) => {
+    const action = await dialog.choose('Set Options', [
+      { value: 'warmup', label: 'Warm-up Set' },
+      { value: 'working', label: 'Working Set' },
+      { value: 'drop', label: 'Drop Set' },
+      { value: 'delete', label: 'Delete Set', style: 'destructive' },
+      { value: 'cancel', label: 'Cancel', style: 'cancel' },
     ]);
+    if (action === 'delete') {
+      removeSet(sessionId, sessionExercise.id, setId);
+      return;
+    }
+    if (action === 'warmup' || action === 'working' || action === 'drop') {
+      setLoggedSetType(sessionId, sessionExercise.id, setId, action);
+    }
   };
 
   const applySuggestedTarget = (weightLbs: string, reps?: string) => {
@@ -296,6 +305,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   const setExercisePain = useStore((s) => s.setExercisePain);
   const setMuscleFeedback = useStore((s) => s.setMuscleFeedback);
   const swapDayExercise = useStore((s) => s.swapDayExercise);
+  const dialog = useDialog();
   const unit = useStore((s) => s.settings.unit);
   const tabNavigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
 
@@ -383,61 +393,56 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
     ? Math.max(0, (new Date(session.completedAt).getTime() - new Date(session.date).getTime()) / 1000)
     : Math.max(0, (nowTick - new Date(session.date).getTime()) / 1000);
 
-  const promptPain = (sessionExerciseId: string, exerciseName: string, onDone?: () => void) => {
-    const answer = (pain: PainFlag) => {
-      setExercisePain(session.id, sessionExerciseId, pain);
-      onDone?.();
-    };
-    Alert.alert(exerciseName, 'Any pain during that exercise?', [
-      { text: 'No pain', onPress: () => answer('none') },
-      { text: 'Mild discomfort', onPress: () => answer('mild') },
-      { text: 'Sharp pain', style: 'destructive', onPress: () => answer('sharp') },
-    ]);
+  const promptPain = async (sessionExerciseId: string, exerciseName: string) => {
+    const pain = await dialog.choose<PainFlag>(exerciseName, [
+      { value: 'none', label: 'No pain' },
+      { value: 'mild', label: 'Mild discomfort' },
+      { value: 'sharp', label: 'Sharp pain', style: 'destructive' },
+    ], 'Any pain during that exercise?');
+    if (pain) setExercisePain(session.id, sessionExerciseId, pain);
   };
 
-  const promptEffort = (muscleGroup: MuscleGroup, pump: PumpLevel) => {
-    Alert.alert('Effort level', 'How hard did that feel overall?', [
-      { text: 'Easy', onPress: () => setMuscleFeedback(session.id, muscleGroup, { pump, effort: 'easy' }) },
-      { text: 'Moderate', onPress: () => setMuscleFeedback(session.id, muscleGroup, { pump, effort: 'moderate' }) },
-      { text: 'Hard', onPress: () => setMuscleFeedback(session.id, muscleGroup, { pump, effort: 'hard' }) },
-      { text: 'Max effort', onPress: () => setMuscleFeedback(session.id, muscleGroup, { pump, effort: 'max' }) },
-    ]);
+  const promptMuscleFeedback = async (muscleGroup: MuscleGroup) => {
+    const pump = await dialog.choose<PumpLevel>(`${muscleGroup} pump`, [
+      { value: 'low', label: 'Low' },
+      { value: 'medium', label: 'Medium' },
+      { value: 'high', label: 'High' },
+    ], 'How was your muscle pump for that muscle group?');
+    if (!pump) return;
+
+    const effort = await dialog.choose<EffortLevel>('Effort level', [
+      { value: 'easy', label: 'Easy' },
+      { value: 'moderate', label: 'Moderate' },
+      { value: 'hard', label: 'Hard' },
+      { value: 'max', label: 'Max effort' },
+    ], 'How hard did that feel overall?');
+    if (!effort) return;
+
+    setMuscleFeedback(session.id, muscleGroup, { pump, effort });
   };
 
-  const promptMuscleFeedback = (muscleGroup: MuscleGroup) => {
-    Alert.alert(`${muscleGroup} pump`, 'How was your muscle pump for that muscle group?', [
-      { text: 'Low', onPress: () => promptEffort(muscleGroup, 'low') },
-      { text: 'Medium', onPress: () => promptEffort(muscleGroup, 'medium') },
-      { text: 'High', onPress: () => promptEffort(muscleGroup, 'high') },
-    ]);
-  };
-
-  const checkExerciseCompletion = (exercise: Exercise, sessionExercise: SessionExercise) => {
+  const checkExerciseCompletion = async (exercise: Exercise, sessionExercise: SessionExercise) => {
     const fresh = useStore.getState().sessions.find((s) => s.id === session.id);
     if (!fresh) return;
     const se = fresh.exercises.find((e) => e.id === sessionExercise.id);
     if (!se) return;
     const exerciseDone = se.sets.length > 0 && se.sets.every((s) => s.type === 'warmup' || s.logged);
 
-    const maybePromptGroup = () => {
-      const groupExercises = day.exercises
-        .map((te) => exerciseById.get(te.exerciseId))
-        .filter((e): e is Exercise => !!e && e.muscleGroup === exercise.muscleGroup);
-      const latest = useStore.getState().sessions.find((s) => s.id === session.id);
-      if (!latest) return;
-      const groupDone = groupExercises.every((ex) => {
-        const gse = latest.exercises.find((s) => s.exerciseId === ex.id);
-        return gse && gse.sets.length > 0 && gse.sets.every((s) => s.type === 'warmup' || s.logged);
-      });
-      if (groupDone && !latest.muscleFeedback?.[exercise.muscleGroup]) {
-        promptMuscleFeedback(exercise.muscleGroup);
-      }
-    };
-
     if (exerciseDone && se.painFlag === undefined) {
-      promptPain(se.id, exercise.name, maybePromptGroup);
-    } else {
-      maybePromptGroup();
+      await promptPain(se.id, exercise.name);
+    }
+
+    const groupExercises = day.exercises
+      .map((te) => exerciseById.get(te.exerciseId))
+      .filter((e): e is Exercise => !!e && e.muscleGroup === exercise.muscleGroup);
+    const latest = useStore.getState().sessions.find((s) => s.id === session.id);
+    if (!latest) return;
+    const groupDone = groupExercises.every((ex) => {
+      const gse = latest.exercises.find((s) => s.exerciseId === ex.id);
+      return gse && gse.sets.length > 0 && gse.sets.every((s) => s.type === 'warmup' || s.logged);
+    });
+    if (groupDone && !latest.muscleFeedback?.[exercise.muscleGroup]) {
+      await promptMuscleFeedback(exercise.muscleGroup);
     }
   };
 

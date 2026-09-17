@@ -1,9 +1,10 @@
 import React, { useRef, useState } from 'react';
-import { Alert, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useStore } from '../store/useStore';
 import ScreenContainer from '../components/ScreenContainer';
+import { useDialog } from '../components/DialogProvider';
 import ExercisePickerModal from '../components/ExercisePickerModal';
 import ExerciseTargetCard from '../components/ExerciseTargetCard';
 import VolumeSummary from '../components/VolumeSummary';
@@ -95,6 +96,7 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
   const updateMesocycle = useStore((s) => s.updateMesocycle);
   const deleteMesocycle = useStore((s) => s.deleteMesocycle);
   const defaultRestSeconds = useStore((s) => s.settings.defaultRestSeconds);
+  const dialog = useDialog();
 
   const [name, setName] = useState(existing?.name ?? '');
   const [weeks, setWeeks] = useState(String(existing?.weeks ?? 4));
@@ -201,7 +203,7 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
 
   const save = () => {
     if (!name.trim()) {
-      Alert.alert('Name required', 'Please enter a mesocycle name.');
+      dialog.alert('Name required', 'Please enter a name for your workout plan.');
       return;
     }
     const weeksNum = Math.max(1, Number(weeks) || 1);
@@ -220,19 +222,15 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
     navigation.navigate('MesosList');
   };
 
-  const remove = () => {
+  const remove = async () => {
     if (!existing) return;
-    Alert.alert('Delete Mesocycle', `Delete "${existing.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          deleteMesocycle(existing.id);
-          navigation.navigate('MesosList');
-        },
-      },
-    ]);
+    const confirmed = await dialog.confirm('Delete Workout Plan', `Delete "${existing.name}"?`, {
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    deleteMesocycle(existing.id);
+    navigation.navigate('MesosList');
   };
 
   return (

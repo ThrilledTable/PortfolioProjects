@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStore } from '../store/useStore';
 import ScreenContainer from '../components/ScreenContainer';
+import { useDialog } from '../components/DialogProvider';
 import { colors, radius, spacing } from '../theme/theme';
 import { MoreStackParamList } from '../navigation/types';
 import { Exercise } from '../types';
@@ -18,6 +19,7 @@ export default function MoreHomeScreen({ navigation }: Props) {
   const sessions = useStore((s) => s.sessions);
   const exercises = useStore((s) => s.exercises);
   const unit = useStore((s) => s.settings.unit);
+  const dialog = useDialog();
 
   const exerciseById = useMemo(() => {
     const map = new Map<string, Exercise>();
@@ -32,22 +34,15 @@ export default function MoreHomeScreen({ navigation }: Props) {
     [sessions, exerciseById]
   );
 
-  const resetAllData = () => {
-    Alert.alert(
+  const resetAllData = async () => {
+    const confirmed = await dialog.confirm(
       'Reset All Data',
-      'This will permanently delete all exercises, templates, mesocycles, and logged workouts.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset',
-          style: 'destructive',
-          onPress: async () => {
-            await AsyncStorage.removeItem('workout-app-storage');
-            clearActive();
-          },
-        },
-      ]
+      'This will permanently delete all exercises, workout plans, and logged workouts.',
+      { confirmLabel: 'Reset', destructive: true }
     );
+    if (!confirmed) return;
+    await AsyncStorage.removeItem('workout-app-storage');
+    clearActive();
   };
 
   return (

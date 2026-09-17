@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useStore } from '../store/useStore';
 import ScreenContainer from '../components/ScreenContainer';
+import { useDialog } from '../components/DialogProvider';
 import { colors, muscleColors, radius, spacing } from '../theme/theme';
 import { MesosStackParamList } from '../navigation/types';
 import { MUSCLE_GROUPS, MuscleGroup } from '../types';
@@ -16,6 +17,7 @@ export default function PlanBuilderScreen({ navigation }: Props) {
   const exercises = useStore((s) => s.exercises);
   const addMesocycle = useStore((s) => s.addMesocycle);
   const defaultRestSeconds = useStore((s) => s.settings.defaultRestSeconds);
+  const dialog = useDialog();
 
   const [name, setName] = useState('');
   const [weeks, setWeeks] = useState('6');
@@ -30,7 +32,7 @@ export default function PlanBuilderScreen({ navigation }: Props) {
 
   const generate = () => {
     if (!name.trim()) {
-      Alert.alert('Name required', 'Please enter a name for your workout plan.');
+      dialog.alert('Name required', 'Please enter a name for your workout plan.');
       return;
     }
     const weeksNum = Math.max(1, Number(weeks) || 1);

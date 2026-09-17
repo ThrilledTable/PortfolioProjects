@@ -1,9 +1,10 @@
 import React from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useStore } from '../store/useStore';
 import ScreenContainer from '../components/ScreenContainer';
+import { useDialog } from '../components/DialogProvider';
 import { colors, radius, spacing } from '../theme/theme';
 import { MesosStackParamList } from '../navigation/types';
 
@@ -15,21 +16,24 @@ export default function MesosListScreen({ navigation }: Props) {
   const setActive = useStore((s) => s.setActive);
   const deleteMesocycle = useStore((s) => s.deleteMesocycle);
   const duplicateMesocycle = useStore((s) => s.duplicateMesocycle);
+  const dialog = useDialog();
 
-  const showActions = (id: string, name: string) => {
-    Alert.alert(name, undefined, [
-      { text: 'Duplicate', onPress: () => duplicateMesocycle(id) },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () =>
-          Alert.alert('Delete Mesocycle', `Delete "${name}"?`, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => deleteMesocycle(id) },
-          ]),
-      },
-      { text: 'Cancel', style: 'cancel' },
+  const showActions = async (id: string, name: string) => {
+    const action = await dialog.choose(name, [
+      { value: 'duplicate', label: 'Duplicate' },
+      { value: 'delete', label: 'Delete', style: 'destructive' },
+      { value: 'cancel', label: 'Cancel', style: 'cancel' },
     ]);
+    if (action === 'duplicate') {
+      duplicateMesocycle(id);
+      return;
+    }
+    if (action !== 'delete') return;
+    const confirmed = await dialog.confirm('Delete Workout Plan', `Delete "${name}"?`, {
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (confirmed) deleteMesocycle(id);
   };
 
   return (
