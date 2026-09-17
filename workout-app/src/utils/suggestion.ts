@@ -72,3 +72,15 @@ export function computeSuggestedTarget(
 export function repsForAlternateWeight(oneRepMax: number, availableWeight: number): number {
   return repsForWeight(oneRepMax, availableWeight);
 }
+
+/**
+ * The field values a suggested target becomes when written into a set. On a
+ * deload the weight is prescribed but the reps are left alone, so the lighter
+ * load is the only variable that changed.
+ */
+export function targetFieldValues(
+  target: SuggestedTarget,
+  isDeload: boolean
+): { weight: string; reps?: string } {
+  return { weight: String(target.weight), reps: isDeload ? undefined : String(target.reps) };
+}

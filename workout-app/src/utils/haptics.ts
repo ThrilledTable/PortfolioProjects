@@ -1,16 +1,27 @@
-import { Platform } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { isNativePlatform } from './platform';
 
-const supported = Platform.OS === 'ios' || Platform.OS === 'android';
+// Imported lazily so the native module stays off the startup path, and out of
+// the web bundle's critical path where it can never do anything.
+const haptics = () => import('expo-haptics');
 
 /** A light tick, for confirming a tap landed without looking at the screen. */
-export function tapFeedback() {
-  if (!supported) return;
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+export async function tapFeedback() {
+  if (!isNativePlatform) return;
+  try {
+    const Haptics = await haptics();
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  } catch {
+    // Haptics are a nicety; a device without them must not break logging.
+  }
 }
 
 /** A stronger double-beat, for finishing something (a set, an exercise). */
-export function successFeedback() {
-  if (!supported) return;
-  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+export async function successFeedback() {
+  if (!isNativePlatform) return;
+  try {
+    const Haptics = await haptics();
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  } catch {
+    // As above.
+  }
 }

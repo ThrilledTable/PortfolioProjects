@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
 import { cancelScheduledNotification, scheduleRestFinishedNotification } from '../utils/notifications';
+import { useNowTick } from './useNowTick';
 
 export interface RestTimer {
   secondsLeft: number;
@@ -10,141 +10,84 @@ export interface RestTimer {
 
 interface TimerState {
   totalSeconds: number;
-  /** Epoch ms the rest ends at. Null while paused. */
-  endsAt: number | null;
-  /** Seconds left at the moment it was paused. Null while running. */
-  pausedRemaining: number | null;
+  /** Epoch ms the rest ends at. While paused, the clock it will end at once resumed. */
+  endsAt: number;
+  /** Epoch ms the timer was paused at, or null while it runs. */
+  pausedAt: number | null;
 }
 
-function remainingSeconds(state: TimerState, now: number) {
-  if (state.pausedRemaining !== null) return state.pausedRemaining;
-  if (state.endsAt === null) return 0;
-  return Math.max(0, Math.ceil((state.endsAt - now) / 1000));
-}
+const remainingSeconds = (s: TimerState, now: number) =>
+  Math.max(0, Math.ceil((s.endsAt - (s.pausedAt ?? now)) / 1000));
+
+/** Re-aims the deadline so `seconds` remain, from now or from where it was paused. */
+const withRemaining = (s: TimerState, seconds: number): TimerState => ({
+  totalSeconds: Math.max(s.totalSeconds, seconds),
+  endsAt: (s.pausedAt ?? Date.now()) + seconds * 1000,
+  pausedAt: s.pausedAt,
+});
 
 /**
  * A rest timer anchored to a wall-clock deadline rather than a decrementing
  * counter, so backgrounding the app (which throttles or suspends JS timers)
  * no longer makes the countdown drift. A local notification is scheduled for
- * the deadline so the timer still lands while the phone is in a pocket.
+ * the deadline so the rest still lands while the phone is in a pocket.
  */
 export function useRestTimer(notificationsEnabled: boolean) {
   const [state, setState] = useState<TimerState | null>(null);
-  const [, forceTick] = useState(0);
+  const running = state !== null && state.pausedAt === null;
 
-  // Mirrors `state` so the action callbacks can read the current timer without
-  // doing their scheduling side effects inside a setState updater.
-  const stateRef = useRef<TimerState | null>(null);
-  stateRef.current = state;
+  useNowTick(running);
 
-  const notificationIdRef = useRef<string | null>(null);
-  const generationRef = useRef(0);
-
-  const clearNotification = useCallback(() => {
-    generationRef.current++;
-    const id = notificationIdRef.current;
-    notificationIdRef.current = null;
-    if (id) void cancelScheduledNotification(id);
-  }, []);
-
-  const scheduleNotification = useCallback(
-    (seconds: number) => {
-      clearNotification();
-      if (!notificationsEnabled || seconds <= 0) return;
-      // The id only arrives after the await, by which point the user may have
-      // already skipped or restarted. Stamp a generation so a stale id cannot
-      // overwrite a newer one and instead cancels itself.
-      const generation = generationRef.current;
-      void scheduleRestFinishedNotification(seconds).then((id) => {
-        if (!id) return;
-        if (generation !== generationRef.current) {
-          void cancelScheduledNotification(id);
-          return;
-        }
-        notificationIdRef.current = id;
-      });
-    },
-    [notificationsEnabled, clearNotification]
-  );
-
-  // Drive re-renders while the timer runs. The displayed value is derived from
-  // the deadline, so a missed or delayed tick costs nothing but a stale frame.
+  // The notification is a reaction to the timer rather than something each
+  // action fires: every path that changes or ends the rest replaces this
+  // effect, and the cleanup is the cancel. That covers pause, skip, +/-15,
+  // unmount, and a schedule that resolves after the rest is already gone.
   useEffect(() => {
-    if (!state || state.pausedRemaining !== null) return;
-    const interval = setInterval(() => forceTick((n) => n + 1), 500);
-    return () => clearInterval(interval);
-  }, [state]);
-
-  // Coming back to the foreground, re-render at once instead of waiting on a
-  // timer the OS may have been suspending.
-  useEffect(() => {
-    const onChange = (status: AppStateStatus) => {
-      if (status === 'active') forceTick((n) => n + 1);
+    if (!notificationsEnabled || !state || state.pausedAt !== null) return;
+    let cancelled = false;
+    let scheduledId: string | null = null;
+    void scheduleRestFinishedNotification(remainingSeconds(state, Date.now())).then((id) => {
+      if (!id) return;
+      if (cancelled) void cancelScheduledNotification(id);
+      else scheduledId = id;
+    });
+    return () => {
+      cancelled = true;
+      if (scheduledId) void cancelScheduledNotification(scheduledId);
     };
-    const sub = AppState.addEventListener('change', onChange);
-    return () => sub.remove();
-  }, []);
+  }, [state, notificationsEnabled]);
 
   const left = state ? remainingSeconds(state, Date.now()) : 0;
 
   // Retire the timer once it has run out. Done in an effect so render stays
   // pure; the notification has already fired by this point.
   useEffect(() => {
-    if (state && state.pausedRemaining === null && left <= 0) {
-      notificationIdRef.current = null;
-      generationRef.current++;
-      setState(null);
-    }
-  }, [state, left]);
+    if (running && left <= 0) setState(null);
+  }, [running, left]);
 
-  const start = useCallback(
-    (seconds: number) => {
-      if (seconds <= 0) return;
-      setState({ totalSeconds: seconds, endsAt: Date.now() + seconds * 1000, pausedRemaining: null });
-      scheduleNotification(seconds);
-    },
-    [scheduleNotification]
-  );
+  const start = useCallback((seconds: number) => {
+    if (seconds <= 0) return;
+    setState({ totalSeconds: seconds, endsAt: Date.now() + seconds * 1000, pausedAt: null });
+  }, []);
 
   const toggleRunning = useCallback(() => {
-    const prev = stateRef.current;
-    if (!prev) return;
-    if (prev.pausedRemaining !== null) {
-      const seconds = prev.pausedRemaining;
-      setState({ ...prev, endsAt: Date.now() + seconds * 1000, pausedRemaining: null });
-      scheduleNotification(seconds);
-      return;
-    }
-    clearNotification();
-    setState({ ...prev, endsAt: null, pausedRemaining: remainingSeconds(prev, Date.now()) });
-  }, [scheduleNotification, clearNotification]);
+    setState((prev) => {
+      if (!prev) return prev;
+      if (prev.pausedAt === null) return { ...prev, pausedAt: Date.now() };
+      return { ...prev, endsAt: prev.endsAt + (Date.now() - prev.pausedAt), pausedAt: null };
+    });
+  }, []);
 
-  const addTime = useCallback(
-    (delta: number) => {
-      const prev = stateRef.current;
-      if (!prev) return;
-      const next = Math.max(0, remainingSeconds(prev, Date.now()) + delta);
-      const totalSeconds = Math.max(prev.totalSeconds, next);
-      if (prev.pausedRemaining !== null) {
-        setState({ totalSeconds, endsAt: null, pausedRemaining: next });
-        return;
-      }
-      setState({ totalSeconds, endsAt: Date.now() + next * 1000, pausedRemaining: null });
-      scheduleNotification(next);
-    },
-    [scheduleNotification]
-  );
+  const addTime = useCallback((delta: number) => {
+    setState((prev) =>
+      prev ? withRemaining(prev, Math.max(0, remainingSeconds(prev, Date.now()) + delta)) : prev
+    );
+  }, []);
 
-  const skip = useCallback(() => {
-    clearNotification();
-    setState(null);
-  }, [clearNotification]);
-
-  // Never leave a notification queued for a workout the user has walked away from.
-  useEffect(() => clearNotification, [clearNotification]);
+  const skip = useCallback(() => setState(null), []);
 
   const timer: RestTimer | null = state
-    ? { secondsLeft: left, totalSeconds: state.totalSeconds, running: state.pausedRemaining === null }
+    ? { secondsLeft: left, totalSeconds: state.totalSeconds, running }
     : null;
 
   return { timer, start, toggleRunning, addTime, skip };

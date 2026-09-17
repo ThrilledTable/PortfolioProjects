@@ -11,13 +11,10 @@ const TAG = 'workout-in-progress';
 export function useKeepAwakeWhile(active: boolean) {
   useEffect(() => {
     if (!active) return;
-    let released = false;
-    // Not available on web, and a failure here should never break logging.
-    activateKeepAwakeAsync(TAG).catch(() => {
-      released = true;
-    });
+    // Unsupported on web, and a failure here should never break logging.
+    // Releasing a tag that was never held is the same harmless no-op.
+    activateKeepAwakeAsync(TAG).catch(() => {});
     return () => {
-      if (released) return;
       try {
         deactivateKeepAwake(TAG);
       } catch {

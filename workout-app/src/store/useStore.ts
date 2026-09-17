@@ -176,6 +176,21 @@ const buildSessionExercise = (
   };
 };
 
+const withSettingsDefaults = (saved?: Partial<Settings>): Settings => ({
+  ...DEFAULT_SETTINGS,
+  ...(saved ?? {}),
+});
+
+// Whoever just created a plan should land on it rather than on the Workout
+// tab's "no active plan" empty state. Only claim the slot when nothing holds
+// it, so building a future block mid-mesocycle does not reset where you are
+// in the current one.
+const claimActive = (
+  current: ActivePosition | null,
+  meso: Mesocycle
+): ActivePosition | null =>
+  current ?? (meso.days.length > 0 ? { mesoId: meso.id, week: 1, dayIndex: 0 } : null);
+
 const cloneExercises = (exercises: TemplateExercise[]): TemplateExercise[] =>
   exercises.map((te) => ({
     id: genId(),
@@ -203,7 +218,7 @@ export const useStore = create<StoreState>()(
 
       addMesocycle: (name, weeks, days, deloadWeeks = []) => {
         const meso: Mesocycle = { id: genId(), name, weeks, days, deloadWeeks };
-        set((s) => ({ mesocycles: [...s.mesocycles, meso] }));
+        set((s) => ({ mesocycles: [...s.mesocycles, meso], active: claimActive(s.active, meso) }));
         return meso;
       },
       updateMesocycle: (id, patch) => {
@@ -245,7 +260,7 @@ export const useStore = create<StoreState>()(
               exercises: cloneExercises(d.exercises),
             })),
           };
-          return { mesocycles: [...s.mesocycles, copy] };
+          return { mesocycles: [...s.mesocycles, copy], active: claimActive(s.active, copy) };
         });
       },
       swapDayExercise: (mesoId, dayId, templateExerciseId, newExerciseId) => {
@@ -542,7 +557,7 @@ export const useStore = create<StoreState>()(
           mesocycles: data.mesocycles,
           sessions: data.sessions,
           active: data.active,
-          settings: { ...DEFAULT_SETTINGS, ...data.settings },
+          settings: withSettingsDefaults(data.settings),
         });
       },
 
@@ -579,11 +594,7 @@ export const useStore = create<StoreState>()(
       // key added after a user's data was written would come back undefined.
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Partial<StoreState>;
-        return {
-          ...current,
-          ...saved,
-          settings: { ...DEFAULT_SETTINGS, ...(saved.settings ?? {}) },
-        };
+        return { ...current, ...saved, settings: withSettingsDefaults(saved.settings) };
       },
     }
   )

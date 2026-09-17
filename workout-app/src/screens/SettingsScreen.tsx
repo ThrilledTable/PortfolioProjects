@@ -8,6 +8,32 @@ import { colors, radius, spacing } from '../theme/theme';
 import { WeightUnit } from '../types';
 import { exportBackup, importBackup } from '../utils/backup';
 
+function ToggleSetting({
+  title,
+  hint,
+  value,
+  onValueChange,
+}: {
+  title: string;
+  hint: string;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+}) {
+  return (
+    <View style={[styles.actionRow, styles.toggleRow]}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.actionRowText}>{title}</Text>
+        <Text style={styles.toggleHint}>{hint}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: colors.border, true: colors.accent }}
+      />
+    </View>
+  );
+}
+
 export default function SettingsScreen() {
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
@@ -85,32 +111,18 @@ export default function SettingsScreen() {
       <Text style={styles.hint}>Used as the starting rest time when you add a new set to a template or day.</Text>
 
       <Text style={styles.label}>During a Workout</Text>
-      <View style={styles.toggleRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.toggleTitle}>Rest Timer Alerts</Text>
-          <Text style={styles.toggleHint}>
-            Send a notification when rest is up, so you can put your phone away between sets.
-          </Text>
-        </View>
-        <Switch
-          value={settings.restTimerNotifications}
-          onValueChange={(restTimerNotifications) => updateSettings({ restTimerNotifications })}
-          trackColor={{ false: colors.border, true: colors.accent }}
-        />
-      </View>
-      <View style={styles.toggleRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.toggleTitle}>Keep Screen On</Text>
-          <Text style={styles.toggleHint}>
-            Stop the screen locking while a workout is in progress.
-          </Text>
-        </View>
-        <Switch
-          value={settings.keepAwakeDuringWorkout}
-          onValueChange={(keepAwakeDuringWorkout) => updateSettings({ keepAwakeDuringWorkout })}
-          trackColor={{ false: colors.border, true: colors.accent }}
-        />
-      </View>
+      <ToggleSetting
+        title="Rest Timer Alerts"
+        hint="Send a notification when rest is up, so you can put your phone away between sets."
+        value={settings.restTimerNotifications}
+        onValueChange={(restTimerNotifications) => updateSettings({ restTimerNotifications })}
+      />
+      <ToggleSetting
+        title="Keep Screen On"
+        hint="Stop the screen locking while a workout is in progress."
+        value={settings.keepAwakeDuringWorkout}
+        onValueChange={(keepAwakeDuringWorkout) => updateSettings({ keepAwakeDuringWorkout })}
+      />
 
       <Text style={styles.label}>Backup</Text>
       <Pressable style={styles.actionRow} onPress={handleExport} disabled={exporting}>
@@ -171,15 +183,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   actionRowText: { color: colors.textPrimary, fontWeight: '600', fontSize: 15 },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  toggleTitle: { color: colors.textPrimary, fontWeight: '600', fontSize: 15 },
+  toggleRow: { gap: spacing.md },
   toggleHint: { color: colors.textMuted, fontSize: 12, marginTop: 2, lineHeight: 16 },
 });
