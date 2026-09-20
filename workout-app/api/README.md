@@ -13,6 +13,7 @@ and picked up on another device.
 | POST   | `/api/auth/logout`   | Revoke the caller's token |
 | GET    | `/api/me`            | Who the token belongs to, plus the stored revision |
 | GET    | `/api/sync`          | Pull the stored snapshot |
+| GET    | `/api/health`        | Setup check: is a database attached and has the schema been run |
 | POST   | `/api/sync`          | Push a snapshot, guarded by `baseRevision` |
 
 Anything under `api/_lib/` is shared code. Vercel does not route files whose
@@ -46,6 +47,18 @@ name starts with `_`, so those are not reachable as endpoints.
 
 Until step 1 is done the endpoints return `503 not_configured`, and the app
 keeps working offline.
+
+To check where you are, open `/api/health` in a browser. It answers in
+booleans and nothing else -- it is unauthenticated, so it deliberately will
+not say *why* a database is unreachable:
+
+```json
+{ "configured": true, "reachable": true, "schemaReady": true }
+```
+
+`configured` false means no database URL is set (step 1). `reachable` false
+means a URL is set but the database did not answer. `schemaReady` false means
+it answered but the tables are missing (step 2).
 
 ## How sync decides things
 

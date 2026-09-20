@@ -11,6 +11,13 @@ declare global {
   var __workoutPool: Pool | undefined;
 }
 
+/** Whether a database URL is present at all, without throwing when it is not. */
+export function isDatabaseConfigured(): boolean {
+  return Boolean(
+    process.env.POSTGRES_URL ?? process.env.DATABASE_URL ?? process.env.POSTGRES_PRISMA_URL
+  );
+}
+
 function connectionString(): string {
   const url =
     process.env.POSTGRES_URL ??
