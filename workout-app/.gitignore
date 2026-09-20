@@ -31,7 +31,9 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+!.env.example
 
 # typescript
 *.tsbuildinfo
@@ -39,3 +41,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+.api-build/
+# Compiled API output must never sit next to the .ts sources: Vercel would
+# route both and it is ambiguous which one wins.
+api/**/*.js

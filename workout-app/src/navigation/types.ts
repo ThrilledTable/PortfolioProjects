@@ -19,6 +19,7 @@ export type MoreStackParamList = {
   MoreHome: undefined;
   History: undefined;
   Settings: undefined;
+  Account: undefined;
 };
 
 export type RootTabParamList = {

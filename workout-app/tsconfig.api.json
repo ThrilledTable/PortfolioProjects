@@ -1,0 +1,16 @@
+{
+  "//": "The API runs on Node under Vercel, not React Native, so it is checked and built with Node settings rather than inheriting expo/tsconfig.base.",
+  "compilerOptions": {
+    "module": "node16",
+    "moduleResolution": "node16",
+    "target": "es2022",
+    "lib": ["es2022"],
+    "types": ["node"],
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "rootDir": "api",
+    "outDir": ".api-build"
+  },
+  "include": ["api/**/*.ts"]
+}

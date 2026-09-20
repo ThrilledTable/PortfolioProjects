@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStore } from '../store/useStore';
+import { useSyncStore } from '../store/useSyncStore';
 import ScreenContainer from '../components/ScreenContainer';
 import { useDialog } from '../components/DialogProvider';
 import { colors, radius, spacing } from '../theme/theme';
@@ -20,6 +21,7 @@ export default function MoreHomeScreen({ navigation }: Props) {
   const exercises = useStore((s) => s.exercises);
   const unit = useStore((s) => s.settings.unit);
   const dialog = useDialog();
+  const account = useSyncStore((s) => s.account);
 
   const exerciseById = useMemo(() => {
     const map = new Map<string, Exercise>();
@@ -72,6 +74,19 @@ export default function MoreHomeScreen({ navigation }: Props) {
         <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </Pressable>
 
+      <Pressable style={styles.navRow} onPress={() => navigation.navigate('Account')}>
+        <Ionicons
+          name={account ? 'cloud-done-outline' : 'cloud-offline-outline'}
+          size={20}
+          color={account ? colors.success : colors.textPrimary}
+        />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.navRowText}>Account & Backup</Text>
+          <Text style={styles.navRowSub}>{account ? account.email : 'Not signed in'}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      </Pressable>
+
       <Pressable style={styles.navRow} onPress={() => navigation.navigate('Settings')}>
         <Ionicons name="settings-outline" size={20} color={colors.textPrimary} />
         <Text style={styles.navRowText}>Settings</Text>
@@ -81,7 +96,8 @@ export default function MoreHomeScreen({ navigation }: Props) {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>About</Text>
         <Text style={styles.sectionBody}>
-          A simple mesocycle-based workout tracker. All data is stored locally on this device.
+          A simple mesocycle-based workout tracker. Your workouts live on this device; sign in
+          under Account & Backup to keep a copy in the cloud and share it across your devices.
         </Text>
       </View>
       <Pressable style={styles.dangerRow} onPress={resetAllData}>
@@ -115,6 +131,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   navRowText: { flex: 1, color: colors.textPrimary, fontWeight: '600', fontSize: 15 },
+  navRowSub: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   section: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md },
   sectionTitle: { color: colors.textPrimary, fontWeight: '700', fontSize: 15, marginBottom: 6 },
   sectionBody: { color: colors.textSecondary, fontSize: 13, lineHeight: 18 },
