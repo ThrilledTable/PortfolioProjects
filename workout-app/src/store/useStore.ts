@@ -19,6 +19,7 @@ import {
 } from '../types';
 import { SEED_EXERCISES } from '../data/seedExercises';
 import { genId } from '../utils/id';
+import { buildNextMesocycle } from '../utils/nextMesocycle';
 
 interface ExerciseHistoryEntry {
   sessionId: string;
@@ -52,6 +53,7 @@ interface StoreState {
   updateMesocycle: (id: string, patch: Partial<Omit<Mesocycle, 'id'>>) => void;
   deleteMesocycle: (id: string) => void;
   duplicateMesocycle: (id: string) => void;
+  createNextMesocycle: (id: string) => Mesocycle | null;
   swapDayExercise: (mesoId: string, dayId: string, templateExerciseId: string, newExerciseId: string) => void;
 
   setActive: (mesoId: string, week: number, dayIndex: number) => void;
@@ -131,17 +133,45 @@ const makeLoggedSet = (): LoggedSet => ({
   type: 'working',
 });
 
+const latestOf = (sessions: WorkoutSession[]): WorkoutSession | undefined =>
+  sessions.length === 0
+    ? undefined
+    : sessions.reduce((latest, s) => (s.week > latest.week ? s : latest));
+
+/**
+ * The last time this day was trained. Looks inside the current block first;
+ * failing that, and only when the block was generated as a continuation, it
+ * reaches back into the block it continues from so week 1 starts from real
+ * numbers rather than re-testing every lift.
+ *
+ * The carry-over deliberately skips the previous block's deload weeks, which
+ * are lighter by design and would start the new block under-dosed.
+ */
 const findPreviousSession = (
   sessions: WorkoutSession[],
   mesoId: string,
   dayId: string,
-  beforeWeek: number
+  beforeWeek: number,
+  carryOver?: { mesoId: string; deloadWeeks: number[] }
 ): WorkoutSession | undefined => {
-  const candidates = sessions.filter(
-    (s) => s.mesoId === mesoId && s.dayId === dayId && s.week < beforeWeek
+  const withinBlock = latestOf(
+    sessions.filter((s) => s.mesoId === mesoId && s.dayId === dayId && s.week < beforeWeek)
   );
-  if (candidates.length === 0) return undefined;
-  return candidates.reduce((latest, s) => (s.week > latest.week ? s : latest));
+  if (withinBlock || !carryOver) return withinBlock;
+
+  const priorDay = sessions.filter((s) => s.mesoId === carryOver.mesoId && s.dayId === dayId);
+  const working = priorDay.filter((s) => !carryOver.deloadWeeks.includes(s.week));
+  return latestOf(working.length > 0 ? working : priorDay);
+};
+
+/** The block `meso` continues from, when it has one. */
+const carryOverOf = (
+  meso: Mesocycle | undefined,
+  mesocycles: Mesocycle[]
+): { mesoId: string; deloadWeeks: number[] } | undefined => {
+  if (!meso?.continuesFrom) return undefined;
+  const prior = mesocycles.find((m) => m.id === meso.continuesFrom);
+  return prior ? { mesoId: prior.id, deloadWeeks: prior.deloadWeeks } : undefined;
 };
 
 // How many sets to add/remove for the next session of this exercise, based on
@@ -272,6 +302,20 @@ export const useStore = create<StoreState>()(
           return { mesocycles: [...s.mesocycles, copy], active: claimActive(s.active, copy) };
         });
       },
+      createNextMesocycle: (id) => {
+        const { mesocycles, sessions } = get();
+        const meso = mesocycles.find((m) => m.id === id);
+        if (!meso) return null;
+        const next = buildNextMesocycle(meso, sessions);
+        set((s) => ({
+          mesocycles: [...s.mesocycles, next],
+          // A finished block should hand over rather than sit there as the
+          // active one, so the next block takes the slot outright.
+          active: { mesoId: next.id, week: 1, dayIndex: 0 },
+        }));
+        return next;
+      },
+
       swapDayExercise: (mesoId, dayId, templateExerciseId, newExerciseId) => {
         set((s) => ({
           mesocycles: s.mesocycles.map((m) =>
@@ -333,7 +377,13 @@ export const useStore = create<StoreState>()(
             (te) => !existing.exercises.some((se) => se.exerciseId === te.exerciseId)
           );
           if (missing.length > 0) {
-            const prevSession = findPreviousSession(sessions, mesoId, day.id, week);
+            const prevSession = findPreviousSession(
+              sessions,
+              mesoId,
+              day.id,
+              week,
+              carryOverOf(meso, mesocycles)
+            );
             const newSessionExercises: SessionExercise[] = missing.map((te) =>
               buildSessionExercise(
                 te,
@@ -353,7 +403,13 @@ export const useStore = create<StoreState>()(
           return existing.id;
         }
 
-        const prevSession = findPreviousSession(sessions, mesoId, day.id, week);
+        const prevSession = findPreviousSession(
+          sessions,
+          mesoId,
+          day.id,
+          week,
+          carryOverOf(meso, mesocycles)
+        );
         const sessionExercises: SessionExercise[] = day.exercises.map((te) =>
           buildSessionExercise(
             te,
@@ -523,7 +579,15 @@ export const useStore = create<StoreState>()(
       },
 
       getPreviousSessionExercise: (mesoId, dayId, exerciseId, beforeWeek) => {
-        const prevSession = findPreviousSession(get().sessions, mesoId, dayId, beforeWeek);
+        const { sessions, mesocycles } = get();
+        const meso = mesocycles.find((m) => m.id === mesoId);
+        const prevSession = findPreviousSession(
+          sessions,
+          mesoId,
+          dayId,
+          beforeWeek,
+          carryOverOf(meso, mesocycles)
+        );
         return prevSession?.exercises.find((se) => se.exerciseId === exerciseId);
       },
 

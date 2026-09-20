@@ -16,14 +16,21 @@ export default function MesosListScreen({ navigation }: Props) {
   const setActive = useStore((s) => s.setActive);
   const deleteMesocycle = useStore((s) => s.deleteMesocycle);
   const duplicateMesocycle = useStore((s) => s.duplicateMesocycle);
+  const createNextMesocycle = useStore((s) => s.createNextMesocycle);
   const dialog = useDialog();
 
   const showActions = async (id: string, name: string) => {
     const action = await dialog.choose(name, [
+      { value: 'next', label: 'Build Next Block' },
       { value: 'duplicate', label: 'Duplicate' },
       { value: 'delete', label: 'Delete', style: 'destructive' },
       { value: 'cancel', label: 'Cancel', style: 'cancel' },
     ]);
+    if (action === 'next') {
+      const next = createNextMesocycle(id);
+      if (next) navigation.navigate('MesoEditor', { mesoId: next.id });
+      return;
+    }
     if (action === 'duplicate') {
       duplicateMesocycle(id);
       return;

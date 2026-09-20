@@ -67,6 +67,12 @@ export interface Mesocycle {
   weeks: number;
   days: MesoDay[];
   deloadWeeks: number[];
+  /**
+   * The block this one was generated from. Day ids are carried over with it,
+   * which is what lets week 1 of a new block read last block's loads instead
+   * of re-testing every lift from nothing.
+   */
+  continuesFrom?: string;
 }
 
 export type SetType = 'warmup' | 'working' | 'drop';

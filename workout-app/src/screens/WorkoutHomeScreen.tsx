@@ -20,6 +20,7 @@ import { computeSessionSummary, isSessionInProgress } from '../utils/sessionSumm
 import { convertWeightTotal, formatWeightValue, parseWeightInput } from '../utils/units';
 import { bestSetOf, computeSuggestedTarget, repsForAlternateWeight, SuggestedTarget, targetFieldValues } from '../utils/suggestion';
 import { restAfterSet, supersetPositions, SupersetPosition } from '../utils/supersets';
+import { isMesocycleComplete } from '../utils/nextMesocycle';
 import { useRestTimer } from '../hooks/useRestTimer';
 import { useNowTick } from '../hooks/useNowTick';
 import { useKeepAwakeWhile } from '../hooks/useKeepAwakeWhile';
@@ -343,6 +344,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   const setExercisePain = useStore((s) => s.setExercisePain);
   const setMuscleFeedback = useStore((s) => s.setMuscleFeedback);
   const swapDayExercise = useStore((s) => s.swapDayExercise);
+  const createNextMesocycle = useStore((s) => s.createNextMesocycle);
   const dialog = useDialog();
   const settings = useStore((s) => s.settings);
   const unit = settings.unit;
@@ -450,6 +452,20 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   if (!session || !summary) {
     return <ScreenContainer />;
   }
+
+  const blockComplete = isMesocycleComplete(meso, sessions);
+
+  const startNextBlock = async () => {
+    const confirmed = await dialog.confirm(
+      'Build Next Block',
+      `Creates a new block from "${meso.name}" with the same days, the set counts you finished on, ` +
+        'and your current loads carried over. This one stays in your plans.',
+      { confirmLabel: 'Build It' }
+    );
+    if (!confirmed) return;
+    const next = createNextMesocycle(meso.id);
+    if (next) tabNavigation.navigate('Mesos', { screen: 'MesosList' });
+  };
 
   const finishWorkout = () => {
     completeSession(session.id);
@@ -578,6 +594,22 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
             multiline
           />
         </View>
+
+        {blockComplete && (
+          <View style={styles.blockDoneCard}>
+            <Ionicons name="trophy-outline" size={20} color={colors.success} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.blockDoneTitle}>Block complete</Text>
+              <Text style={styles.blockDoneBody}>
+                You finished every day of week {meso.weeks}. The next block keeps these days and the
+                set counts you ended on, and picks your weights up where this one left off.
+              </Text>
+            </View>
+            <Pressable style={styles.blockDoneButton} onPress={startNextBlock}>
+              <Text style={styles.blockDoneButtonText}>Next Block</Text>
+            </Pressable>
+          </View>
+        )}
 
         {day.exercises.length === 0 && (
           <Text style={styles.empty}>This day has no exercises yet. Edit it from the Mesos tab.</Text>
@@ -788,6 +820,26 @@ const styles = StyleSheet.create({
   colHeader: { color: colors.textMuted, fontSize: 11, fontWeight: '700', textAlign: 'center', width: 44 },
   setRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.xs },
   setRowWarmup: { opacity: 0.55 },
+  blockDoneCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.success,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  blockDoneTitle: { color: colors.success, fontWeight: '800', fontSize: 15 },
+  blockDoneBody: { color: colors.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  blockDoneButton: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+  },
+  blockDoneButtonText: { color: '#fff', fontWeight: '800', fontSize: 13 },
   exerciseNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   supersetBadge: {
     width: 22,
