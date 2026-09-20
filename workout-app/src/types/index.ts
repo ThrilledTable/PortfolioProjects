@@ -45,6 +45,13 @@ export interface TemplateExercise {
   id: string;
   exerciseId: string;
   sets: TargetSet[];
+  /**
+   * Exercises sharing a group id are a superset: performed back to back with
+   * no rest between them, resting only after the last one. Adjacency is not
+   * enforced by the type -- `groupedExercises` in utils/supersets treats a
+   * group as broken if something ungrouped sits between its members.
+   */
+  supersetGroup?: string;
 }
 
 export interface MesoDay {

@@ -9,6 +9,7 @@ import ExercisePickerModal from '../components/ExercisePickerModal';
 import ExerciseTargetCard from '../components/ExerciseTargetCard';
 import VolumeSummary from '../components/VolumeSummary';
 import { colors, radius, spacing } from '../theme/theme';
+import { isLinkedToNext, toggleSupersetLink } from '../utils/supersets';
 import { MesosStackParamList } from '../navigation/types';
 import { MesoDay, TemplateExercise } from '../types';
 import { genId } from '../utils/id';
@@ -141,6 +142,14 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
   const removeDayExercise = (dayId: string, teId: string) => {
     setDays((prev) =>
       prev.map((d) => (d.id !== dayId ? d : { ...d, exercises: d.exercises.filter((e) => e.id !== teId) }))
+    );
+  };
+
+  const toggleSuperset = (dayId: string, index: number) => {
+    setDays((prev) =>
+      prev.map((d) =>
+        d.id === dayId ? { ...d, exercises: toggleSupersetLink(d.exercises, index, genId) } : d
+      )
     );
   };
 
@@ -292,7 +301,8 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
               </Pressable>
             </View>
 
-            {day.exercises.map((te) => (
+            {day.exercises.map((te, exIndex) => (
+              <React.Fragment key={te.id}>
               <DraggableExerciseRow
                 key={te.id}
                 isActive={dragActive?.dayId === day.id && dragActive?.id === te.id}
@@ -313,6 +323,37 @@ export default function MesoEditorScreen({ route, navigation }: Props) {
                   />
                 )}
               </DraggableExerciseRow>
+              {exIndex < day.exercises.length - 1 && (
+                <Pressable
+                  style={styles.supersetLinkRow}
+                  onPress={() => toggleSuperset(day.id, exIndex)}
+                  hitSlop={6}
+                >
+                  <View
+                    style={[
+                      styles.supersetLinkPill,
+                      isLinkedToNext(day.exercises, exIndex) && styles.supersetLinkPillOn,
+                    ]}
+                  >
+                    <Ionicons
+                      name={isLinkedToNext(day.exercises, exIndex) ? 'link' : 'link-outline'}
+                      size={13}
+                      color={
+                        isLinkedToNext(day.exercises, exIndex) ? colors.accent : colors.textMuted
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.supersetLinkText,
+                        isLinkedToNext(day.exercises, exIndex) && styles.supersetLinkTextOn,
+                      ]}
+                    >
+                      {isLinkedToNext(day.exercises, exIndex) ? 'Superset' : 'Superset?'}
+                    </Text>
+                  </View>
+                </Pressable>
+              )}
+              </React.Fragment>
             ))}
 
             <View style={styles.dayActionsRow}>
@@ -391,6 +432,21 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
   },
+  supersetLinkRow: { alignItems: 'center', marginTop: -2, marginBottom: spacing.xs, minHeight: 28, justifyContent: 'center' },
+  supersetLinkPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceAlt,
+  },
+  supersetLinkPillOn: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
+  supersetLinkText: { color: colors.textMuted, fontSize: 11, fontWeight: '700' },
+  supersetLinkTextOn: { color: colors.accent },
   empty: { color: colors.textMuted, textAlign: 'center', marginVertical: spacing.md },
   saveButton: {
     marginTop: spacing.lg,

@@ -19,6 +19,7 @@ import { formatDuration } from '../utils/format';
 import { computeSessionSummary, isSessionInProgress } from '../utils/sessionSummary';
 import { convertWeightTotal, formatWeightValue, parseWeightInput } from '../utils/units';
 import { bestSetOf, computeSuggestedTarget, repsForAlternateWeight, SuggestedTarget, targetFieldValues } from '../utils/suggestion';
+import { restAfterSet, supersetPositions, SupersetPosition } from '../utils/supersets';
 import { useRestTimer } from '../hooks/useRestTimer';
 import { useNowTick } from '../hooks/useNowTick';
 import { useKeepAwakeWhile } from '../hooks/useKeepAwakeWhile';
@@ -197,6 +198,7 @@ function ExerciseCard({
   onShowForm,
   onSetLogged,
   onExerciseCompletionCheck,
+  supersetPosition,
 }: {
   exercise: Exercise;
   templateExercise: TemplateExercise;
@@ -210,6 +212,7 @@ function ExerciseCard({
   onShowForm: () => void;
   onSetLogged: (restSeconds: number) => void;
   onExerciseCompletionCheck: () => void;
+  supersetPosition?: SupersetPosition;
 }) {
   const updateSetField = useStore((s) => s.updateSetField);
   const toggleSetLogged = useStore((s) => s.toggleSetLogged);
@@ -266,7 +269,14 @@ function ExerciseCard({
     <View style={styles.exerciseCard}>
       <View style={styles.exerciseHeaderRow}>
         <View style={{ flex: 1, gap: 4 }}>
-          <Text style={styles.exerciseName}>{exercise.name}</Text>
+          <View style={styles.exerciseNameRow}>
+            {supersetPosition && (
+              <View style={styles.supersetBadge}>
+                <Text style={styles.supersetBadgeText}>{supersetPosition.letter}</Text>
+              </View>
+            )}
+            <Text style={[styles.exerciseName, { flex: 1 }]}>{exercise.name}</Text>
+          </View>
           <Text style={styles.exerciseEquipment}>{exercise.equipment}</Text>
           <ProgressionBadge suggestion={suggestion} />
         </View>
@@ -301,7 +311,11 @@ function ExerciseCard({
             toggleSetLogged(sessionId, sessionExercise.id, set.id);
             tapFeedback();
             if (!wasLogged) {
-              onSetLogged(templateExercise.sets[i]?.restSeconds ?? 90);
+              // Mid-superset this resolves to 0, which starts no timer at all --
+              // the next movement is the rest.
+              onSetLogged(
+                restAfterSet(templateExercise.sets[i]?.restSeconds ?? 90, supersetPosition)
+              );
               onExerciseCompletionCheck();
             }
           }}
@@ -382,6 +396,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   const exerciseRows = useMemo(() => {
     if (!meso || !day || !session || !active) return [];
     const { getPreviousSessionExercise, getLowPumpStreak } = useStore.getState();
+    const positions = supersetPositions(day.exercises);
     return day.exercises.flatMap((te, idx) => {
       const exercise = exerciseById.get(te.exerciseId);
       const sessionExercise = session.exercises.find((se) => se.exerciseId === te.exerciseId);
@@ -410,6 +425,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
           lowPumpStreak: showTag
             ? getLowPumpStreak(meso.id, day.id, exercise.muscleGroup, active.week)
             : 0,
+          supersetPosition: positions.get(te.id),
         },
       ];
     });
@@ -566,7 +582,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
         {day.exercises.length === 0 && (
           <Text style={styles.empty}>This day has no exercises yet. Edit it from the Mesos tab.</Text>
         )}
-        {exerciseRows.map(({ te, idx, exercise, sessionExercise, showTag, suggestion, suggestedTarget, lowPumpStreak }) => {
+        {exerciseRows.map(({ te, idx, exercise, sessionExercise, showTag, suggestion, suggestedTarget, lowPumpStreak, supersetPosition }) => {
           return (
             <View key={te.id}>
               {showTag && (
@@ -601,7 +617,14 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
                 onShowForm={() => setFormGuideExercise(exercise)}
                 onSetLogged={startRestTimer}
                 onExerciseCompletionCheck={() => checkExerciseCompletion(exercise, sessionExercise)}
+                supersetPosition={supersetPosition}
               />
+              {supersetPosition && !supersetPosition.isLast && (
+                <View style={styles.supersetJoin}>
+                  <Ionicons name="arrow-down" size={12} color={colors.accent} />
+                  <Text style={styles.supersetJoinText}>no rest — straight into</Text>
+                </View>
+              )}
             </View>
           );
         })}
@@ -765,6 +788,27 @@ const styles = StyleSheet.create({
   colHeader: { color: colors.textMuted, fontSize: 11, fontWeight: '700', textAlign: 'center', width: 44 },
   setRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.xs },
   setRowWarmup: { opacity: 0.55 },
+  exerciseNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  supersetBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accentMuted,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  supersetBadgeText: { color: colors.accent, fontSize: 12, fontWeight: '800' },
+  supersetJoin: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  supersetJoinText: { color: colors.accent, fontSize: 11, fontWeight: '700' },
   setMenuButton: { width: 20, height: 44, alignItems: 'center', justifyContent: 'center' },
   setInput: {
     flex: 1,
