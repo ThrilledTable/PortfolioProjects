@@ -20,6 +20,8 @@ export type MoreStackParamList = {
   History: undefined;
   Settings: undefined;
   Account: undefined;
+  Tools: undefined;
+  Bodyweight: undefined;
 };
 
 export type RootTabParamList = {

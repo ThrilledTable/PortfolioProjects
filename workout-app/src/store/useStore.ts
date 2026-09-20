@@ -14,6 +14,7 @@ import {
   SetType,
   PainFlag,
   ActivePosition,
+  BodyweightEntry,
   Settings,
 } from '../types';
 import { SEED_EXERCISES } from '../data/seedExercises';
@@ -33,6 +34,8 @@ export interface BackupData {
   sessions: WorkoutSession[];
   active: ActivePosition | null;
   settings: Settings;
+  /** Added after the first backups shipped, so restores must tolerate its absence. */
+  bodyweight?: BodyweightEntry[];
 }
 
 interface StoreState {
@@ -87,6 +90,10 @@ interface StoreState {
   getLowPumpStreak: (mesoId: string, dayId: string, muscleGroup: MuscleGroup, beforeWeek: number) => number;
 
   updateSettings: (patch: Partial<Settings>) => void;
+  bodyweight: BodyweightEntry[];
+  addBodyweightEntry: (weight: number, note?: string) => void;
+  deleteBodyweightEntry: (id: string) => void;
+
   getBackupData: () => BackupData;
   restoreFromBackup: (data: BackupData) => void;
 }
@@ -96,6 +103,7 @@ const DEFAULT_SETTINGS: Settings = {
   defaultRestSeconds: 90,
   restTimerNotifications: true,
   keepAwakeDuringWorkout: true,
+  barWeight: 45,
 };
 
 export function isValidBackupData(data: unknown): data is BackupData {
@@ -206,6 +214,7 @@ export const useStore = create<StoreState>()(
       sessions: [],
       active: null,
       settings: DEFAULT_SETTINGS,
+      bodyweight: [],
 
       addExercise: (data) => {
         const exercise: Exercise = { ...data, id: genId(), custom: true };
@@ -540,6 +549,20 @@ export const useStore = create<StoreState>()(
         set((s) => ({ settings: { ...s.settings, ...patch } }));
       },
 
+      addBodyweightEntry: (weight, note) => {
+        const entry: BodyweightEntry = {
+          id: genId(),
+          date: new Date().toISOString(),
+          weight,
+          ...(note && note.trim() ? { note: note.trim() } : {}),
+        };
+        // Newest first, matching how the list reads it.
+        set((s) => ({ bodyweight: [entry, ...s.bodyweight] }));
+      },
+      deleteBodyweightEntry: (id) => {
+        set((s) => ({ bodyweight: s.bodyweight.filter((e) => e.id !== id) }));
+      },
+
       getBackupData: () => {
         const s = get();
         return {
@@ -548,6 +571,7 @@ export const useStore = create<StoreState>()(
           sessions: s.sessions,
           active: s.active,
           settings: s.settings,
+          bodyweight: s.bodyweight,
         };
       },
 
@@ -558,6 +582,8 @@ export const useStore = create<StoreState>()(
           sessions: data.sessions,
           active: data.active,
           settings: withSettingsDefaults(data.settings),
+          // Absent in backups written before body-weight tracking existed.
+          bodyweight: data.bodyweight ?? [],
         });
       },
 
@@ -589,6 +615,7 @@ export const useStore = create<StoreState>()(
         sessions: s.sessions,
         active: s.active,
         settings: s.settings,
+        bodyweight: s.bodyweight,
       }),
       // The default shallow merge would replace `settings` wholesale, so any
       // key added after a user's data was written would come back undefined.

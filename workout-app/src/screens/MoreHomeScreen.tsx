@@ -11,7 +11,7 @@ import { colors, radius, spacing } from '../theme/theme';
 import { MoreStackParamList } from '../navigation/types';
 import { Exercise } from '../types';
 import { computeStreak, computeThisWeekVolume, computeTotalWorkouts } from '../utils/stats';
-import { convertWeightTotal } from '../utils/units';
+import { convertWeightTotal, formatWeightValue } from '../utils/units';
 
 type Props = NativeStackScreenProps<MoreStackParamList, 'MoreHome'>;
 
@@ -22,6 +22,7 @@ export default function MoreHomeScreen({ navigation }: Props) {
   const unit = useStore((s) => s.settings.unit);
   const dialog = useDialog();
   const account = useSyncStore((s) => s.account);
+  const latestBodyweight = useStore((s) => s.bodyweight[0]);
 
   const exerciseById = useMemo(() => {
     const map = new Map<string, Exercise>();
@@ -71,6 +72,28 @@ export default function MoreHomeScreen({ navigation }: Props) {
       <Pressable style={styles.navRow} onPress={() => navigation.navigate('History')}>
         <Ionicons name="time-outline" size={20} color={colors.textPrimary} />
         <Text style={styles.navRowText}>Workout History</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      </Pressable>
+
+      <Pressable style={styles.navRow} onPress={() => navigation.navigate('Tools')}>
+        <Ionicons name="calculator-outline" size={20} color={colors.textPrimary} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.navRowText}>Tools</Text>
+          <Text style={styles.navRowSub}>Plate calculator · 1RM estimator</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      </Pressable>
+
+      <Pressable style={styles.navRow} onPress={() => navigation.navigate('Bodyweight')}>
+        <Ionicons name="trending-up-outline" size={20} color={colors.textPrimary} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.navRowText}>Body Weight</Text>
+          <Text style={styles.navRowSub}>
+            {latestBodyweight
+              ? `${formatWeightValue(String(latestBodyweight.weight), unit)} ${unit} · ${new Date(latestBodyweight.date).toLocaleDateString()}`
+              : 'Not tracked yet'}
+          </Text>
+        </View>
         <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </Pressable>
 

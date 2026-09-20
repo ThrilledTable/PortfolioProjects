@@ -111,6 +111,15 @@ export interface ActivePosition {
 
 export type WeightUnit = 'lbs' | 'kg';
 
+/** A body-weight reading. `weight` is canonical lbs like every other weight. */
+export interface BodyweightEntry {
+  id: string;
+  /** ISO date-time the reading was taken. */
+  date: string;
+  weight: number;
+  note?: string;
+}
+
 export interface Settings {
   unit: WeightUnit;
   defaultRestSeconds: number;
@@ -118,4 +127,6 @@ export interface Settings {
   restTimerNotifications: boolean;
   /** Hold the screen on while a workout is in progress. */
   keepAwakeDuringWorkout: boolean;
+  /** Last bar weight picked in the plate calculator, in the display unit's own terms. */
+  barWeight: number;
 }
