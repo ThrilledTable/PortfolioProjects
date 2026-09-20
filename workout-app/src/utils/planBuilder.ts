@@ -1,5 +1,6 @@
 import { Exercise, MesoDay, MuscleGroup, TargetSet, TemplateExercise } from '../types';
 import { genId } from './id';
+import { StarterProgram } from '../data/starterPrograms';
 
 export type SplitDayType = 'Push' | 'Pull' | 'Legs' | 'Upper' | 'Lower' | 'Full Body';
 
@@ -92,6 +93,46 @@ export function buildSuggestedDays(
       name,
       muscleGroups: Array.from(usedMuscles),
       exercises: dayExercises,
+    };
+  });
+}
+
+/**
+ * Turns a starter program into mesocycle days by resolving exercise names
+ * against the library. A name the library does not have is skipped rather
+ * than failing the whole build -- a user who deleted a seed exercise should
+ * still get the rest of the program.
+ */
+export function buildProgramDays(program: StarterProgram, exercises: Exercise[]): MesoDay[] {
+  const byName = new Map(exercises.map((e) => [e.name.toLowerCase(), e]));
+
+  return program.days.map((day) => {
+    // Superset tags are per-day, so two days both using 'arms' still get
+    // their own group ids rather than accidentally linking across days.
+    const groupIds = new Map<string, string>();
+
+    const templateExercises = day.exercises.flatMap<TemplateExercise>((entry) => {
+      const exercise = byName.get(entry.name.toLowerCase());
+      if (!exercise) return [];
+      const sets: TargetSet[] = Array.from({ length: entry.sets }, () => ({
+        id: genId(),
+        repRange: entry.repRange,
+        rir: DEFAULT_RIR,
+        restSeconds: entry.restSeconds,
+      }));
+      let supersetGroup: string | undefined;
+      if (entry.supersetTag) {
+        if (!groupIds.has(entry.supersetTag)) groupIds.set(entry.supersetTag, genId());
+        supersetGroup = groupIds.get(entry.supersetTag);
+      }
+      return [{ id: genId(), exerciseId: exercise.id, sets, ...(supersetGroup ? { supersetGroup } : {}) }];
+    });
+
+    return {
+      id: genId(),
+      name: day.name,
+      muscleGroups: day.muscleGroups,
+      exercises: templateExercises,
     };
   });
 }

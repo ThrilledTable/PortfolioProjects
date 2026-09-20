@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useStore } from '../store/useStore';
 import ScreenContainer from '../components/ScreenContainer';
@@ -7,7 +8,8 @@ import { useDialog } from '../components/DialogProvider';
 import { colors, muscleColors, radius, spacing } from '../theme/theme';
 import { MesosStackParamList } from '../navigation/types';
 import { MUSCLE_GROUPS, MuscleGroup } from '../types';
-import { buildSuggestedDays, suggestSplit } from '../utils/planBuilder';
+import { buildProgramDays, buildSuggestedDays, suggestSplit } from '../utils/planBuilder';
+import { STARTER_PROGRAMS, StarterProgram } from '../data/starterPrograms';
 
 type Props = NativeStackScreenProps<MesosStackParamList, 'PlanBuilder'>;
 
@@ -42,6 +44,18 @@ export default function PlanBuilderScreen({ navigation }: Props) {
     navigation.replace('MesoEditor', { mesoId: meso.id });
   };
 
+  const startFromProgram = (program: StarterProgram) => {
+    const days = buildProgramDays(program, exercises);
+    // The program names itself unless the user has typed something of their own.
+    const meso = addMesocycle(
+      name.trim() || program.name,
+      program.weeks,
+      days,
+      [program.deloadWeek]
+    );
+    navigation.replace('MesoEditor', { mesoId: meso.id });
+  };
+
   const buildManually = () => navigation.replace('MesoEditor', {});
 
   return (
@@ -51,6 +65,30 @@ export default function PlanBuilderScreen({ navigation }: Props) {
           Answer a few questions and we'll put together a full workout plan for you — you can fine-tune
           anything afterward.
         </Text>
+
+        <Text style={styles.label}>Start From a Program</Text>
+        <Text style={styles.sublabel}>
+          Ready-made blocks you can use as-is or edit. Picking one builds it straight away.
+        </Text>
+        {STARTER_PROGRAMS.map((program) => (
+          <Pressable key={program.id} style={styles.programCard} onPress={() => startFromProgram(program)}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.programName}>{program.name}</Text>
+              <Text style={styles.programMeta}>
+                {program.daysPerWeek} days/week · {program.weeks} weeks · deload week {program.deloadWeek}
+              </Text>
+              <Text style={styles.programSummary}>{program.summary}</Text>
+              <Text style={styles.programBestFor}>{program.bestFor}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </Pressable>
+        ))}
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or build around your focus</Text>
+          <View style={styles.dividerLine} />
+        </View>
 
         <Text style={styles.label}>Plan Name</Text>
         <TextInput
@@ -127,6 +165,23 @@ export default function PlanBuilderScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  sublabel: { color: colors.textMuted, fontSize: 12, lineHeight: 17, marginBottom: spacing.sm },
+  programCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  programName: { color: colors.textPrimary, fontSize: 16, fontWeight: '800' },
+  programMeta: { color: colors.accent, fontSize: 12, fontWeight: '700', marginTop: 2 },
+  programSummary: { color: colors.textSecondary, fontSize: 13, lineHeight: 18, marginTop: 6 },
+  programBestFor: { color: colors.textMuted, fontSize: 12, marginTop: 4, fontStyle: 'italic' },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginVertical: spacing.md },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
   intro: { color: colors.textSecondary, fontSize: 14, lineHeight: 20, marginBottom: spacing.sm },
   label: {
     color: colors.textSecondary,
