@@ -49,12 +49,84 @@ function makeTargetSets(restSeconds: number): TargetSet[] {
   }));
 }
 
+/** How many focus muscles one day should cover before it gets too long. */
+const MAX_FOCUS_MUSCLES_PER_DAY = 3;
+const FOCUS_EXERCISES_PER_MUSCLE = 2;
+
+/**
+ * Names a day after the region its muscles belong to, so a legs-only
+ * selection reads "Legs Day 1" rather than something generic. Push/Pull/Legs
+ * are checked before Upper/Lower because they are the more specific label
+ * when both would match.
+ */
+function labelForMuscles(muscles: MuscleGroup[]): string {
+  const candidates: SplitDayType[] = ['Push', 'Pull', 'Legs', 'Upper', 'Lower'];
+  for (const type of candidates) {
+    if (muscles.every((m) => DAY_TYPE_MUSCLES[type].includes(m))) return type;
+  }
+  return 'Focus';
+}
+
+/**
+ * Builds days from the muscles the user actually chose, rather than from a
+ * standard split. Each day starts at a different point in the list so the
+ * days are not identical, and covers at most a few muscles so a day stays a
+ * sane length -- with more focus muscles than that, they rotate across days.
+ */
+function buildFocusedDays(
+  daysPerWeek: number,
+  focusMuscles: MuscleGroup[],
+  exercises: Exercise[],
+  defaultRestSeconds: number
+): MesoDay[] {
+  const available = focusMuscles.filter((m) => exercises.some((e) => e.muscleGroup === m));
+  if (available.length === 0) return [];
+
+  return Array.from({ length: daysPerWeek }, (_, dayIndex) => {
+    const start = dayIndex % available.length;
+    const rotated = [...available.slice(start), ...available.slice(0, start)];
+    const muscles = rotated.slice(0, MAX_FOCUS_MUSCLES_PER_DAY);
+
+    const dayExercises: TemplateExercise[] = [];
+    const usedMuscles = new Set<MuscleGroup>();
+    muscles.forEach((mg, mgIndex) => {
+      const pool = exercises.filter((e) => e.muscleGroup === mg);
+      if (pool.length === 0) return;
+      const count = Math.min(FOCUS_EXERCISES_PER_MUSCLE, pool.length);
+      // Offset by the day so repeated muscles get different movements.
+      pick(pool, count, dayIndex * count + mgIndex).forEach((ex) => {
+        usedMuscles.add(mg);
+        dayExercises.push({
+          id: genId(),
+          exerciseId: ex.id,
+          sets: makeTargetSets(defaultRestSeconds),
+        });
+      });
+    });
+
+    const label = labelForMuscles(muscles);
+    return {
+      id: genId(),
+      name: daysPerWeek > 1 ? `${label} Day ${dayIndex + 1}` : `${label} Day`,
+      muscleGroups: Array.from(usedMuscles),
+      exercises: dayExercises,
+    };
+  });
+}
+
 export function buildSuggestedDays(
   daysPerWeek: number,
   focusMuscles: MuscleGroup[],
   exercises: Exercise[],
   defaultRestSeconds: number
 ): MesoDay[] {
+  // Choosing focus muscles means "build my plan around these". Only fall back
+  // to a standard split when nothing was chosen.
+  if (focusMuscles.length > 0) {
+    const focused = buildFocusedDays(daysPerWeek, focusMuscles, exercises, defaultRestSeconds);
+    if (focused.length > 0) return focused;
+  }
+
   const split = suggestSplit(daysPerWeek);
   const occurrenceByType = new Map<SplitDayType, number>();
   const totalByType = split.reduce<Record<string, number>>((acc, t) => {

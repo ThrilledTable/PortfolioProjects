@@ -121,7 +121,10 @@ export default function PlanBuilderScreen({ navigation }: Props) {
         </View>
 
         <Text style={styles.label}>What do you want to focus on?</Text>
-        <Text style={styles.hint}>Optional — selected muscle groups get extra exercises in your plan.</Text>
+        <Text style={styles.hint}>
+          Pick muscle groups and the plan is built around just those. Leave it empty for a balanced
+          split covering everything.
+        </Text>
         <View style={styles.chipRow}>
           {MUSCLE_GROUPS.map((m) => {
             const selected = focusMuscles.includes(m);
