@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radius, spacing } from '../theme/theme';
 
 export type DialogChoiceStyle = 'default' | 'destructive' | 'cancel';
@@ -10,10 +10,20 @@ export interface DialogChoice<T extends string = string> {
   style?: DialogChoiceStyle;
 }
 
+interface PromptConfig {
+  initialValue: string;
+  placeholder?: string;
+  multiline?: boolean;
+  submitLabel: string;
+  /** Offered only when there is an existing value to remove. */
+  clearLabel?: string;
+}
+
 interface DialogRequest {
   title: string;
   message?: string;
   choices: DialogChoice[];
+  prompt?: PromptConfig;
   resolve: (value: string | null) => void;
 }
 
@@ -32,6 +42,22 @@ interface DialogApi {
     choices: DialogChoice<T>[],
     message?: string
   ) => Promise<T | null>;
+  /**
+   * Free-text entry. Resolves the typed value, an empty string if cleared, or
+   * null if dismissed -- so a caller can tell "removed it" from "changed my
+   * mind", which matters when the value being edited already exists.
+   */
+  prompt: (
+    title: string,
+    options?: {
+      message?: string;
+      initialValue?: string;
+      placeholder?: string;
+      multiline?: boolean;
+      submitLabel?: string;
+      clearLabel?: string;
+    }
+  ) => Promise<string | null>;
 }
 
 const DialogContext = createContext<DialogApi | null>(null);
@@ -46,13 +72,23 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
   const [request, setRequest] = useState<DialogRequest | null>(null);
   // Guards against a resolve firing twice (e.g. backdrop dismiss racing a button press).
   const settled = useRef(true);
+  // The prompt's promise is created before any typing happens, so it cannot
+  // close over the final text -- it reads this ref when the dialog settles.
+  const draftRef = useRef('');
 
-  const present = useCallback((title: string, choices: DialogChoice[], message?: string) => {
-    return new Promise<string | null>((resolve) => {
-      settled.current = false;
-      setRequest({ title, message, choices, resolve });
-    });
-  }, []);
+  const [draft, setDraft] = useState('');
+  draftRef.current = draft;
+
+  const present = useCallback(
+    (title: string, choices: DialogChoice[], message?: string, prompt?: PromptConfig) => {
+      return new Promise<string | null>((resolve) => {
+        settled.current = false;
+        if (prompt) setDraft(prompt.initialValue);
+        setRequest({ title, message, choices, prompt, resolve });
+      });
+    },
+    []
+  );
 
   const settle = useCallback(
     (value: string | null) => {
@@ -90,6 +126,26 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         const result = await present(title, choices as DialogChoice[], message);
         return result as never;
       },
+      prompt: async (title, options) => {
+        const initialValue = options?.initialValue ?? '';
+        const choices: DialogChoice[] = [
+          { value: 'submit', label: options?.submitLabel ?? 'Save' },
+          ...(initialValue && options?.clearLabel
+            ? [{ value: 'clear', label: options.clearLabel, style: 'destructive' as const }]
+            : []),
+          { value: 'cancel', label: 'Cancel', style: 'cancel' as const },
+        ];
+        const result = await present(title, choices, options?.message, {
+          initialValue,
+          placeholder: options?.placeholder,
+          multiline: options?.multiline,
+          submitLabel: options?.submitLabel ?? 'Save',
+          clearLabel: options?.clearLabel,
+        });
+        if (result === null || result === 'cancel') return null;
+        if (result === 'clear') return '';
+        return draftRef.current;
+      },
     }),
     [present]
   );
@@ -108,6 +164,18 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
           <Pressable style={styles.card} onPress={() => {}}>
             <Text style={styles.title}>{request?.title}</Text>
             {!!request?.message && <Text style={styles.message}>{request.message}</Text>}
+            {!!request?.prompt && (
+              <TextInput
+                style={[styles.input, request.prompt.multiline && styles.inputMultiline]}
+                value={draft}
+                onChangeText={setDraft}
+                placeholder={request.prompt.placeholder}
+                placeholderTextColor={colors.textMuted}
+                multiline={request.prompt.multiline}
+                autoFocus
+                onSubmitEditing={request.prompt.multiline ? undefined : () => settle('submit')}
+              />
+            )}
             <View style={styles.choices}>
               {request?.choices.map((choice) => (
                 <Pressable
@@ -155,6 +223,18 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.lg,
   },
+  input: {
+    backgroundColor: colors.inputBackground,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colors.textPrimary,
+    marginTop: spacing.sm,
+  },
+  inputMultiline: { minHeight: 90, textAlignVertical: 'top' },
   title: { color: colors.textPrimary, fontSize: 17, fontWeight: '800' },
   message: { color: colors.textSecondary, fontSize: 14, lineHeight: 20, marginTop: spacing.sm },
   choices: { marginTop: spacing.lg, gap: spacing.sm },

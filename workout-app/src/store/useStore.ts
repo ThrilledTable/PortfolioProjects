@@ -48,6 +48,7 @@ interface StoreState {
 
   addExercise: (data: Omit<Exercise, 'id' | 'custom'>) => Exercise;
   deleteExercise: (id: string) => void;
+  setExerciseNote: (id: string, note: string) => void;
 
   addMesocycle: (name: string, weeks: number, days: MesoDay[], deloadWeeks?: number[]) => Mesocycle;
   updateMesocycle: (id: string, patch: Partial<Omit<Mesocycle, 'id'>>) => void;
@@ -253,6 +254,21 @@ export const useStore = create<StoreState>()(
       },
       deleteExercise: (id) => {
         set((s) => ({ exercises: s.exercises.filter((e) => e.id !== id) }));
+      },
+      setExerciseNote: (id, note) => {
+        const trimmed = note.trim();
+        set((s) => ({
+          exercises: s.exercises.map((e) => {
+            if (e.id !== id) return e;
+            // Clearing removes the key rather than storing an empty string, so
+            // "has a note" stays a simple truthiness check everywhere.
+            if (!trimmed) {
+              const { note: _cleared, ...rest } = e;
+              return rest;
+            }
+            return { ...e, note: trimmed };
+          }),
+        }));
       },
 
       addMesocycle: (name, weeks, days, deloadWeeks = []) => {

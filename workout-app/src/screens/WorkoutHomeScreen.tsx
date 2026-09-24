@@ -200,6 +200,7 @@ function ExerciseCard({
   onSetLogged,
   onExerciseCompletionCheck,
   supersetPosition,
+  onEditNote,
 }: {
   exercise: Exercise;
   templateExercise: TemplateExercise;
@@ -214,6 +215,7 @@ function ExerciseCard({
   onSetLogged: (restSeconds: number) => void;
   onExerciseCompletionCheck: () => void;
   supersetPosition?: SupersetPosition;
+  onEditNote: () => void;
 }) {
   const updateSetField = useStore((s) => s.updateSetField);
   const toggleSetLogged = useStore((s) => s.toggleSetLogged);
@@ -281,6 +283,13 @@ function ExerciseCard({
           <Text style={styles.exerciseEquipment}>{exercise.equipment}</Text>
           <ProgressionBadge suggestion={suggestion} />
         </View>
+        <Pressable onPress={onEditNote} hitSlop={10} style={{ marginRight: spacing.sm }}>
+          <Ionicons
+            name={exercise.note ? 'bookmark' : 'bookmark-outline'}
+            size={20}
+            color={exercise.note ? colors.accent : colors.textSecondary}
+          />
+        </Pressable>
         <Pressable onPress={onShowForm} hitSlop={10} style={{ marginRight: spacing.sm }}>
           <Ionicons name="body-outline" size={20} color={colors.textSecondary} />
         </Pressable>
@@ -288,6 +297,13 @@ function ExerciseCard({
           <Ionicons name="time-outline" size={20} color={colors.textSecondary} />
         </Pressable>
       </View>
+
+      {!!exercise.note && (
+        <Pressable style={styles.noteCard} onPress={onEditNote}>
+          <Ionicons name="bookmark" size={13} color={colors.accent} />
+          <Text style={styles.noteText}>{exercise.note}</Text>
+        </Pressable>
+      )}
 
       {suggestedTarget && (
         <SuggestionRow target={suggestedTarget} unit={unit} isDeload={isDeloadWeek} onApply={applySuggestedTarget} />
@@ -344,6 +360,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   const setExercisePain = useStore((s) => s.setExercisePain);
   const setMuscleFeedback = useStore((s) => s.setMuscleFeedback);
   const swapDayExercise = useStore((s) => s.swapDayExercise);
+  const setExerciseNote = useStore((s) => s.setExerciseNote);
   const createNextMesocycle = useStore((s) => s.createNextMesocycle);
   const dialog = useDialog();
   const settings = useStore((s) => s.settings);
@@ -452,6 +469,19 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   if (!session || !summary) {
     return <ScreenContainer />;
   }
+
+  const editExerciseNote = async (exercise: Exercise) => {
+    const next = await dialog.prompt(exercise.name, {
+      message: 'Pinned to this exercise — you will see it every time it comes up.',
+      initialValue: exercise.note ?? '',
+      placeholder: 'e.g. elbows tucked, pause on the chest',
+      multiline: true,
+      submitLabel: 'Save Note',
+      clearLabel: 'Remove',
+    });
+    if (next === null) return;
+    setExerciseNote(exercise.id, next);
+  };
 
   const blockComplete = isMesocycleComplete(meso, sessions);
 
@@ -650,6 +680,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
                 onSetLogged={startRestTimer}
                 onExerciseCompletionCheck={() => checkExerciseCompletion(exercise, sessionExercise)}
                 supersetPosition={supersetPosition}
+                onEditNote={() => editExerciseNote(exercise)}
               />
               {supersetPosition && !supersetPosition.isLast && (
                 <View style={styles.supersetJoin}>
@@ -820,6 +851,18 @@ const styles = StyleSheet.create({
   colHeader: { color: colors.textMuted, fontSize: 11, fontWeight: '700', textAlign: 'center', width: 44 },
   setRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.xs },
   setRowWarmup: { opacity: 0.55 },
+  noteCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: colors.accentMuted,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  noteText: { flex: 1, color: colors.textPrimary, fontSize: 13, lineHeight: 18 },
   blockDoneCard: {
     flexDirection: 'row',
     alignItems: 'center',

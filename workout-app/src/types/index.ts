@@ -32,6 +32,12 @@ export interface Exercise {
   muscleGroup: MuscleGroup;
   equipment: Equipment;
   custom?: boolean;
+  /**
+   * A cue or reminder pinned to this exercise. It belongs to the exercise
+   * rather than a session, so it shows every time the exercise comes up,
+   * in any plan.
+   */
+  note?: string;
 }
 
 export interface TargetSet {
