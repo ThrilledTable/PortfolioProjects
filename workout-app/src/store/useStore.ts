@@ -366,13 +366,24 @@ export const useStore = create<StoreState>()(
         if (!meso || meso.days.length === 0) return;
         let { week, dayIndex } = active;
         dayIndex += direction;
+
         if (dayIndex >= meso.days.length) {
+          // Past the last day: on to week 1 of the next week, unless this is
+          // already the final week -- then there is nowhere to go, and
+          // wrapping to day 1 of the same week would silently move the user
+          // backwards through their own block.
+          if (week >= meso.weeks) return;
+          week += 1;
           dayIndex = 0;
-          week = Math.min(week + 1, meso.weeks);
         } else if (dayIndex < 0) {
+          // Before the first day: back to the last day of the previous week.
+          // At week 1 day 1 there is no previous day at all, so stay put
+          // rather than jumping forward to the end of the current week.
+          if (week <= 1) return;
+          week -= 1;
           dayIndex = meso.days.length - 1;
-          week = Math.max(week - 1, 1);
         }
+
         set({ active: { mesoId: active.mesoId, week, dayIndex } });
       },
 

@@ -483,6 +483,11 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
     setExerciseNote(exercise.id, next);
   };
 
+  // The ends of the block: nothing before week 1 day 1, nothing after the
+  // final day of the final week.
+  const atFirstDay = active.week === 1 && active.dayIndex === 0;
+  const atLastDay = active.week === meso.weeks && active.dayIndex === meso.days.length - 1;
+
   const blockComplete = isMesocycleComplete(meso, sessions);
 
   const startNextBlock = async () => {
@@ -576,10 +581,20 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
           </View>
           <Text style={styles.headerSubtitle}>{day.name} · {meso.name}</Text>
         </View>
-        <Pressable onPress={() => stepDay(-1)} hitSlop={10} style={{ marginRight: spacing.sm }}>
+        <Pressable
+          onPress={() => stepDay(-1)}
+          hitSlop={10}
+          disabled={atFirstDay}
+          style={{ marginRight: spacing.sm, opacity: atFirstDay ? 0.25 : 1 }}
+        >
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </Pressable>
-        <Pressable onPress={() => stepDay(1)} hitSlop={10}>
+        <Pressable
+          onPress={() => stepDay(1)}
+          hitSlop={10}
+          disabled={atLastDay}
+          style={{ opacity: atLastDay ? 0.25 : 1 }}
+        >
           <Ionicons name="chevron-forward" size={22} color={colors.textPrimary} />
         </Pressable>
       </View>
