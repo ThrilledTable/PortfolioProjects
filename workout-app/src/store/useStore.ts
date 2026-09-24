@@ -1,0 +1,719 @@
+import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  Exercise,
+  TemplateExercise,
+  Mesocycle,
+  MesoDay,
+  MuscleGroup,
+  MuscleFeedback,
+  WorkoutSession,
+  SessionExercise,
+  LoggedSet,
+  SetType,
+  PainFlag,
+  ActivePosition,
+  BodyweightEntry,
+  Settings,
+} from '../types';
+import { SEED_EXERCISES } from '../data/seedExercises';
+import { genId } from '../utils/id';
+import { buildNextMesocycle } from '../utils/nextMesocycle';
+
+interface ExerciseHistoryEntry {
+  sessionId: string;
+  date: string;
+  week: number;
+  dayName: string;
+  sets: LoggedSet[];
+}
+
+export interface BackupData {
+  exercises: Exercise[];
+  mesocycles: Mesocycle[];
+  sessions: WorkoutSession[];
+  active: ActivePosition | null;
+  settings: Settings;
+  /** Added after the first backups shipped, so restores must tolerate its absence. */
+  bodyweight?: BodyweightEntry[];
+}
+
+interface StoreState {
+  exercises: Exercise[];
+  mesocycles: Mesocycle[];
+  sessions: WorkoutSession[];
+  active: ActivePosition | null;
+  settings: Settings;
+
+  addExercise: (data: Omit<Exercise, 'id' | 'custom'>) => Exercise;
+  deleteExercise: (id: string) => void;
+  setExerciseNote: (id: string, note: string) => void;
+
+  addMesocycle: (name: string, weeks: number, days: MesoDay[], deloadWeeks?: number[]) => Mesocycle;
+  updateMesocycle: (id: string, patch: Partial<Omit<Mesocycle, 'id'>>) => void;
+  deleteMesocycle: (id: string) => void;
+  duplicateMesocycle: (id: string) => void;
+  createNextMesocycle: (id: string) => Mesocycle | null;
+  swapDayExercise: (mesoId: string, dayId: string, templateExerciseId: string, newExerciseId: string) => void;
+
+  setActive: (mesoId: string, week: number, dayIndex: number) => void;
+  clearActive: () => void;
+  stepDay: (direction: 1 | -1) => void;
+
+  getOrCreateSession: (mesoId: string, week: number, dayIndex: number) => string;
+  updateSetField: (
+    sessionId: string,
+    sessionExerciseId: string,
+    setId: string,
+    field: 'weight' | 'reps',
+    value: string
+  ) => void;
+  toggleSetLogged: (sessionId: string, sessionExerciseId: string, setId: string) => void;
+  setLoggedSetType: (
+    sessionId: string,
+    sessionExerciseId: string,
+    setId: string,
+    type: SetType
+  ) => void;
+  addSet: (sessionId: string, sessionExerciseId: string) => void;
+  removeSet: (sessionId: string, sessionExerciseId: string, setId: string) => void;
+  completeSession: (sessionId: string) => void;
+  updateSessionNotes: (sessionId: string, notes: string) => void;
+  setExercisePain: (sessionId: string, sessionExerciseId: string, pain: PainFlag) => void;
+  setMuscleFeedback: (sessionId: string, muscleGroup: MuscleGroup, feedback: MuscleFeedback) => void;
+
+  getExerciseHistory: (exerciseId: string) => ExerciseHistoryEntry[];
+  getPreviousSessionExercise: (
+    mesoId: string,
+    dayId: string,
+    exerciseId: string,
+    beforeWeek: number
+  ) => SessionExercise | undefined;
+  getLowPumpStreak: (mesoId: string, dayId: string, muscleGroup: MuscleGroup, beforeWeek: number) => number;
+
+  updateSettings: (patch: Partial<Settings>) => void;
+  bodyweight: BodyweightEntry[];
+  addBodyweightEntry: (weight: number, note?: string) => void;
+  deleteBodyweightEntry: (id: string) => void;
+
+  getBackupData: () => BackupData;
+  restoreFromBackup: (data: BackupData) => void;
+}
+
+const DEFAULT_SETTINGS: Settings = {
+  unit: 'lbs',
+  defaultRestSeconds: 90,
+  restTimerNotifications: true,
+  keepAwakeDuringWorkout: true,
+  barWeight: 45,
+};
+
+export function isValidBackupData(data: unknown): data is BackupData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as Record<string, unknown>;
+  return (
+    Array.isArray(d.exercises) &&
+    Array.isArray(d.mesocycles) &&
+    Array.isArray(d.sessions) &&
+    typeof d.settings === 'object' &&
+    d.settings !== null
+  );
+}
+
+const MIN_SETS = 1;
+const MAX_SETS = 6;
+const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+const makeLoggedSet = (): LoggedSet => ({
+  id: genId(),
+  weight: '',
+  reps: '',
+  rir: '',
+  logged: false,
+  type: 'working',
+});
+
+const latestOf = (sessions: WorkoutSession[]): WorkoutSession | undefined =>
+  sessions.length === 0
+    ? undefined
+    : sessions.reduce((latest, s) => (s.week > latest.week ? s : latest));
+
+/**
+ * The last time this day was trained. Looks inside the current block first;
+ * failing that, and only when the block was generated as a continuation, it
+ * reaches back into the block it continues from so week 1 starts from real
+ * numbers rather than re-testing every lift.
+ *
+ * The carry-over deliberately skips the previous block's deload weeks, which
+ * are lighter by design and would start the new block under-dosed.
+ */
+const findPreviousSession = (
+  sessions: WorkoutSession[],
+  mesoId: string,
+  dayId: string,
+  beforeWeek: number,
+  carryOver?: { mesoId: string; deloadWeeks: number[] }
+): WorkoutSession | undefined => {
+  const withinBlock = latestOf(
+    sessions.filter((s) => s.mesoId === mesoId && s.dayId === dayId && s.week < beforeWeek)
+  );
+  if (withinBlock || !carryOver) return withinBlock;
+
+  const priorDay = sessions.filter((s) => s.mesoId === carryOver.mesoId && s.dayId === dayId);
+  const working = priorDay.filter((s) => !carryOver.deloadWeeks.includes(s.week));
+  return latestOf(working.length > 0 ? working : priorDay);
+};
+
+/** The block `meso` continues from, when it has one. */
+const carryOverOf = (
+  meso: Mesocycle | undefined,
+  mesocycles: Mesocycle[]
+): { mesoId: string; deloadWeeks: number[] } | undefined => {
+  if (!meso?.continuesFrom) return undefined;
+  const prior = mesocycles.find((m) => m.id === meso.continuesFrom);
+  return prior ? { mesoId: prior.id, deloadWeeks: prior.deloadWeeks } : undefined;
+};
+
+// How many sets to add/remove for the next session of this exercise, based on
+// how the previous session felt: sharp pain backs off; a solid pump with
+// capacity to spare adds a set; anything else holds steady. A low pump alone
+// doesn't reduce sets -- that's better solved by swapping the exercise
+// (see getLowPumpStreak), not by training the muscle less.
+const suggestSetCountDelta = (pain?: PainFlag, feedback?: MuscleFeedback): number => {
+  if (pain === 'sharp') return -1;
+  if (!feedback) return 0;
+  const { pump, effort } = feedback;
+  if ((pump === 'medium' || pump === 'high') && (effort === 'easy' || effort === 'moderate')) return 1;
+  return 0;
+};
+
+const buildSessionExercise = (
+  te: TemplateExercise,
+  muscleGroup: MuscleGroup | undefined,
+  prevExercise?: SessionExercise,
+  prevSession?: WorkoutSession
+): SessionExercise => {
+  const delta = suggestSetCountDelta(
+    prevExercise?.painFlag,
+    muscleGroup ? prevSession?.muscleFeedback?.[muscleGroup] : undefined
+  );
+  const baseCount = prevExercise ? prevExercise.sets.length : te.sets.length;
+  const targetCount = clamp(baseCount + delta, MIN_SETS, MAX_SETS);
+
+  return {
+    id: genId(),
+    exerciseId: te.exerciseId,
+    sets: Array.from({ length: targetCount }, (_, i) => {
+      const base = makeLoggedSet();
+      const prevSet = prevExercise?.sets[i];
+      if (prevSet && prevSet.logged && prevSet.reps !== '') {
+        return { ...base, weight: prevSet.weight, reps: prevSet.reps };
+      }
+      return base;
+    }),
+  };
+};
+
+const withSettingsDefaults = (saved?: Partial<Settings>): Settings => ({
+  ...DEFAULT_SETTINGS,
+  ...(saved ?? {}),
+});
+
+// Whoever just created a plan should land on it rather than on the Workout
+// tab's "no active plan" empty state. Only claim the slot when nothing holds
+// it, so building a future block mid-mesocycle does not reset where you are
+// in the current one.
+const claimActive = (
+  current: ActivePosition | null,
+  meso: Mesocycle
+): ActivePosition | null =>
+  current ?? (meso.days.length > 0 ? { mesoId: meso.id, week: 1, dayIndex: 0 } : null);
+
+const cloneExercises = (exercises: TemplateExercise[]): TemplateExercise[] =>
+  exercises.map((te) => ({
+    id: genId(),
+    exerciseId: te.exerciseId,
+    sets: te.sets.map((s) => ({ ...s, id: genId() })),
+  }));
+
+export const useStore = create<StoreState>()(
+  persist(
+    (set, get) => ({
+      exercises: SEED_EXERCISES,
+      mesocycles: [],
+      sessions: [],
+      active: null,
+      settings: DEFAULT_SETTINGS,
+      bodyweight: [],
+
+      addExercise: (data) => {
+        const exercise: Exercise = { ...data, id: genId(), custom: true };
+        set((s) => ({ exercises: [...s.exercises, exercise] }));
+        return exercise;
+      },
+      deleteExercise: (id) => {
+        set((s) => ({ exercises: s.exercises.filter((e) => e.id !== id) }));
+      },
+      setExerciseNote: (id, note) => {
+        const trimmed = note.trim();
+        set((s) => ({
+          exercises: s.exercises.map((e) => {
+            if (e.id !== id) return e;
+            // Clearing removes the key rather than storing an empty string, so
+            // "has a note" stays a simple truthiness check everywhere.
+            if (!trimmed) {
+              const { note: _cleared, ...rest } = e;
+              return rest;
+            }
+            return { ...e, note: trimmed };
+          }),
+        }));
+      },
+
+      addMesocycle: (name, weeks, days, deloadWeeks = []) => {
+        const meso: Mesocycle = { id: genId(), name, weeks, days, deloadWeeks };
+        set((s) => ({ mesocycles: [...s.mesocycles, meso], active: claimActive(s.active, meso) }));
+        return meso;
+      },
+      updateMesocycle: (id, patch) => {
+        set((s) => {
+          const mesocycles = s.mesocycles.map((m) => (m.id === id ? { ...m, ...patch } : m));
+          if (s.active?.mesoId !== id) return { mesocycles };
+          const updated = mesocycles.find((m) => m.id === id);
+          if (!updated) return { mesocycles };
+          if (updated.days.length === 0) {
+            return { mesocycles, active: null };
+          }
+          const week = Math.min(s.active.week, updated.weeks);
+          const dayIndex = Math.min(s.active.dayIndex, updated.days.length - 1);
+          if (week === s.active.week && dayIndex === s.active.dayIndex) {
+            return { mesocycles };
+          }
+          return { mesocycles, active: { mesoId: id, week, dayIndex } };
+        });
+      },
+      deleteMesocycle: (id) => {
+        set((s) => ({
+          mesocycles: s.mesocycles.filter((m) => m.id !== id),
+          active: s.active?.mesoId === id ? null : s.active,
+        }));
+      },
+      duplicateMesocycle: (id) => {
+        set((s) => {
+          const source = s.mesocycles.find((m) => m.id === id);
+          if (!source) return s;
+          const copy: Mesocycle = {
+            id: genId(),
+            name: `${source.name} Copy`,
+            weeks: source.weeks,
+            deloadWeeks: [...source.deloadWeeks],
+            days: source.days.map((d) => ({
+              id: genId(),
+              name: d.name,
+              muscleGroups: d.muscleGroups,
+              exercises: cloneExercises(d.exercises),
+            })),
+          };
+          return { mesocycles: [...s.mesocycles, copy], active: claimActive(s.active, copy) };
+        });
+      },
+      createNextMesocycle: (id) => {
+        const { mesocycles, sessions } = get();
+        const meso = mesocycles.find((m) => m.id === id);
+        if (!meso) return null;
+        const next = buildNextMesocycle(meso, sessions);
+        set((s) => ({
+          mesocycles: [...s.mesocycles, next],
+          // A finished block should hand over rather than sit there as the
+          // active one, so the next block takes the slot outright.
+          active: { mesoId: next.id, week: 1, dayIndex: 0 },
+        }));
+        return next;
+      },
+
+      swapDayExercise: (mesoId, dayId, templateExerciseId, newExerciseId) => {
+        set((s) => ({
+          mesocycles: s.mesocycles.map((m) =>
+            m.id !== mesoId
+              ? m
+              : {
+                  ...m,
+                  days: m.days.map((d) =>
+                    d.id !== dayId
+                      ? d
+                      : {
+                          ...d,
+                          exercises: d.exercises.map((te) =>
+                            te.id !== templateExerciseId ? te : { ...te, exerciseId: newExerciseId }
+                          ),
+                        }
+                  ),
+                }
+          ),
+        }));
+      },
+
+      setActive: (mesoId, week, dayIndex) => {
+        set({ active: { mesoId, week, dayIndex } });
+      },
+      clearActive: () => set({ active: null }),
+
+      stepDay: (direction) => {
+        const { active, mesocycles } = get();
+        if (!active) return;
+        const meso = mesocycles.find((m) => m.id === active.mesoId);
+        if (!meso || meso.days.length === 0) return;
+        let { week, dayIndex } = active;
+        dayIndex += direction;
+
+        if (dayIndex >= meso.days.length) {
+          // Past the last day: on to week 1 of the next week, unless this is
+          // already the final week -- then there is nowhere to go, and
+          // wrapping to day 1 of the same week would silently move the user
+          // backwards through their own block.
+          if (week >= meso.weeks) return;
+          week += 1;
+          dayIndex = 0;
+        } else if (dayIndex < 0) {
+          // Before the first day: back to the last day of the previous week.
+          // At week 1 day 1 there is no previous day at all, so stay put
+          // rather than jumping forward to the end of the current week.
+          if (week <= 1) return;
+          week -= 1;
+          dayIndex = meso.days.length - 1;
+        }
+
+        set({ active: { mesoId: active.mesoId, week, dayIndex } });
+      },
+
+      getOrCreateSession: (mesoId, week, dayIndex) => {
+        const { sessions, mesocycles, exercises } = get();
+        const meso = mesocycles.find((m) => m.id === mesoId);
+        if (!meso) throw new Error('Mesocycle not found');
+        const day = meso.days[dayIndex];
+        if (!day) throw new Error('Day not found');
+        const muscleGroupOf = (exerciseId: string) =>
+          exercises.find((e) => e.id === exerciseId)?.muscleGroup;
+
+        const existing = sessions.find(
+          (s) => s.mesoId === mesoId && s.week === week && s.dayId === day.id
+        );
+        if (existing) {
+          const missing = day.exercises.filter(
+            (te) => !existing.exercises.some((se) => se.exerciseId === te.exerciseId)
+          );
+          if (missing.length > 0) {
+            const prevSession = findPreviousSession(
+              sessions,
+              mesoId,
+              day.id,
+              week,
+              carryOverOf(meso, mesocycles)
+            );
+            const newSessionExercises: SessionExercise[] = missing.map((te) =>
+              buildSessionExercise(
+                te,
+                muscleGroupOf(te.exerciseId),
+                prevSession?.exercises.find((se) => se.exerciseId === te.exerciseId),
+                prevSession
+              )
+            );
+            set((s) => ({
+              sessions: s.sessions.map((sess) =>
+                sess.id !== existing.id
+                  ? sess
+                  : { ...sess, exercises: [...sess.exercises, ...newSessionExercises] }
+              ),
+            }));
+          }
+          return existing.id;
+        }
+
+        const prevSession = findPreviousSession(
+          sessions,
+          mesoId,
+          day.id,
+          week,
+          carryOverOf(meso, mesocycles)
+        );
+        const sessionExercises: SessionExercise[] = day.exercises.map((te) =>
+          buildSessionExercise(
+            te,
+            muscleGroupOf(te.exerciseId),
+            prevSession?.exercises.find((se) => se.exerciseId === te.exerciseId),
+            prevSession
+          )
+        );
+
+        const session: WorkoutSession = {
+          id: genId(),
+          mesoId,
+          mesoName: meso.name,
+          week,
+          dayId: day.id,
+          dayName: day.name,
+          date: new Date().toISOString(),
+          exercises: sessionExercises,
+        };
+        set((s) => ({ sessions: [...s.sessions, session] }));
+        return session.id;
+      },
+
+      updateSetField: (sessionId, sessionExerciseId, setId, field, value) => {
+        set((s) => ({
+          sessions: s.sessions.map((sess) =>
+            sess.id !== sessionId
+              ? sess
+              : {
+                  ...sess,
+                  exercises: sess.exercises.map((se) =>
+                    se.id !== sessionExerciseId
+                      ? se
+                      : {
+                          ...se,
+                          sets: se.sets.map((st) =>
+                            st.id === setId ? { ...st, [field]: value } : st
+                          ),
+                        }
+                  ),
+                }
+          ),
+        }));
+      },
+
+      toggleSetLogged: (sessionId, sessionExerciseId, setId) => {
+        set((s) => ({
+          sessions: s.sessions.map((sess) =>
+            sess.id !== sessionId
+              ? sess
+              : {
+                  ...sess,
+                  exercises: sess.exercises.map((se) =>
+                    se.id !== sessionExerciseId
+                      ? se
+                      : {
+                          ...se,
+                          sets: se.sets.map((st) =>
+                            st.id === setId ? { ...st, logged: !st.logged } : st
+                          ),
+                        }
+                  ),
+                }
+          ),
+        }));
+      },
+
+      setLoggedSetType: (sessionId, sessionExerciseId, setId, type) => {
+        set((s) => ({
+          sessions: s.sessions.map((sess) =>
+            sess.id !== sessionId
+              ? sess
+              : {
+                  ...sess,
+                  exercises: sess.exercises.map((se) =>
+                    se.id !== sessionExerciseId
+                      ? se
+                      : {
+                          ...se,
+                          sets: se.sets.map((st) => (st.id === setId ? { ...st, type } : st)),
+                        }
+                  ),
+                }
+          ),
+        }));
+      },
+
+      addSet: (sessionId, sessionExerciseId) => {
+        set((s) => ({
+          sessions: s.sessions.map((sess) =>
+            sess.id !== sessionId
+              ? sess
+              : {
+                  ...sess,
+                  exercises: sess.exercises.map((se) =>
+                    se.id !== sessionExerciseId
+                      ? se
+                      : {
+                          ...se,
+                          sets: [
+                            ...se.sets,
+                            makeLoggedSet(),
+                          ],
+                        }
+                  ),
+                }
+          ),
+        }));
+      },
+
+      removeSet: (sessionId, sessionExerciseId, setId) => {
+        set((s) => ({
+          sessions: s.sessions.map((sess) =>
+            sess.id !== sessionId
+              ? sess
+              : {
+                  ...sess,
+                  exercises: sess.exercises.map((se) =>
+                    se.id !== sessionExerciseId
+                      ? se
+                      : { ...se, sets: se.sets.filter((st) => st.id !== setId) }
+                  ),
+                }
+          ),
+        }));
+      },
+
+      completeSession: (sessionId) => {
+        set((s) => ({
+          sessions: s.sessions.map((sess) =>
+            sess.id !== sessionId
+              ? sess
+              : { ...sess, completedAt: sess.completedAt ? undefined : new Date().toISOString() }
+          ),
+        }));
+      },
+
+      updateSessionNotes: (sessionId, notes) => {
+        set((s) => ({
+          sessions: s.sessions.map((sess) => (sess.id !== sessionId ? sess : { ...sess, notes })),
+        }));
+      },
+
+      setExercisePain: (sessionId, sessionExerciseId, pain) => {
+        set((s) => ({
+          sessions: s.sessions.map((sess) =>
+            sess.id !== sessionId
+              ? sess
+              : {
+                  ...sess,
+                  exercises: sess.exercises.map((se) =>
+                    se.id !== sessionExerciseId ? se : { ...se, painFlag: pain }
+                  ),
+                }
+          ),
+        }));
+      },
+
+      setMuscleFeedback: (sessionId, muscleGroup, feedback) => {
+        set((s) => ({
+          sessions: s.sessions.map((sess) =>
+            sess.id !== sessionId
+              ? sess
+              : { ...sess, muscleFeedback: { ...sess.muscleFeedback, [muscleGroup]: feedback } }
+          ),
+        }));
+      },
+
+      getPreviousSessionExercise: (mesoId, dayId, exerciseId, beforeWeek) => {
+        const { sessions, mesocycles } = get();
+        const meso = mesocycles.find((m) => m.id === mesoId);
+        const prevSession = findPreviousSession(
+          sessions,
+          mesoId,
+          dayId,
+          beforeWeek,
+          carryOverOf(meso, mesocycles)
+        );
+        return prevSession?.exercises.find((se) => se.exerciseId === exerciseId);
+      },
+
+      getLowPumpStreak: (mesoId, dayId, muscleGroup, beforeWeek) => {
+        const candidates = get()
+          .sessions.filter(
+            (s) =>
+              s.mesoId === mesoId &&
+              s.dayId === dayId &&
+              s.week < beforeWeek &&
+              s.muscleFeedback?.[muscleGroup]
+          )
+          .sort((a, b) => b.week - a.week);
+        let streak = 0;
+        for (const s of candidates) {
+          if (s.muscleFeedback?.[muscleGroup]?.pump === 'low') streak++;
+          else break;
+        }
+        return streak;
+      },
+
+      updateSettings: (patch) => {
+        set((s) => ({ settings: { ...s.settings, ...patch } }));
+      },
+
+      addBodyweightEntry: (weight, note) => {
+        const entry: BodyweightEntry = {
+          id: genId(),
+          date: new Date().toISOString(),
+          weight,
+          ...(note && note.trim() ? { note: note.trim() } : {}),
+        };
+        // Newest first, matching how the list reads it.
+        set((s) => ({ bodyweight: [entry, ...s.bodyweight] }));
+      },
+      deleteBodyweightEntry: (id) => {
+        set((s) => ({ bodyweight: s.bodyweight.filter((e) => e.id !== id) }));
+      },
+
+      getBackupData: () => {
+        const s = get();
+        return {
+          exercises: s.exercises,
+          mesocycles: s.mesocycles,
+          sessions: s.sessions,
+          active: s.active,
+          settings: s.settings,
+          bodyweight: s.bodyweight,
+        };
+      },
+
+      restoreFromBackup: (data) => {
+        set({
+          exercises: data.exercises,
+          mesocycles: data.mesocycles,
+          sessions: data.sessions,
+          active: data.active,
+          settings: withSettingsDefaults(data.settings),
+          // Absent in backups written before body-weight tracking existed.
+          bodyweight: data.bodyweight ?? [],
+        });
+      },
+
+      getExerciseHistory: (exerciseId) => {
+        const { sessions } = get();
+        const entries: ExerciseHistoryEntry[] = [];
+        for (const session of sessions) {
+          const se = session.exercises.find((e) => e.exerciseId === exerciseId);
+          if (!se) continue;
+          const loggedSets = se.sets.filter((st) => st.logged && st.reps !== '');
+          if (loggedSets.length === 0) continue;
+          entries.push({
+            sessionId: session.id,
+            date: session.date,
+            week: session.week,
+            dayName: session.dayName,
+            sets: loggedSets,
+          });
+        }
+        return entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      },
+    }),
+    {
+      name: 'workout-app-storage',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (s) => ({
+        exercises: s.exercises,
+        mesocycles: s.mesocycles,
+        sessions: s.sessions,
+        active: s.active,
+        settings: s.settings,
+        bodyweight: s.bodyweight,
+      }),
+      // The default shallow merge would replace `settings` wholesale, so any
+      // key added after a user's data was written would come back undefined.
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<StoreState>;
+        return { ...current, ...saved, settings: withSettingsDefaults(saved.settings) };
+      },
+    }
+  )
+);
