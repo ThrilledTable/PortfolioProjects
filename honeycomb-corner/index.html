@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Honeycomb Corner</title>
+<meta name="description" content="A cozy pixel-art idle game: keep bees, breed new species, and run a honey shop.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&amp;family=Silkscreen:wght@400;700&amp;display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+  <header class="masthead">
+    <h1 class="logo"><span class="logo-mark" aria-hidden="true"></span>Honeycomb Corner</h1>
+    <p class="tagline">Honey shop &amp; apiary · est. today</p>
+  </header>
+
+  <section class="stage" aria-label="Your shop and garden">
+    <div class="bezel">
+      <div class="screen">
+        <canvas id="scene" width="240" height="160" aria-label="Pixel-art view of your bee garden and honey shop. Tap hives, shelves or the merchant."></canvas>
+        <div id="textbox" class="textbox" hidden role="status">
+          <p id="textboxText"></p>
+          <span class="more" aria-hidden="true"></span>
+        </div>
+      </div>
+      <div id="hud" class="hud"></div>
+    </div>
+    <nav id="tabs" class="tabs" role="tablist" aria-label="Menus">
+      <button role="tab" data-act="tab" data-tab="apiary">Apiary</button>
+      <button role="tab" data-act="tab" data-tab="shop">Shop</button>
+      <button role="tab" data-act="tab" data-tab="nursery">Nursery</button>
+      <button role="tab" data-act="tab" data-tab="town">Town</button>
+      <button role="tab" data-act="tab" data-tab="guide">Guide</button>
+      <button role="tab" data-act="tab" data-tab="menu">Menu</button>
+    </nav>
+  </section>
+
+  <main id="panel" class="panel" role="tabpanel"></main>
+</div>
+
+<div id="modal" class="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div id="modalBody"></div>
+  </div>
+</div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<script src="js/util.js"></script>
+<script src="js/data.js"></script>
+<script src="js/state.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/actions.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/render.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
