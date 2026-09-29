@@ -150,7 +150,12 @@
     // Version 1 saves: hives had no honey storage, and Waxwings made candles
     // directly. Give hives empty storage and turn old candle-making into wax.
     s.hives.forEach((h) => (h.stock = h.stock || {}));
-    if ((loaded.v || 1) < 2 && s.unlockedGoods.candle && !s.machine) s.unlockedGoods.wax = true;
+    if ((loaded.v || 1) < 2) {
+      if (s.unlockedGoods.candle && !s.machine) s.unlockedGoods.wax = true;
+      // The goal chain was rewritten: start it again. Goals you've already
+      // met can be claimed straight away, a small welcome-back bonus.
+      s.goal = 0;
+    }
     s.v = 2;
     // Drop references to bees that no longer exist.
     s.hives.forEach((h) => (h.bees = h.bees.filter((id) => s.bees[id])));

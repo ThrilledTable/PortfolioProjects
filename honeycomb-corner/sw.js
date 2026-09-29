@@ -1,5 +1,18 @@
-// Offline support for the installable (PWA) version: cache the app shell,
-// serve it cache-first, and refresh the cache in the background.
+// =============================================================================
+// sw.js: OFFLINE HELPER ("service worker")
+// -----------------------------------------------------------------------------
+// When the game is hosted on a normal website and added to a phone's home
+// screen, the browser runs this small helper in the background. It keeps a
+// copy of every game file (the "cache"), so the game still opens with no
+// internet connection.
+//
+// Strategy: answer from the saved copy straight away if there is one, and
+// quietly fetch a fresh copy for next time.
+//
+// IMPORTANT when changing the game: bump the version in CACHE below (v2 → v3)
+// so phones throw away their old copies and download the new files. Also
+// add any new .js file to the SHELL list.
+// =============================================================================
 const CACHE = 'honeycomb-corner-v2';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/style.css',
@@ -9,16 +22,21 @@ const SHELL = [
   './icons/icon-192.png', './icons/icon-512.png',
 ];
 
+// First install: download and save every file in SHELL.
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
 
+// A new version took over: delete copies saved by older versions.
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())
   );
 });
 
+// Every time the game asks for a file: reply with the saved copy if we have
+// one, and refresh it in the background. Only our own files and the fonts
+// are saved.
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   e.respondWith(

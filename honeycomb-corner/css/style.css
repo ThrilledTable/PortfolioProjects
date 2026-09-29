@@ -1,5 +1,25 @@
-/* Layout: a handheld "screen" (scene + HUD + tabs) beside parchment menu
-   windows; on phones the screen sits on top and the menus scroll beneath. */
+/* ============================================================================
+   style.css: HOW EVERYTHING LOOKS
+   ----------------------------------------------------------------------------
+   This file is CSS, the language for colours, fonts, sizes and layout. It
+   doesn't affect how the game plays, only how the menus look. (The pixel
+   picture itself is drawn in js/render.js.)
+
+   How to read it: each block starts with a "selector" saying WHICH parts of
+   the page it styles, then lists properties inside { }. For example:
+       .btn { background: var(--honey); }
+   means "every element with class btn gets a honey-coloured background".
+   A dot (.btn) targets a class name used in js/ui.js; a # targets one
+   specific element by id (#scene is the game picture).
+
+   Colours and fonts are defined ONCE as variables in the :root block right
+   below (names starting with --). Change a colour there and it changes
+   everywhere it's used.
+
+   Layout: a handheld-console "screen" (picture + status bar + tabs) beside
+   parchment-paper menu windows. On phones the screen sits on top and the
+   menus scroll underneath (see the @media sections near the end).
+   ========================================================================== */
 :root {
   --night: #221a24;       /* page ground, dusk-aubergine */
   --night-2: #2f2431;     /* honeycomb pattern lines */

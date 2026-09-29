@@ -1,14 +1,24 @@
 <!doctype html>
+<!--
+  index.html: THE PAGE ITSELF
+  This is the file a browser opens. It only lays out empty containers
+  (the game screen, the status bar, the tabs, the pop-up window). The
+  JavaScript files listed at the bottom fill them in and run the game.
+  Nothing here needs changing for balance or content; see js/data.js.
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Honeycomb Corner</title>
 <meta name="description" content="A cozy pixel-art idle game: keep bees, breed new species, and run a honey shop.">
+<!-- The two pixel fonts, from Google Fonts: Silkscreen for headings, Pixelify Sans for text. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&amp;family=Silkscreen:wght@400;700&amp;display=swap">
+<!-- All the colours, sizes and layout rules. -->
 <link rel="stylesheet" href="css/style.css">
+<!-- Lets phones install the game to the home screen (see manifest.webmanifest and sw.js). -->
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -16,6 +26,7 @@
 </head>
 <body>
 <div class="app">
+  <!-- Title bar, with the settings (⚙) button on the right. -->
   <header class="masthead">
     <h1 class="logo"><span class="logo-mark" aria-hidden="true"></span>Honeycomb Corner</h1>
     <div class="mast-right">
@@ -24,18 +35,24 @@
     </div>
   </header>
 
+  <!-- The "handheld console": the pixel picture, status bar and tabs. -->
   <section class="stage" aria-label="Your shop and garden">
     <div class="bezel">
       <div class="screen">
+        <!-- The game picture. It's drawn at 240×160 pixels and stretched up. -->
         <canvas id="scene" width="240" height="160" aria-label="Pixel-art view of your bee garden and honey shop. Tap a hive to collect honey; tap shelves, the Candle Machine, the request board or the merchant."></canvas>
+        <!-- The tutorial text box that types messages over the picture. -->
         <div id="textbox" class="textbox" hidden role="status">
           <p id="textboxText"></p>
           <span class="more" aria-hidden="true"></span>
         </div>
       </div>
+      <!-- Coins, gems, time of day... (filled in by js/ui.js) -->
       <div id="hud" class="hud"></div>
+      <!-- Current goal, what the shopkeeper is doing, builds in progress. -->
       <div id="goalbar" class="goalbar"></div>
     </div>
+    <!-- The tabs. data-tab says which panel each one opens. -->
     <nav id="tabs" class="tabs" role="tablist" aria-label="Menus">
       <button role="tab" data-act="tab" data-tab="apiary">Apiary</button>
       <button role="tab" data-act="tab" data-tab="shop">Shop</button>
@@ -46,16 +63,30 @@
     </nav>
   </section>
 
+  <!-- The open tab's content goes here. -->
   <main id="panel" class="panel" role="tabpanel"></main>
 </div>
 
+<!-- The pop-up window (bee details, pickers, reports...). Hidden until needed. -->
 <div id="modal" class="modal" hidden>
   <div class="modal-card" role="dialog" aria-modal="true">
     <div id="modalBody"></div>
   </div>
 </div>
+<!-- Short messages that slide in at the bottom. -->
 <div id="toasts" class="toasts" aria-live="polite"></div>
 
+<!--
+  The game code, loaded in this exact order (later files use earlier ones):
+    util      helpers + the message bus        data      all the numbers and lists
+    state     the save file                    nav       the map and walking routes
+    sim       the rules and the passage of time
+    builds    upgrade timers                   customers shoppers and townsfolk
+    workers   shopkeeper and staff             actions   everything the player can do
+    goals     the goal chain                   sprites   the pixel art
+    render    drawing the picture              audio     sound effects and music
+    ui        menus and buttons                main      starts it all and runs the loop
+-->
 <script src="js/util.js"></script>
 <script src="js/data.js"></script>
 <script src="js/state.js"></script>

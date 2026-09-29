@@ -279,6 +279,7 @@ test('save round-trips and old saves are upgraded', (HC) => {
   assert.strictEqual(Object.keys(m.hives[0].stock).length, 0, 'empty hive storage added');
   assert.strictEqual(m.cos.equip.hat, 'hat-bandana');
   assert.strictEqual(m.shelves[0].good, null, 'raw goods removed from shelves');
+  assert.strictEqual(m.goal, 0, 'goal chain restarts for old saves');
 });
 
 test('festival keeps cosmetics, gems, ribbons and the keepsake', (HC) => {

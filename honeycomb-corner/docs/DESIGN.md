@@ -27,20 +27,22 @@ Ranked by fit with a cozy audience:
 3. **Cosmetics**: shop wallpaper, hive roof colours, keeper outfits. The renderer already swaps palettes, so this is cheap to add.
 4. **Opt-in rewarded ads only**, e.g. "watch to double this golden drip". Never forced interstitials.
 
+**Gems today** are earned in-game only: from goals, requests, species discoveries, seasons, festivals and drips. They are spent on timer skips (1 gem per 2 minutes left), extra builders and premium cosmetics. That economy is already shaped so a gem store could be added later without redesigning anything. The honest recommendation stays options 1 or 2: a paid gem store would push the design toward long timers, which is exactly what makes the incumbent frustrating.
+
 ## Balance targets (from `tools/balance.js`)
 
-An optimal bot reaches the milestones below. Humans are expected to take 1.5–2× longer.
+After the first playtest the loop was deliberately slowed. Honey has to be collected by hand, the register needs a person, upgrades are timed, and the shop closes at night. An attentive bot now reaches:
 
 | Milestone | Bot time |
 |---|---|
-| First Clover Bee | about 4 min |
-| First new species (Waxwing) | about 7–11 min |
-| Lavender | about 35 min |
-| Royal | about 80 min |
-| Starlight (last species) | about 2–2.3 h |
-| First festival available (₵10M) | about 1.5 h |
+| First Clover Bee | about 10–17 min |
+| First five goals | about 16–25 min |
+| Candle Machine | about 22–26 min |
+| Collector hired (hands-off collection) | about 27–31 min |
+| Starlight (last species) | about 3.6–4.1 h |
+| First festival available (₵10M) | about 3 h |
 
-The idle curve is intentionally short for a prototype. For a store release, stretch the late game by roughly 3–5×, mostly through breed times and hive costs in `js/data.js` and `js/sim.js`.
+The intended arc is **hands-on early, automated later**. For roughly the first half hour you walk out to the hives yourself and watch the register. Staff then take the chores over, and the game shifts to breeding, building and decorating. Timer lengths are tuned "medium": about 40 seconds early on, minutes by mid-game, up to 4 hours for the priciest upgrades.
 
 ## Roadmap to a store build
 
