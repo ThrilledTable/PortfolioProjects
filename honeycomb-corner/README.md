@@ -55,7 +55,8 @@ The sim never touches the DOM; it emits events on `HC.bus`, which is why it runs
 ```bash
 node tools/balance.js 4 2 [5]    # simulate 4h of play, 2 runs, bot acting every [5]s; prints milestones
 node tools/test.js               # mechanics tests (Node, no browser)
-node tools/smoke.js out/         # Playwright: load the game, exercise flows, screenshot, fail on console errors
+node tools/smoke.js out/         # Playwright: flows, audio, festival, away report; fails on console errors
+node tools/phone-walkthrough.js out/  # tap-only opening minutes at 390x844, screenshots each step
 python3 tools/build.py           # bundle into dist/honeycomb-corner.html
 ```
 

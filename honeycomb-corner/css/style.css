@@ -535,7 +535,8 @@ textarea {
   }
 }
 @media (max-width: 560px) {
-  .tabs button { font-family: var(--font-body); font-weight: 600; font-size: 0.8rem; letter-spacing: 0; }
+  .tabs { gap: 3px; }
+  .tabs button { font-family: var(--font-body); font-weight: 600; font-size: clamp(0.68rem, 3.3vw, 0.85rem); letter-spacing: -0.01em; padding: 8px 0; text-overflow: clip; }
   .hud { gap: 4px 10px; }
 }
 @media (max-width: 420px) {

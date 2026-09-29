@@ -614,8 +614,11 @@
     const startCoins = s.coins;
     const startStore = Object.assign({}, s.store);
     const startSold = s.stats.sold;
+    const startOrders = new Set(s.orders.map((o) => o.id));
+    const startSeason = f.season(s).id;
     const step = 2;
     let left = seconds;
+    rt.silent = true; // listeners skip per-event toasts; the away report covers it
     while (left > 0) {
       const dt = Math.min(step, left);
       left -= dt;
@@ -626,12 +629,22 @@
       updateNursery(s, dt);
       updateTown(s, dt);
     }
+    rt.silent = false;
+    lastSeason = f.season(s).id;
     const made = {};
     for (const g of Object.keys(s.store)) {
       const d = (s.store[g] || 0) - (startStore[g] || 0);
       if (d) made[g] = d;
     }
-    return { seconds, coins: s.coins - startCoins, sold: s.stats.sold - startSold, made };
+    return {
+      seconds, made,
+      coins: s.coins - startCoins,
+      sold: s.stats.sold - startSold,
+      newOrders: s.orders.filter((o) => !startOrders.has(o.id)).length,
+      eggs: s.nursery.filter((n) => n && n.ready).length,
+      merchant: !!s.merchant,
+      season: f.season(s).id !== startSeason ? f.season(s) : null,
+    };
   }
 
   function resetRuntime() {

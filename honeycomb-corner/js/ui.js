@@ -50,8 +50,10 @@
 
   const textQueue = [];
   let typing = null;
-  function say(lines) {
-    textQueue.push(...lines);
+  let shown = null; // the queue item currently on screen
+  // `valid` (optional) is re-checked before each line so stale hints are skipped.
+  function say(lines, valid) {
+    textQueue.push(...lines.map((text) => ({ text, valid })));
     if (!typing && el.textbox.hidden) nextLine();
   }
   function nextLine() {
@@ -63,7 +65,10 @@
       el.textbox.classList.add('done');
       return;
     }
-    const line = textQueue.shift();
+    let item = textQueue.shift();
+    while (item && item.valid && !item.valid()) item = textQueue.shift();
+    shown = item || null;
+    const line = item && item.text;
     if (line == null) {
       el.textbox.hidden = true;
       return;
@@ -694,6 +699,12 @@
           <div class="stat-row"><span>Items sold</span><b>${fmt(r.sold)}</b></div>
         </div>
         ${made ? `<p class="muted">Added to the storehouse:</p><div class="pills">${made}</div>` : ''}
+        ${[
+          r.eggs ? `${r.eggs === 1 ? 'An egg is' : r.eggs + ' eggs are'} ready to hatch in the Nursery.` : '',
+          r.newOrders ? `${r.newOrders} new ${r.newOrders === 1 ? 'request is' : 'requests are'} pinned on the Town board.` : '',
+          r.merchant ? 'A travelling merchant is parked outside.' : '',
+          r.season ? `${r.season.name} has arrived. ${r.season.desc}` : '',
+        ].filter(Boolean).map((t) => `<p>• ${t}</p>`).join('')}
         <p class="muted small">Your helper runs the shop at a slower pace while you're gone, for up to 8 hours.</p>
         <div class="btn-row end">${btn('Open the shop', 'closeModal', {}, { cls: 'btn-go' })}</div>`,
     });
@@ -952,12 +963,20 @@
   ];
   function checkHints() {
     const s = S();
+    // A hint the player has already acted on dismisses itself.
+    if (!el.textbox.hidden && shown && shown.valid && !shown.valid()) {
+      if (typing) {
+        clearInterval(typing.timer);
+        typing = null;
+      }
+      nextLine();
+    }
     if (!el.textbox.hidden || modal) return;
     for (const h of HINTS) {
       if (s.hints[h.id]) continue;
       if (h.when(s)) {
         s.hints[h.id] = true;
-        say(h.lines);
+        say(h.lines, h.id === 'welcome' ? null : () => h.when(S()));
         return;
       }
     }
@@ -1009,12 +1028,15 @@
       if (evt.source === 'market' && !evt.isNew) return;
       newBeeModal(evt);
     });
+    const quiet = () => HC.sim.rt.silent;
     bus.on('eggReady', (i) => {
+      if (quiet()) return;
       toast('An egg in cradle ' + (i + 1) + ' is ready to hatch!', 'good');
       HC.audio.play('bell');
     });
-    bus.on('order', (o) => toast(o.who + ' pinned a request for ' + D.good[o.good].name + '.'));
+    bus.on('order', (o) => !quiet() && toast(o.who + ' pinned a request for ' + D.good[o.good].name + '.'));
     bus.on('merchant', () => {
+      if (quiet()) return;
       toast('A travelling merchant parked outside!', 'good');
       HC.audio.play('bell');
     });

@@ -96,6 +96,46 @@ const target = process.env.TARGET || 'file://' + path.join(root, 'index.html');
       return back.coins === HC.game.coins && Object.keys(back.bees).length === Object.keys(HC.game.bees).length;
     });
     if (!ok) errors.push('[desktop] save round trip mismatch');
+
+    // Audio: every effect and the music loop should run without throwing.
+    await page.evaluate(() => {
+      HC.audio.unlock();
+      HC.game.settings.music = true;
+      HC.audio.syncMusic();
+      ['coin', 'buy', 'click', 'fail', 'hatch', 'order', 'discover', 'bell', 'text'].forEach((n) => HC.audio.play(n));
+    });
+    await page.waitForTimeout(600);
+    await page.evaluate(() => { HC.game.settings.music = false; HC.audio.syncMusic(); });
+
+    // Festival through the UI
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => { HC.game.runEarned = 2e7; HC.ui.markDirty(); });
+    await page.click('.tabs [data-tab="town"]');
+    await page.waitForTimeout(400);
+    await page.click('[data-act="festival"]');
+    await page.locator('#modalBody .bee-tile').first().click();
+    await page.screenshot({ path: path.join(out, 'desktop-festival.png') });
+    await page.click('#modalBody [data-act="holdFestival"]');
+    await page.waitForTimeout(500);
+    const fest = await page.evaluate(() => ({ ribbons: HC.game.ribbons, festivals: HC.game.festivals, bees: Object.keys(HC.game.bees).length }));
+    if (fest.ribbons < 1 || fest.festivals !== 1 || fest.bees !== 3) errors.push('[desktop] festival state wrong ' + JSON.stringify(fest));
+  });
+
+  // Returning player: a save two hours old shows the away report.
+  await run('returning', { width: 1280, height: 860 }, async (page) => {
+    await page.evaluate(() => {
+      HC.game.hints.welcome = true;
+      HC.game.lastSeen = Date.now() - 2 * 3600 * 1000;
+      localStorage.setItem(HC.data.SAVE_KEY, JSON.stringify(HC.game));
+    });
+    await page.evaluate(() => { window.onbeforeunload = null; });
+    // Reload without letting the page re-save a fresh lastSeen.
+    await page.evaluate(() => { HC.state.save = () => {}; HC.main.save = () => {}; });
+    await page.reload();
+    await page.waitForTimeout(1200);
+    const text = await page.textContent('#modalBody').catch(() => '');
+    if (!/While you were away/.test(text || '')) errors.push('[returning] no away report shown');
+    await page.screenshot({ path: path.join(out, 'desktop-returning.png') });
   });
 
   await run('phone', { width: 390, height: 844 }, async (page) => {
