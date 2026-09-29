@@ -122,6 +122,27 @@
       return done(bee.name + ' went to a keeper in the next town for ₵' + util.fmt(price) + '.', 'coin');
     },
 
+    // Sells every bee in the box except the best one of each species and any
+    // bee busy in the nursery. Returns the plan when dryRun is set.
+    sellExtras(dryRun) {
+      const s = S();
+      const busy = new Set(s.nursery.filter(Boolean).flatMap((n) => [n.a, n.b]));
+      const best = {};
+      for (const id of s.box) {
+        const b = s.bees[id];
+        if (b.sparkle) continue; // sparkles are always kept; don't let them displace the best normal bee
+        if (!best[b.sp] || f().beeValue(b) > f().beeValue(s.bees[best[b.sp]])) best[b.sp] = id;
+      }
+      const sell = s.box.filter((id) => !busy.has(id) && best[s.bees[id].sp] !== id && !s.bees[id].sparkle);
+      const total = sell.reduce((t, id) => t + f().sellPrice(s.bees[id]), 0);
+      if (dryRun) return { ok: true, count: sell.length, total };
+      if (!sell.length) return fail('Nothing to sell: the box only holds your best bee of each kind.');
+      for (const id of sell) delete s.bees[id];
+      s.box = s.box.filter((id) => s.bees[id]);
+      HC.sim.earn(s, total);
+      return done('Sold ' + sell.length + ' spare bees for ₵' + util.fmt(total) + '.', 'coin');
+    },
+
     renameBee(id, name) {
       const s = S();
       const bee = s.bees[id];

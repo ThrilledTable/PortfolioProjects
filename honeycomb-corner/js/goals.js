@@ -4,7 +4,7 @@
   const HC = window.HC;
   const { bus } = HC;
   const f = () => HC.sim.f;
-  const disc = (sp) => (s) => !!s.discovered[sp];
+  const disc = (sp) => Object.assign((s) => !!s.discovered[sp], { sp });
 
   const GOALS = [
     { text: 'Buy another Meadow Bee', check: (s) => f().beeCount(s) >= 3, reward: 30 },
@@ -34,6 +34,13 @@
     { text: 'Discover the Starlight Bee', check: disc('star'), reward: 3000000 },
     { text: 'Hold a Honey Festival', check: (s) => s.festivals >= 1, reward: 1000 },
   ];
+
+  // Discovery goals remember their species so the goal strip can show a hint.
+  for (const g of GOALS) if (g.check.sp) g.sp = g.check.sp;
+  Object.assign(GOALS[1], { tip: 'Open the Apiary tab and scroll to "Build hive 2".' });
+  Object.assign(GOALS[3], { tip: 'Buy an Extra Shelf in the Shop tab, then tap a shelf to choose what it sells.' });
+  Object.assign(GOALS[6], { tip: 'Requests appear on the Town board every couple of minutes.' });
+  Object.assign(GOALS[7], { tip: 'Keep shelves stocked. Every happy customer nudges reputation up, and requests give a big boost.' });
 
   function current(s) {
     return GOALS[s.goal || 0] || null;

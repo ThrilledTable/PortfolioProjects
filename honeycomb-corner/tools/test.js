@@ -220,4 +220,32 @@ test('customer AI never gets stuck over a long live run', (HC) => {
   assert(HC.sim.rt.queue.every((c) => HC.sim.rt.customers.includes(c)), 'queue holds departed customers');
 });
 
+test('sell extras keeps the best of each species, sparkles and nursery bees', (HC) => {
+  const s = HC.game;
+  const mk = (sp, vigor, extra = {}) => {
+    const b = HC.state.makeBee(s, sp, Object.assign({ vigor }, extra));
+    s.box.push(b.id);
+    return b;
+  };
+  const bestM = mk('meadow', 1.5);
+  mk('meadow', 0.9);
+  mk('meadow', 1.0);
+  const spark = mk('meadow', 0.7, { sparkle: true });
+  const busy = mk('clover', 0.8);
+  const bestC = mk('clover', 1.2);
+  s.nursery[0] = { a: busy.id, b: s.hives[0].bees[0], t: 0, dur: 99, ready: false };
+  const plan = HC.act.sellExtras(true);
+  assert.strictEqual(plan.count, 2);
+  assert(HC.act.sellExtras().ok);
+  for (const b of [bestM, spark, busy, bestC]) assert(s.bees[b.id], 'kept ' + b.name);
+  assert.strictEqual(s.box.length, 4);
+});
+
+test('bee names stay unique even past the name pool', (HC) => {
+  const s = HC.game;
+  for (let i = 0; i < 200; i++) HC.state.makeBee(s, 'meadow');
+  const names = Object.values(s.bees).map((b) => b.name);
+  assert.strictEqual(new Set(names).size, names.length);
+});
+
 console.log(`\n${passed} passed${process.exitCode ? ', some FAILED' : ''}`);

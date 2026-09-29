@@ -180,7 +180,8 @@ button { font: inherit; color: inherit; }
   min-height: 40px;
 }
 .goal-label { font-family: var(--font-display); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--honey); white-space: nowrap; }
-.goal-text { flex: 1; min-width: 10em; font-size: var(--step--1); }
+.goal-text { flex: 1; min-width: 10em; font-size: var(--step--1); background: none; border: 0; padding: 0; text-align: left; color: inherit; cursor: help; }
+.goal-text:hover { text-decoration: underline dotted; }
 .goal-reward { display: inline-flex; align-items: center; gap: 4px; font-size: var(--step--1); color: #b89c86; font-variant-numeric: tabular-nums; }
 .goal-reward .ico { width: 14px; height: 14px; vertical-align: 0; }
 
@@ -916,8 +917,13 @@ textarea {
   const BEE_NAMES = [
     'Bumble', 'Waggle', 'Pollen', 'Clementine', 'Hexa', 'Juniper', 'Marigold', 'Buzz', 'Nectarine',
     'Dandelion', 'Comfrey', 'Poppy', 'Fennel', 'Sorrel', 'Basil', 'Tansy', 'Yarrow', 'Thistle', 'Zinnia',
-    'Hazel', 'Pip', 'Mabel', 'Otto', 'Figaro', 'Beatrix', 'Honeydew', 'Sage', 'Wren', 'Clover', 'Aster',
+    'Hazel', 'Pip', 'Mabel', 'Otto', 'Figaro', 'Beatrix', 'Honeydew', 'Sage', 'Wren', 'Aster',
     'Biscuit', 'Nutmeg', 'Saffron', 'Quince', 'Ginger', 'Tulip', 'Rosie', 'Barnaby', 'Fizz', 'Dot',
+    'Acorn', 'Bramble', 'Buttercup', 'Chamomile', 'Cricket', 'Daisy', 'Elder', 'Fern', 'Gus', 'Heather',
+    'Iris', 'Jasper', 'Kiwi', 'Lupin', 'Maple', 'Nettle', 'Olive', 'Peony', 'Primrose', 'Rhubarb',
+    'Rowan', 'Sprout', 'Sunny', 'Toffee', 'Umber', 'Violet', 'Willow', 'Yuzu', 'Zest', 'Bean',
+    'Caramel', 'Doodle', 'Ember', 'Flick', 'Goldie', 'Hum', 'Inkwell', 'Jam', 'Kip', 'Lark',
+    'Muffin', 'Nibs', 'Oats', 'Pepper', 'Quill', 'Rusk', 'Scone', 'Truffle', 'Waffles', 'Ziggy',
   ];
 
   const REQUESTERS = [
@@ -1020,9 +1026,10 @@ textarea {
 
   function makeBee(s, sp, opts = {}) {
     const used = new Set(Object.values(s.bees).map((b) => b.name));
-    let name = util.pick(data.BEE_NAMES);
-    for (let i = 0; i < 12 && used.has(name); i++) name = util.pick(data.BEE_NAMES);
-    if (used.has(name)) name += ' ' + (Object.keys(s.bees).length + 1);
+    const free = data.BEE_NAMES.filter((n) => !used.has(n));
+    let name = free.length ? util.pick(free) : util.pick(data.BEE_NAMES);
+    // Pool exhausted: add a generation-style suffix, e.g. "Pip II".
+    for (let k = 2; used.has(name); k++) name = name.replace(/ [IVX]+$/, '') + ' ' + ['II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][Math.min(k - 2, 8)];
     const bee = {
       id: util.uid(),
       sp,
@@ -1897,6 +1904,27 @@ textarea {
       return done(bee.name + ' went to a keeper in the next town for ₵' + util.fmt(price) + '.', 'coin');
     },
 
+    // Sells every bee in the box except the best one of each species and any
+    // bee busy in the nursery. Returns the plan when dryRun is set.
+    sellExtras(dryRun) {
+      const s = S();
+      const busy = new Set(s.nursery.filter(Boolean).flatMap((n) => [n.a, n.b]));
+      const best = {};
+      for (const id of s.box) {
+        const b = s.bees[id];
+        if (b.sparkle) continue; // sparkles are always kept; don't let them displace the best normal bee
+        if (!best[b.sp] || f().beeValue(b) > f().beeValue(s.bees[best[b.sp]])) best[b.sp] = id;
+      }
+      const sell = s.box.filter((id) => !busy.has(id) && best[s.bees[id].sp] !== id && !s.bees[id].sparkle);
+      const total = sell.reduce((t, id) => t + f().sellPrice(s.bees[id]), 0);
+      if (dryRun) return { ok: true, count: sell.length, total };
+      if (!sell.length) return fail('Nothing to sell: the box only holds your best bee of each kind.');
+      for (const id of sell) delete s.bees[id];
+      s.box = s.box.filter((id) => s.bees[id]);
+      HC.sim.earn(s, total);
+      return done('Sold ' + sell.length + ' spare bees for ₵' + util.fmt(total) + '.', 'coin');
+    },
+
     renameBee(id, name) {
       const s = S();
       const bee = s.bees[id];
@@ -2058,7 +2086,7 @@ textarea {
   const HC = window.HC;
   const { bus } = HC;
   const f = () => HC.sim.f;
-  const disc = (sp) => (s) => !!s.discovered[sp];
+  const disc = (sp) => Object.assign((s) => !!s.discovered[sp], { sp });
 
   const GOALS = [
     { text: 'Buy another Meadow Bee', check: (s) => f().beeCount(s) >= 3, reward: 30 },
@@ -2088,6 +2116,13 @@ textarea {
     { text: 'Discover the Starlight Bee', check: disc('star'), reward: 3000000 },
     { text: 'Hold a Honey Festival', check: (s) => s.festivals >= 1, reward: 1000 },
   ];
+
+  // Discovery goals remember their species so the goal strip can show a hint.
+  for (const g of GOALS) if (g.check.sp) g.sp = g.check.sp;
+  Object.assign(GOALS[1], { tip: 'Open the Apiary tab and scroll to "Build hive 2".' });
+  Object.assign(GOALS[3], { tip: 'Buy an Extra Shelf in the Shop tab, then tap a shelf to choose what it sells.' });
+  Object.assign(GOALS[6], { tip: 'Requests appear on the Town board every couple of minutes.' });
+  Object.assign(GOALS[7], { tip: 'Keep shelves stocked. Every happy customer nudges reputation up, and requests give a big boost.' });
 
   function current(s) {
     return GOALS[s.goal || 0] || null;
@@ -3112,10 +3147,11 @@ textarea {
     drawShelves(s, t);
     drawActors(s, t);
     drawBees(s, t);
-    drawDrip(t);
     drawWeather(s, t);
-    drawFx(t);
     drawLighting(s, t);
+    // UI-like overlays stay bright at night.
+    drawDrip(t);
+    drawFx(t);
   }
 
   // ---- Hit testing for taps on the scene -----------------------------------
@@ -3359,7 +3395,7 @@ textarea {
     const g = HC.goals.current(s);
     if (!g) return '<span class="goal-text">Every goal complete. The town is proud of you.</span>';
     const ok = g.check(s);
-    return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span><span class="goal-text">${g.text}</span>` +
+    return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span><button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
       (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${price(g.reward)}</button>` : `<span class="goal-reward">${price(g.reward)}</span>`);
   }
   function seasonHtml() {
@@ -3448,7 +3484,8 @@ textarea {
         <div class="stack">${hiveCards}${nextHive}</div>
       </section>
       <section class="win">
-        <div class="win-head"><h2>Bee box</h2><span class="muted">${s.box.length}/${f().boxCap(s)} spaces</span></div>
+        <div class="win-head"><h2>Bee box</h2><span class="muted">${s.box.length}/${f().boxCap(s)} spaces</span>
+          ${s.box.length >= 4 ? btn('Sell extras', 'sellExtras', {}, { cls: 'btn-sm btn-ghost' }) : ''}</div>
         <div class="bee-grid">${boxBees}</div>
       </section>
       <section class="win">
@@ -4076,6 +4113,19 @@ textarea {
       case 'merchant': r = HC.act.buyMerchant(); break;
       case 'festival': return festivalModal();
       case 'claimGoal': r = HC.goals.claim(); break;
+      case 'goalHint': {
+        const g = HC.goals.current(s);
+        if (g) say([g.sp && !s.discovered[g.sp] ? 'Field Guide hint: ' + D.species[g.sp].hint : g.tip || 'Keep at it. You\'re on the right track.']);
+        return;
+      }
+      case 'sellExtras': {
+        const plan = HC.act.sellExtras(true);
+        if (!plan.count) return toast('Nothing to sell: the box only holds your best bee of each kind.');
+        return confirmModal('Sell ' + plan.count + ' spare bees?', `Keeps your best bee of each species, any sparkles, and bees busy in the nursery. Earns ₵${fmt(plan.total)}.`, 'Sell them', () => {
+          const res = HC.act.sellExtras();
+          if (res.ok) toast(res.msg);
+        });
+      }
       case 'season': {
         const se = f().season(s);
         say([`${se.name}. ${se.desc} ${util.fmtTime(f().seasonLeft(s))} until the season turns.`]);

@@ -64,6 +64,7 @@ node tools/balance.js 4 2 [5]    # simulate 4h of play, 2 runs, bot acting every
 node tools/test.js               # mechanics tests (Node, no browser)
 node tools/smoke.js out/         # Playwright: flows, audio, festival, away report; fails on console errors
 node tools/phone-walkthrough.js out/  # tap-only opening minutes at 390x844, screenshots each step
+node tools/lategame.js out/      # ~3 simulated hours in the real page, then screenshots every tab
 python3 tools/build.py           # bundle into dist/honeycomb-corner.html
 node tools/make-icons.js         # regenerate icons/ from the game's own sprites
 node tools/sprite-sheet.js out.png  # every bee portrait, normal and sparkle, on one sheet

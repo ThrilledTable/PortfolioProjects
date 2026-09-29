@@ -169,7 +169,8 @@ button { font: inherit; color: inherit; }
   min-height: 40px;
 }
 .goal-label { font-family: var(--font-display); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--honey); white-space: nowrap; }
-.goal-text { flex: 1; min-width: 10em; font-size: var(--step--1); }
+.goal-text { flex: 1; min-width: 10em; font-size: var(--step--1); background: none; border: 0; padding: 0; text-align: left; color: inherit; cursor: help; }
+.goal-text:hover { text-decoration: underline dotted; }
 .goal-reward { display: inline-flex; align-items: center; gap: 4px; font-size: var(--step--1); color: #b89c86; font-variant-numeric: tabular-nums; }
 .goal-reward .ico { width: 14px; height: 14px; vertical-align: 0; }
 

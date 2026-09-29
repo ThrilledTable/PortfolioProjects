@@ -47,9 +47,10 @@
 
   function makeBee(s, sp, opts = {}) {
     const used = new Set(Object.values(s.bees).map((b) => b.name));
-    let name = util.pick(data.BEE_NAMES);
-    for (let i = 0; i < 12 && used.has(name); i++) name = util.pick(data.BEE_NAMES);
-    if (used.has(name)) name += ' ' + (Object.keys(s.bees).length + 1);
+    const free = data.BEE_NAMES.filter((n) => !used.has(n));
+    let name = free.length ? util.pick(free) : util.pick(data.BEE_NAMES);
+    // Pool exhausted: add a generation-style suffix, e.g. "Pip II".
+    for (let k = 2; used.has(name); k++) name = name.replace(/ [IVX]+$/, '') + ' ' + ['II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][Math.min(k - 2, 8)];
     const bee = {
       id: util.uid(),
       sp,

@@ -170,8 +170,13 @@
   const BEE_NAMES = [
     'Bumble', 'Waggle', 'Pollen', 'Clementine', 'Hexa', 'Juniper', 'Marigold', 'Buzz', 'Nectarine',
     'Dandelion', 'Comfrey', 'Poppy', 'Fennel', 'Sorrel', 'Basil', 'Tansy', 'Yarrow', 'Thistle', 'Zinnia',
-    'Hazel', 'Pip', 'Mabel', 'Otto', 'Figaro', 'Beatrix', 'Honeydew', 'Sage', 'Wren', 'Clover', 'Aster',
+    'Hazel', 'Pip', 'Mabel', 'Otto', 'Figaro', 'Beatrix', 'Honeydew', 'Sage', 'Wren', 'Aster',
     'Biscuit', 'Nutmeg', 'Saffron', 'Quince', 'Ginger', 'Tulip', 'Rosie', 'Barnaby', 'Fizz', 'Dot',
+    'Acorn', 'Bramble', 'Buttercup', 'Chamomile', 'Cricket', 'Daisy', 'Elder', 'Fern', 'Gus', 'Heather',
+    'Iris', 'Jasper', 'Kiwi', 'Lupin', 'Maple', 'Nettle', 'Olive', 'Peony', 'Primrose', 'Rhubarb',
+    'Rowan', 'Sprout', 'Sunny', 'Toffee', 'Umber', 'Violet', 'Willow', 'Yuzu', 'Zest', 'Bean',
+    'Caramel', 'Doodle', 'Ember', 'Flick', 'Goldie', 'Hum', 'Inkwell', 'Jam', 'Kip', 'Lark',
+    'Muffin', 'Nibs', 'Oats', 'Pepper', 'Quill', 'Rusk', 'Scone', 'Truffle', 'Waffles', 'Ziggy',
   ];
 
   const REQUESTERS = [

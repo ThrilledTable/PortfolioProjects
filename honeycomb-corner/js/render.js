@@ -574,10 +574,11 @@
     drawShelves(s, t);
     drawActors(s, t);
     drawBees(s, t);
-    drawDrip(t);
     drawWeather(s, t);
-    drawFx(t);
     drawLighting(s, t);
+    // UI-like overlays stay bright at night.
+    drawDrip(t);
+    drawFx(t);
   }
 
   // ---- Hit testing for taps on the scene -----------------------------------

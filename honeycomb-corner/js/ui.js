@@ -115,7 +115,7 @@
     const g = HC.goals.current(s);
     if (!g) return '<span class="goal-text">Every goal complete. The town is proud of you.</span>';
     const ok = g.check(s);
-    return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span><span class="goal-text">${g.text}</span>` +
+    return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span><button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
       (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${price(g.reward)}</button>` : `<span class="goal-reward">${price(g.reward)}</span>`);
   }
   function seasonHtml() {
@@ -204,7 +204,8 @@
         <div class="stack">${hiveCards}${nextHive}</div>
       </section>
       <section class="win">
-        <div class="win-head"><h2>Bee box</h2><span class="muted">${s.box.length}/${f().boxCap(s)} spaces</span></div>
+        <div class="win-head"><h2>Bee box</h2><span class="muted">${s.box.length}/${f().boxCap(s)} spaces</span>
+          ${s.box.length >= 4 ? btn('Sell extras', 'sellExtras', {}, { cls: 'btn-sm btn-ghost' }) : ''}</div>
         <div class="bee-grid">${boxBees}</div>
       </section>
       <section class="win">
@@ -832,6 +833,19 @@
       case 'merchant': r = HC.act.buyMerchant(); break;
       case 'festival': return festivalModal();
       case 'claimGoal': r = HC.goals.claim(); break;
+      case 'goalHint': {
+        const g = HC.goals.current(s);
+        if (g) say([g.sp && !s.discovered[g.sp] ? 'Field Guide hint: ' + D.species[g.sp].hint : g.tip || 'Keep at it. You\'re on the right track.']);
+        return;
+      }
+      case 'sellExtras': {
+        const plan = HC.act.sellExtras(true);
+        if (!plan.count) return toast('Nothing to sell: the box only holds your best bee of each kind.');
+        return confirmModal('Sell ' + plan.count + ' spare bees?', `Keeps your best bee of each species, any sparkles, and bees busy in the nursery. Earns ₵${fmt(plan.total)}.`, 'Sell them', () => {
+          const res = HC.act.sellExtras();
+          if (res.ok) toast(res.msg);
+        });
+      }
       case 'season': {
         const se = f().season(s);
         say([`${se.name}. ${se.desc} ${util.fmtTime(f().seasonLeft(s))} until the season turns.`]);
