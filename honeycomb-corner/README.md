@@ -63,6 +63,7 @@ node tools/smoke.js out/         # Playwright: flows, audio, festival, away repo
 node tools/phone-walkthrough.js out/  # tap-only opening minutes at 390x844, screenshots each step
 python3 tools/build.py           # bundle into dist/honeycomb-corner.html
 node tools/make-icons.js         # regenerate icons/ from the game's own sprites
+node tools/sprite-sheet.js out.png  # every bee portrait, normal and sparkle, on one sheet
 ```
 
 ## Ideas for next steps

@@ -781,12 +781,14 @@ textarea {
     {
       id: 'waxwing', name: 'Waxwing Bee', good: 'candle', secs: 14, tier: 2, rarity: 'Uncommon',
       body: '#f2e2b0', stripe: '#8a6a3a', wing: '#fff6e0', mark: 'drop',
+      shape: { rx: 5, ry: 3.7, wing: 'small', stripes: 'double' },
       flavor: 'Builds comb so neat the shop sells the wax. The hive smells like a candle shop.',
       hint: 'Something waxy comes from a meadow bee and a clover bee.',
     },
     {
       id: 'citrus', name: 'Citrus Bee', good: 'orange', secs: 18, tier: 3, rarity: 'Uncommon',
       body: '#f89a28', stripe: '#5a2a10', wing: '#fff0dc', mark: 'flower',
+      shape: { stripes: 'triple' },
       flavor: 'Always smells faintly of orange peel. Customers ask where it goes on holiday.',
       hint: 'A clover bee and a waxwing, left alone together, get zesty.',
     },
@@ -794,12 +796,14 @@ textarea {
       id: 'scout', name: 'Scout Bee', good: 'clover', secs: 24, tier: 3, rarity: 'Uncommon',
       body: '#e8c85a', stripe: '#3a5a8a', wing: '#e6f2ff', mark: 'band',
       aura: { customers: 0.06 },
+      shape: { rx: 5.2, ry: 2.7, wing: 'long', stripes: 'single' },
       flavor: 'Flies laps around town telling everyone about the shop. Each one in a hive brings in 6% more customers.',
       hint: 'A homebody meadow bee paired with a well-travelled citrus bee.',
     },
     {
       id: 'lavender', name: 'Lavender Bee', good: 'lavender', secs: 24, tier: 4, rarity: 'Rare',
       body: '#b890e0', stripe: '#3a2458', wing: '#f2eaff', mark: 'flower',
+      shape: { stripes: 'triple', wing: 'round' },
       flavor: 'Calm, a little dreamy. Its hive is the quietest in the garden.',
       hint: 'Pair a waxwing with a citrus bee.',
     },
@@ -807,12 +811,14 @@ textarea {
       id: 'nurse', name: 'Nurse Bee', good: 'wildflower', secs: 20, tier: 4, rarity: 'Rare',
       body: '#f4d4dc', stripe: '#b04a6a', wing: '#fff0f4', mark: 'cross',
       aura: { hive: 0.2 },
+      shape: { rx: 4.4, ry: 3.6, wing: 'small', stripes: 'single' },
       flavor: 'Barely makes honey itself. Keeps every hive-mate fed and fussed over: +20% output for the whole hive.',
       hint: 'Humble meadow stock raised beside royalty.',
     },
     {
       id: 'royal', name: 'Royal Bee', good: 'jelly', secs: 30, tier: 5, rarity: 'Rare',
       body: '#f0c030', stripe: '#6a1a2a', wing: '#fff4e0', mark: 'crown',
+      shape: { rx: 5.3, ry: 3.8, stripes: 'triple' },
       flavor: 'Expects to be addressed properly. Produces royal jelly and a lot of opinions.',
       hint: 'A lavender bee and a waxwing, if the mood is right.',
     },
@@ -820,24 +826,28 @@ textarea {
       id: 'moonmoth', name: 'Moonmoth Bee', good: 'moon', secs: 38, tier: 6, rarity: 'Epic',
       body: '#7a8ad8', stripe: '#1e1a40', wing: '#d8d0ff', mark: 'moon',
       nightBonus: 0.6,
+      shape: { wing: 'moth', stripes: 'spots', feathery: true },
       flavor: 'Sleeps through the afternoon. Works 60% harder after dark.',
       hint: 'Lavender dreams plus citrus warmth, sometime after sunset.',
     },
     {
       id: 'golden', name: 'Golden Bee', good: 'golden', secs: 48, tier: 7, rarity: 'Epic',
       body: '#ffd84a', stripe: '#a8781a', wing: '#fff8d0', mark: 'gem',
+      shape: { rx: 5, ry: 3.5, stripes: 'single', wing: 'long' },
       flavor: 'Glints in direct sunlight. Nobody knows where it finds the nectar.',
       hint: 'Royalty courting the moon.',
     },
     {
       id: 'crystal', name: 'Crystal Bee', good: 'crystal', secs: 60, tier: 8, rarity: 'Legendary',
       body: '#96e6f0', stripe: '#2a6a80', wing: '#f0ffff', mark: 'gem',
+      shape: { wing: 'angular', stripes: 'triple' },
       flavor: 'Builds comb that rings like glass when you tap it.',
       hint: 'Gold and moonlight, crystallised.',
     },
     {
       id: 'star', name: 'Starlight Bee', good: 'star', secs: 75, tier: 9, rarity: 'Legendary',
       body: '#fff2a8', stripe: '#5a3aa0', wing: '#fffbe0', mark: 'star',
+      shape: { rx: 5.2, ry: 3.4, wing: 'angular', stripes: 'spots' },
       flavor: 'Appears on clear nights. Old keepers say it followed a comet down.',
       hint: 'Crystal clarity and a golden heart.',
     },
@@ -2274,9 +2284,17 @@ textarea {
     return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
   }
 
+  function mix(a, b, k) {
+    const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+    const ch = (n, sh) => (n >> sh) & 255;
+    const m = (sh) => Math.round(ch(pa, sh) + (ch(pb, sh) - ch(pa, sh)) * k);
+    return '#' + ((1 << 24) | (m(16) << 16) | (m(8) << 8) | m(0)).toString(16).slice(1);
+  }
+
+  // Sparkle variants keep the species' colours with a rose-gold sheen, so a
+  // sparkle Moonmoth still reads as a Moonmoth.
   function sparklePalette(sp) {
-    // Sparkle variants swap to a rose-gold scheme with a lighter stripe.
-    return { body: shade(sp.body, 0.35), stripe: '#c04a7a', wing: '#fff4fa' };
+    return { body: mix(sp.body, '#ffc8dc', 0.45), stripe: mix(sp.stripe, '#b0306a', 0.35), wing: '#ffe6f2' };
   }
 
   function beePortrait(spId, sparkle) {
@@ -2288,23 +2306,43 @@ textarea {
       const set = (x, y, c) => {
         if (x >= 0 && y >= 0 && x < N && y < N) px[y][x] = c;
       };
-      // Wings (behind the body)
-      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-        const w1 = ((x - 7.5) / 2.6) ** 2 + ((y - 4.5) / 3.3) ** 2 <= 1;
-        const w2 = ((x - 11) / 2.2) ** 2 + ((y - 5) / 2.8) ** 2 <= 1;
-        if (w1 || w2) set(x, y, col.wing);
+      const shp = Object.assign({ rx: 4.7, ry: 3.3, wing: 'round', stripes: 'double' }, sp.shape || {});
+      // Wings (behind the body); each style gives a distinct silhouette
+      const inWing = (x, y) => {
+        const e = (cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
+        const d = (cx, cy, a, b) => Math.abs(x - cx) / a + Math.abs(y - cy) / b <= 1;
+        switch (shp.wing) {
+          case 'small': return e(7.5, 5.5, 2.1, 2.4) || e(10.5, 6, 1.8, 2.1);
+          case 'long': return e(9, 4.2, 4.3, 2.1) || e(12, 5.6, 3.2, 1.8);
+          case 'moth': return e(7, 4.6, 3.5, 4) || e(11.6, 5.4, 3.1, 3.4);
+          case 'angular': return d(7.5, 4, 2.8, 3.8) || d(11.5, 4.8, 2.4, 3.2);
+          default: return e(7.5, 4.5, 2.6, 3.3) || e(11, 5, 2.2, 2.8);
+        }
+      };
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (inWing(x, y)) set(x, y, col.wing);
+      // Wing detail
+      const vein = shade(col.wing, -0.18);
+      if (shp.wing === 'moth') {
+        set(6, 4, col.stripe); set(11, 5, col.stripe); set(7, 3, vein); set(12, 4, vein);
+      } else if (shp.wing === 'angular') {
+        set(7, 3, '#ffffff'); set(8, 4, vein); set(11, 4, '#ffffff');
+      } else {
+        set(8, 4, vein); set(11, 5, vein);
       }
-      // Wing veins
-      set(8, 4, shade(col.wing, -0.18)); set(11, 5, shade(col.wing, -0.18));
-      // Abdomen with stripes
+      // Abdomen with a species stripe pattern
+      const bands = {
+        double: (x) => x === 8 || x === 9 || x === 12 || x === 13,
+        triple: (x) => x === 7 || x === 10 || x === 13,
+        single: (x) => x === 10 || x === 11,
+        spots: (x, y) => (x + y) % 4 === 0,
+      }[shp.stripes];
       for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-        if (((x - 9.8) / 4.7) ** 2 + ((y - 10.2) / 3.3) ** 2 <= 1) {
-          const band = x === 8 || x === 9 || x === 12 || x === 13;
-          set(x, y, band ? col.stripe : col.body);
+        if (((x - (5.1 + shp.rx)) / shp.rx) ** 2 + ((y - 10.2) / shp.ry) ** 2 <= 1) {
+          set(x, y, bands(x, y) ? col.stripe : col.body);
         }
       }
       // Highlight on the abdomen
-      set(7, 8, shade(col.body, 0.5)); set(10, 8, shade(col.body, 0.5));
+      set(7, 11 - Math.round(shp.ry), shade(col.body, 0.5)); set(10, 11 - Math.round(shp.ry), shade(col.body, 0.5));
       // Head
       for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
         if (((x - 4) / 2.7) ** 2 + ((y - 10.3) / 2.6) ** 2 <= 1) set(x, y, shade(col.stripe, 0.12));
@@ -2326,6 +2364,9 @@ textarea {
       out[9][2] = '#fffdf4';
       out[7][3] = INK; out[6][2] = INK; out[5][2] = INK; out[4][1] = INK;
       out[7][5] = INK; out[6][5] = INK; out[5][6] = INK;
+      if (sp.shape && sp.shape.feathery) {
+        out[4][0] = INK; out[5][1] = INK; out[4][6] = INK; out[4][7] = INK; out[5][7] = INK;
+      }
 
       const c = canvas(N, N);
       const ctx = c.getContext('2d');

@@ -172,9 +172,17 @@
     return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
   }
 
+  function mix(a, b, k) {
+    const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+    const ch = (n, sh) => (n >> sh) & 255;
+    const m = (sh) => Math.round(ch(pa, sh) + (ch(pb, sh) - ch(pa, sh)) * k);
+    return '#' + ((1 << 24) | (m(16) << 16) | (m(8) << 8) | m(0)).toString(16).slice(1);
+  }
+
+  // Sparkle variants keep the species' colours with a rose-gold sheen, so a
+  // sparkle Moonmoth still reads as a Moonmoth.
   function sparklePalette(sp) {
-    // Sparkle variants swap to a rose-gold scheme with a lighter stripe.
-    return { body: shade(sp.body, 0.35), stripe: '#c04a7a', wing: '#fff4fa' };
+    return { body: mix(sp.body, '#ffc8dc', 0.45), stripe: mix(sp.stripe, '#b0306a', 0.35), wing: '#ffe6f2' };
   }
 
   function beePortrait(spId, sparkle) {
@@ -186,23 +194,43 @@
       const set = (x, y, c) => {
         if (x >= 0 && y >= 0 && x < N && y < N) px[y][x] = c;
       };
-      // Wings (behind the body)
-      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-        const w1 = ((x - 7.5) / 2.6) ** 2 + ((y - 4.5) / 3.3) ** 2 <= 1;
-        const w2 = ((x - 11) / 2.2) ** 2 + ((y - 5) / 2.8) ** 2 <= 1;
-        if (w1 || w2) set(x, y, col.wing);
+      const shp = Object.assign({ rx: 4.7, ry: 3.3, wing: 'round', stripes: 'double' }, sp.shape || {});
+      // Wings (behind the body); each style gives a distinct silhouette
+      const inWing = (x, y) => {
+        const e = (cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
+        const d = (cx, cy, a, b) => Math.abs(x - cx) / a + Math.abs(y - cy) / b <= 1;
+        switch (shp.wing) {
+          case 'small': return e(7.5, 5.5, 2.1, 2.4) || e(10.5, 6, 1.8, 2.1);
+          case 'long': return e(9, 4.2, 4.3, 2.1) || e(12, 5.6, 3.2, 1.8);
+          case 'moth': return e(7, 4.6, 3.5, 4) || e(11.6, 5.4, 3.1, 3.4);
+          case 'angular': return d(7.5, 4, 2.8, 3.8) || d(11.5, 4.8, 2.4, 3.2);
+          default: return e(7.5, 4.5, 2.6, 3.3) || e(11, 5, 2.2, 2.8);
+        }
+      };
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (inWing(x, y)) set(x, y, col.wing);
+      // Wing detail
+      const vein = shade(col.wing, -0.18);
+      if (shp.wing === 'moth') {
+        set(6, 4, col.stripe); set(11, 5, col.stripe); set(7, 3, vein); set(12, 4, vein);
+      } else if (shp.wing === 'angular') {
+        set(7, 3, '#ffffff'); set(8, 4, vein); set(11, 4, '#ffffff');
+      } else {
+        set(8, 4, vein); set(11, 5, vein);
       }
-      // Wing veins
-      set(8, 4, shade(col.wing, -0.18)); set(11, 5, shade(col.wing, -0.18));
-      // Abdomen with stripes
+      // Abdomen with a species stripe pattern
+      const bands = {
+        double: (x) => x === 8 || x === 9 || x === 12 || x === 13,
+        triple: (x) => x === 7 || x === 10 || x === 13,
+        single: (x) => x === 10 || x === 11,
+        spots: (x, y) => (x + y) % 4 === 0,
+      }[shp.stripes];
       for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-        if (((x - 9.8) / 4.7) ** 2 + ((y - 10.2) / 3.3) ** 2 <= 1) {
-          const band = x === 8 || x === 9 || x === 12 || x === 13;
-          set(x, y, band ? col.stripe : col.body);
+        if (((x - (5.1 + shp.rx)) / shp.rx) ** 2 + ((y - 10.2) / shp.ry) ** 2 <= 1) {
+          set(x, y, bands(x, y) ? col.stripe : col.body);
         }
       }
       // Highlight on the abdomen
-      set(7, 8, shade(col.body, 0.5)); set(10, 8, shade(col.body, 0.5));
+      set(7, 11 - Math.round(shp.ry), shade(col.body, 0.5)); set(10, 11 - Math.round(shp.ry), shade(col.body, 0.5));
       // Head
       for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
         if (((x - 4) / 2.7) ** 2 + ((y - 10.3) / 2.6) ** 2 <= 1) set(x, y, shade(col.stripe, 0.12));
@@ -224,6 +252,9 @@
       out[9][2] = '#fffdf4';
       out[7][3] = INK; out[6][2] = INK; out[5][2] = INK; out[4][1] = INK;
       out[7][5] = INK; out[6][5] = INK; out[5][6] = INK;
+      if (sp.shape && sp.shape.feathery) {
+        out[4][0] = INK; out[5][1] = INK; out[4][6] = INK; out[4][7] = INK; out[5][7] = INK;
+      }
 
       const c = canvas(N, N);
       const ctx = c.getContext('2d');
