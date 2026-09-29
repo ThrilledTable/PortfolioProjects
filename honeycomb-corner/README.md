@@ -33,6 +33,9 @@ Special bees add composition choices. Nurse Bees give +20% to every bee in their
 
 ## Design notes
 
+See [docs/DESIGN.md](docs/DESIGN.md) for positioning, monetisation options, balance targets and the roadmap to a store build.
+
+
 - **Resolution:** the scene renders at 240×160, the GBA's native resolution, and scales up with crisp pixels. In-scene numbers use a hand-made 3×5 bitmap font.
 - **IP safety:** the goal was the *era* (a pixel town shop, chiptune music, retro text boxes), not anyone's brand. The shop has an orange roof and a honey theme; there are no creature balls, no "-dex", and no borrowed silhouettes.
 - **Pacing** comes from `tools/balance.js`, which plays the real simulation headlessly with a greedy bot. Current bot timings are clover at about 4 min, waxwing about 8, lavender about 35, royal about 80, golden about 90 and starlight about 130. A human should take roughly 1.5–2× longer. A goal chain of 26 steps guides the whole arc.

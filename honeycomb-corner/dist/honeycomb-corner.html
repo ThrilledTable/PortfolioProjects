@@ -4327,7 +4327,6 @@ textarea {
 // Boot, main loop, autosave and away-time catch-up.
 (function () {
   const HC = window.HC;
-  const { util, data: D } = HC;
 
   const TICK = 1 / 20; // fixed simulation step
   let acc = 0, last = 0, renderClock = 0, hiddenAt = null;
