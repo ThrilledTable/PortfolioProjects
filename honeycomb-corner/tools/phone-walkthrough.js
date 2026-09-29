@@ -37,7 +37,9 @@ fs.mkdirSync(out, { recursive: true });
   await page.evaluate(() => { for (let i = 0; i < 20 * 40; i++) HC.sim.update(HC.game, 0.05); });
   await page.waitForTimeout(600);
   await shot('after-40s');
-  // Buy a meadow bee through the market button
+  // Buy a meadow bee through the market button (give enough coins first)
+  await page.evaluate(() => { HC.game.coins = Math.max(HC.game.coins, 100); HC.ui.markDirty(); });
+  await page.waitForTimeout(400);
   await page.locator('[data-act="buyBee"][data-sp="meadow"]').scrollIntoViewIfNeeded();
   await page.locator('[data-act="buyBee"][data-sp="meadow"]').tap();
   await page.waitForTimeout(400);
@@ -70,7 +72,7 @@ fs.mkdirSync(out, { recursive: true });
   await page.waitForTimeout(300);
   await shot('renamed');
   await page.keyboard.press('Escape');
-  for (const t of ['nursery', 'town', 'menu']) {
+  for (const t of ['nursery', 'town', 'store']) {
     await page.locator(`.tabs [data-tab="${t}"]`).tap();
     await page.waitForTimeout(300);
     await shot('tab-' + t);

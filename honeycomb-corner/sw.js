@@ -1,9 +1,10 @@
 // Offline support for the installable (PWA) version: cache the app shell,
 // serve it cache-first, and refresh the cache in the background.
-const CACHE = 'honeycomb-corner-v1';
+const CACHE = 'honeycomb-corner-v2';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/style.css',
-  './js/util.js', './js/data.js', './js/state.js', './js/sim.js', './js/actions.js', './js/goals.js',
+  './js/util.js', './js/data.js', './js/state.js', './js/nav.js', './js/sim.js', './js/builds.js', './js/customers.js',
+  './js/workers.js', './js/actions.js', './js/goals.js',
   './js/sprites.js', './js/render.js', './js/audio.js', './js/ui.js', './js/main.js',
   './icons/icon-192.png', './icons/icon-512.png',
 ];

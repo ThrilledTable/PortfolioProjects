@@ -1,13 +1,38 @@
-// Static game data: goods, bee species, breeding recipes, upgrades, customers.
-// Tuning lives here so balance changes never touch the simulation code.
+// =============================================================================
+// data.js: THE GAME'S RULEBOOK
+// -----------------------------------------------------------------------------
+// This file holds numbers and lists only: what products exist, what each
+// bee species does, how much upgrades cost, what the Store sells, and so on.
+// None of it "runs" by itself; the other files read from it.
+//
+// If you want to rebalance the game (make something cheaper, slower, more
+// valuable), this is almost always the file to change.
+//
+// A few terms you'll see everywhere:
+//   id      - a short internal name the code uses, e.g. 'meadow'. Never shown
+//             to players; changing one breaks existing saves, so leave them.
+//   name    - what the player sees, e.g. 'Meadow Bee'. Safe to change.
+//   tier    - a rank from 0 (cheapest) upward. Higher tier = more valuable.
+//   ₵ coins - the everyday money. Gems (💎) are the rare "speed-up" currency.
+// =============================================================================
 (function () {
+  // Every file shares one global object called HC ("Honeycomb Corner").
+  // Each file adds its own piece to it; this one adds HC.data.
   const HC = window.HC;
 
-  // Goods are ordered by tier. `kind` picks the pixel icon shape.
+  // ---------------------------------------------------------------------------
+  // PRODUCTS ("goods")
+  // Listed from cheapest to most valuable. `price` is the base sale price in
+  // coins before bonuses. `kind` picks which little pixel icon is drawn
+  // (jar, candle, pot, vial, comb, block). `fill` and `lid` are icon colours.
+  // `raw: true` means it can't go on a shelf: it's an ingredient (Beeswax is
+  // turned into candles by the Candle Machine).
+  // ---------------------------------------------------------------------------
   const GOODS = [
     { id: 'wildflower', name: 'Wildflower Honey', price: 5, kind: 'jar', fill: '#f8c838', lid: '#c8642a' },
     { id: 'clover', name: 'Clover Honey', price: 14, kind: 'jar', fill: '#f2e27c', lid: '#4c9a3c' },
-    { id: 'candle', name: 'Beeswax Candle', price: 40, kind: 'candle', fill: '#f6e6b2', lid: '#a86a32' },
+    { id: 'wax', name: 'Beeswax', price: 8, kind: 'block', fill: '#f0dc98', lid: '#b8964a', raw: true },
+    { id: 'candle', name: 'Beeswax Candle', price: 45, kind: 'candle', fill: '#f6e6b2', lid: '#a86a32' },
     { id: 'orange', name: 'Orange Blossom Honey', price: 110, kind: 'jar', fill: '#f59a24', lid: '#f4ecd8' },
     { id: 'lavender', name: 'Lavender Honey', price: 300, kind: 'jar', fill: '#c6a0e8', lid: '#6a48a8' },
     { id: 'jelly', name: 'Royal Jelly', price: 850, kind: 'pot', fill: '#fff2cc', lid: '#d8a020' },
@@ -16,9 +41,22 @@
     { id: 'crystal', name: 'Crystal Comb', price: 20000, kind: 'comb', fill: '#a4eef0', lid: '#2a7890' },
     { id: 'star', name: 'Starlight Honey', price: 60000, kind: 'jar', fill: '#fff0a0', lid: '#5a3aa0' },
   ];
+  // Give every product its tier number automatically from its position in
+  // the list (first = 0). Raw ingredients share the tier of what they become.
   GOODS.forEach((g, i) => (g.tier = i));
 
-  // `secs` = seconds per unit at 100% vigor. Value/sec roughly doubles per tier.
+  // ---------------------------------------------------------------------------
+  // BEE SPECIES
+  //   good   - which product this bee makes
+  //   secs   - seconds to make one unit at 100% vigor (lower = faster)
+  //   rarity - label shown in the Field Guide
+  //   body/stripe/wing - colours of its portrait
+  //   mark   - a small detail painted on the portrait (leaf, crown, moon...)
+  //   shape  - body size, wing style and stripe pattern for its silhouette
+  //   aura   - a special effect while it lives in a hive (see Scout and Nurse)
+  //   flavor - the description in the Field Guide once discovered
+  //   hint   - the clue shown before it's discovered
+  // ---------------------------------------------------------------------------
   const SPECIES = [
     {
       id: 'meadow', name: 'Meadow Bee', good: 'wildflower', secs: 8, tier: 0, rarity: 'Common',
@@ -33,10 +71,10 @@
       hint: 'Sold at the Bee Market once the shop is known around town.',
     },
     {
-      id: 'waxwing', name: 'Waxwing Bee', good: 'candle', secs: 14, tier: 2, rarity: 'Uncommon',
+      id: 'waxwing', name: 'Waxwing Bee', good: 'wax', secs: 12, tier: 2, rarity: 'Uncommon',
       body: '#f2e2b0', stripe: '#8a6a3a', wing: '#fff6e0', mark: 'drop',
       shape: { rx: 5, ry: 3.7, wing: 'small', stripes: 'double' },
-      flavor: 'Builds comb so neat the shop sells the wax. The hive smells like a candle shop.',
+      flavor: 'Builds comb so neat you could frame it. Its Beeswax becomes candles in the Candle Machine.',
       hint: 'Something waxy comes from a meadow bee and a clover bee.',
     },
     {
@@ -107,8 +145,12 @@
     },
   ];
 
-  // Unordered pairs. `p` is the chance the egg is the new species; otherwise it
-  // takes after one of the parents.
+  // ---------------------------------------------------------------------------
+  // BREEDING RECIPES
+  // Pairing species `a` with species `b` in the Nursery has a `p` chance
+  // (0.5 = 50%) of hatching species `out`. Otherwise the egg takes after one
+  // of its parents. Order doesn't matter: a+b is the same as b+a.
+  // ---------------------------------------------------------------------------
   const RECIPES = [
     { a: 'meadow', b: 'clover', out: 'waxwing', p: 0.5 },
     { a: 'clover', b: 'waxwing', out: 'citrus', p: 0.45 },
@@ -122,6 +164,9 @@
     { a: 'crystal', b: 'golden', out: 'star', p: 0.2 },
   ];
 
+  // ---------------------------------------------------------------------------
+  // TRAITS: a personality some bees are born with. Each gives a small bonus.
+  // ---------------------------------------------------------------------------
   const TRAITS = {
     diligent: { name: 'Diligent', desc: '+15% output', prod: 0.15 },
     nightowl: { name: 'Night Owl', desc: '+50% output at night', night: 0.5 },
@@ -130,25 +175,81 @@
     charming: { name: 'Charming', desc: '+3% customers while in a hive', customers: 0.03 },
   };
 
-  // Shop-wide upgrades. cost = base * growth^level.
+  // ---------------------------------------------------------------------------
+  // SHOP UPGRADES
+  // Price of the next level = base × growth^(current level).
+  // Example: Painted Sign at level 2 costs 150 × 2.3 × 2.3 ≈ 794 coins.
+  // Every upgrade also takes real time to build (see buildTime in sim.js).
+  // `desc(level)` is the one-line explanation shown to the player.
+  // ---------------------------------------------------------------------------
   const UPGRADES = [
     { id: 'shelf', name: 'Extra Shelf', base: 80, growth: 4.2, max: 7, desc: () => 'Adds a shelf for another product.' },
+    { id: 'basket', name: 'Bigger Basket', base: 150, growth: 2.4, max: 10, desc: () => 'Everyone carries 8 more jars per trip.' },
     { id: 'samples', name: 'Tasting Samples', base: 120, growth: 2.5, max: 10, desc: () => 'Customers buy 10% more items.' },
     { id: 'sign', name: 'Painted Sign', base: 150, growth: 2.3, max: 20, desc: () => '+15% customer visits.' },
     { id: 'labels', name: 'Fancy Labels', base: 200, growth: 2.15, max: 25, desc: () => '+8% sale prices.' },
     { id: 'register', name: 'Brass Register', base: 300, growth: 2.6, max: 8, desc: () => 'Checkout 12% faster.' },
-    { id: 'flowers', name: 'Flower Beds', base: 250, growth: 2.3, max: 20, desc: () => '+8% honey from every bee.' },
+    { id: 'flowers', name: 'Flower Beds', base: 250, growth: 2.3, max: 20, desc: () => '+8% honey from every bee. Plants a new bed in the garden.' },
     { id: 'storage', name: 'Bigger Storehouse', base: 100, growth: 2.25, max: 20, desc: () => '+60% storage per product.' },
     { id: 'cart', name: 'Honey Cart', base: 1500, growth: 3, max: 8, desc: (lv) => 'Sells storehouse overflow at ' + (lv ? 20 + lv * 5 : 20) + '% price instead of wasting it.' },
-    { id: 'beebox', name: 'Bigger Bee Box', base: 400, growth: 2.8, max: 10, desc: () => '+4 bee box spaces.' },
+    { id: 'beebox', name: 'Bigger Bee Box', base: 400, growth: 2.8, max: 10, desc: () => '+4 spaces for spare bees.' },
     { id: 'nursery', name: 'Nursery Cradle', base: 3000, growth: 12, max: 2, desc: () => '+1 breeding slot.' },
   ];
 
+  // Cost of building hive number 1, 2, 3... (the first one is free).
   const HIVE_COSTS = [0, 200, 1200, 8000, 120000, 1500000];
   const HIVE_MAX_LEVEL = 5;
 
-  // `offset` controls what a customer can afford relative to the best product
-  // on display: offset 0 can afford the top shelf, 3 only goods three tiers down.
+  // ---------------------------------------------------------------------------
+  // CANDLE MACHINE
+  // Waxwing bees make raw Beeswax. The machine turns 1 Beeswax into 1 Candle.
+  // Someone has to carry wax to it and carry the candles back to the
+  // storehouse (the shopkeeper when you tap it, or a hired Candle Maker).
+  // ---------------------------------------------------------------------------
+  const MACHINE = {
+    buildCost: 600,
+    // Each upgrade level: holds more wax and works faster.
+    upgradeBase: 1500, upgradeGrowth: 3.2, maxLevel: 5,
+    capacity: (lv) => 10 + 6 * lv, // wax it can hold at once
+    secsPerCandle: (lv) => 8 * Math.pow(0.82, lv),
+  };
+
+  // ---------------------------------------------------------------------------
+  // STAFF you can hire. `hire` is a one-off fee; `wage` is paid every morning.
+  // If you can't pay the morning wages, that employee quits.
+  // `needs` means the job only exists once you own that thing.
+  // `look` is how they're drawn in the scene.
+  // ---------------------------------------------------------------------------
+  const STAFF = [
+    {
+      id: 'cashier', name: 'Cashier', hire: 250, wage: 30,
+      desc: 'Runs the register, so customers can pay while you are out collecting honey.',
+      look: { hair: ['#2a2222', '#161010'], skin: ['#e0a878', '#b87c50'], shirt: ['#c84a4a', '#8e2e2e'], hat: null, apron: '#f4ecd8' },
+    },
+    {
+      id: 'stocker', name: 'Shelf Stocker', hire: 500, wage: 50,
+      desc: 'Carries goods from the storehouse to the shelves whenever they run low.',
+      look: { hair: ['#e8c060', '#b89040'], skin: ['#f4d4b8', '#d8ac88'], shirt: ['#3a8ab0', '#266080'], hat: 'cap', apron: null },
+    },
+    {
+      id: 'collector', name: 'Honey Collector', hire: 900, wage: 80,
+      desc: 'Walks the garden and brings honey in from any hive that is filling up.',
+      look: { hair: ['#c0502a', '#8a3418'], skin: ['#f8c898', '#d89868'], shirt: ['#7a9a4a', '#56702e'], hat: 'straw', apron: null },
+    },
+    {
+      id: 'candler', name: 'Candle Maker', hire: 3000, wage: 150, needs: 'machine',
+      desc: 'Keeps the Candle Machine loaded with wax and carries finished candles to the storehouse.',
+      look: { hair: ['#8a5a8a', '#5e3a5e'], skin: ['#b07850', '#86563a'], shirt: ['#e08a3a', '#a85e22'], hat: null, apron: '#6a4a2a' },
+    },
+  ];
+
+  // ---------------------------------------------------------------------------
+  // CUSTOMERS. `weight` is how common they are (bigger = more common).
+  // `repWeight` makes them more common as your reputation grows.
+  // `offset` limits what they can afford: 0 can buy your best product,
+  // 3 can only afford things three tiers below your best.
+  // `units` is how many items they buy, e.g. [1, 3] = one to three.
+  // ---------------------------------------------------------------------------
   const CUSTOMERS = [
     { id: 'villager', name: 'Villager', weight: 50, offset: 3, units: [1, 2], hat: null },
     { id: 'hiker', name: 'Hiker', weight: 20, offset: 2, units: [2, 3], hat: 'cap', shirt: ['#4a8a3a', '#2e5e26'] },
@@ -157,6 +258,7 @@
     { id: 'collector', name: 'Collector', weight: 1, repWeight: 1.5, offset: 0, units: [1, 1], mult: 1.5, hat: 'beret', shirt: ['#2a6a6a', '#1a4444'] },
   ];
 
+  // Colour pairs [main, shadow] used to dress random customers.
   const HAIR = [
     ['#6a3e1e', '#4a2a12'], ['#2a2222', '#161010'], ['#e8c060', '#b89040'],
     ['#c0502a', '#8a3418'], ['#d8d0c8', '#a8a098'], ['#8a5a8a', '#5e3a5e'],
@@ -166,6 +268,104 @@
     ['#5a6ab8', '#3a4888'], ['#d86aa0', '#a04878'], ['#7a9a4a', '#56702e'],
   ];
   const SKIN = [['#f8c898', '#d89868'], ['#e0a878', '#b87c50'], ['#b07850', '#86563a'], ['#f4d4b8', '#d8ac88']];
+
+  // ---------------------------------------------------------------------------
+  // THE STORE: cosmetics and decorations.
+  //   cat   - which Store section it appears in
+  //   cost  - { coins: n } or { gems: n }; items with `free: true` cost nothing
+  //   default - owned (and worn/placed) from the start
+  //   bonus - optional small perk while it's placed:
+  //             customers: +x visits, prod: +x honey, rep: +x reputation gain
+  //   colors - for wardrobe items, the colours the keeper is drawn with
+  // Decorations appear in the scene at a fixed spot (drawn in render.js).
+  // ---------------------------------------------------------------------------
+  const CATALOG = [
+    // Keeper hats
+    { id: 'hat-bandana', cat: 'hat', name: 'Bandana', default: true, value: 'bandana' },
+    { id: 'hat-none', cat: 'hat', name: 'No hat', free: true, value: null },
+    { id: 'hat-straw', cat: 'hat', name: 'Straw Hat', cost: { coins: 150 }, value: 'straw' },
+    { id: 'hat-cap', cat: 'hat', name: 'Garden Cap', cost: { coins: 300 }, value: 'cap' },
+    { id: 'hat-chef', cat: 'hat', name: 'Chef Hat', cost: { coins: 1000 }, value: 'chef' },
+    { id: 'hat-tophat', cat: 'hat', name: 'Top Hat', cost: { coins: 2500 }, value: 'tophat' },
+    { id: 'hat-beret', cat: 'hat', name: 'Artist Beret', cost: { gems: 8 }, value: 'beret' },
+    { id: 'hat-crown', cat: 'hat', name: 'Flower Crown', cost: { gems: 15 }, value: 'crown' },
+    // Keeper hair colours
+    { id: 'hair-brown', cat: 'hair', name: 'Chestnut', default: true, colors: ['#6a3e1e', '#4a2a12'] },
+    { id: 'hair-black', cat: 'hair', name: 'Ink', free: true, colors: ['#2a2222', '#161010'] },
+    { id: 'hair-blonde', cat: 'hair', name: 'Honey Blonde', free: true, colors: ['#e8c060', '#b89040'] },
+    { id: 'hair-red', cat: 'hair', name: 'Copper', free: true, colors: ['#c0502a', '#8a3418'] },
+    { id: 'hair-silver', cat: 'hair', name: 'Silver', cost: { gems: 5 }, colors: ['#e0e0e8', '#a8a8b8'] },
+    { id: 'hair-pink', cat: 'hair', name: 'Rose', cost: { gems: 10 }, colors: ['#f08ab0', '#c05a80'] },
+    // Keeper shirts
+    { id: 'shirt-cream', cat: 'shirt', name: 'Cream', default: true, colors: ['#f4f0e0', '#d0c8b0'] },
+    { id: 'shirt-sky', cat: 'shirt', name: 'Sky', cost: { coins: 200 }, colors: ['#8ac8f0', '#5a98c0'] },
+    { id: 'shirt-rose', cat: 'shirt', name: 'Rose', cost: { coins: 200 }, colors: ['#f0a0b8', '#c07088'] },
+    { id: 'shirt-leaf', cat: 'shirt', name: 'Leaf', cost: { coins: 200 }, colors: ['#8ac860', '#5a9838'] },
+    { id: 'shirt-night', cat: 'shirt', name: 'Midnight', cost: { gems: 6 }, colors: ['#3a3a6a', '#24244a'] },
+    { id: 'shirt-royal', cat: 'shirt', name: 'Royal Purple', cost: { gems: 12 }, colors: ['#8a4ab8', '#62308a'] },
+    // Keeper aprons
+    { id: 'apron-honey', cat: 'apron', name: 'Honey', default: true, colors: ['#e8a020'] },
+    { id: 'apron-berry', cat: 'apron', name: 'Berry', cost: { coins: 150 }, colors: ['#c8445a'] },
+    { id: 'apron-mint', cat: 'apron', name: 'Mint', cost: { coins: 150 }, colors: ['#6ac8a0'] },
+    { id: 'apron-denim', cat: 'apron', name: 'Denim', cost: { coins: 400 }, colors: ['#4a6a9a'] },
+    { id: 'apron-gold', cat: 'apron', name: 'Gold Leaf', cost: { gems: 10 }, colors: ['#ffd23a'] },
+    // Shop walls and floors (only one of each is used at a time)
+    { id: 'wall-planks', cat: 'wall', name: 'Oak Planks', default: true },
+    { id: 'wall-honeycomb', cat: 'wall', name: 'Honeycomb Paper', cost: { coins: 1500 } },
+    { id: 'wall-stripes', cat: 'wall', name: 'Mint Stripes', cost: { gems: 8 } },
+    { id: 'wall-rose', cat: 'wall', name: 'Rose Damask', cost: { gems: 12 } },
+    { id: 'floor-checker', cat: 'floor', name: 'Cream Checker', default: true },
+    { id: 'floor-wood', cat: 'floor', name: 'Warm Boards', cost: { coins: 1200 } },
+    { id: 'floor-tiles', cat: 'floor', name: 'Blue Tiles', cost: { gems: 10 } },
+    // Shop decorations (each has its own spot; you can own and place them all)
+    { id: 'deco-table', cat: 'shopDecor', name: 'Honey Display Table', default: true, bonus: { customers: 0.03 } },
+    { id: 'deco-plant', cat: 'shopDecor', name: 'Potted Fern', default: true },
+    { id: 'deco-rug', cat: 'shopDecor', name: 'Welcome Rug', default: true },
+    { id: 'deco-chalk', cat: 'shopDecor', name: 'Chalkboard Menu', cost: { coins: 400 }, bonus: { customers: 0.05 } },
+    { id: 'deco-lights', cat: 'shopDecor', name: 'String Lights', cost: { coins: 800 }, bonus: { rep: 0.1 } },
+    { id: 'deco-mural', cat: 'shopDecor', name: 'Bee Mural', cost: { gems: 12 }, bonus: { customers: 0.05 } },
+    // Garden decorations
+    { id: 'deco-bench', cat: 'gardenDecor', name: 'Garden Bench', cost: { coins: 500 }, bonus: { customers: 0.03 } },
+    { id: 'deco-gnome', cat: 'gardenDecor', name: 'Beekeeper Gnome', cost: { gems: 5 }, bonus: { prod: 0.02 } },
+    { id: 'deco-lanterns', cat: 'gardenDecor', name: 'Garden Lanterns', cost: { coins: 1500 }, bonus: { rep: 0.05 } },
+    { id: 'deco-pond', cat: 'gardenDecor', name: 'Lily Pond', cost: { coins: 8000 }, bonus: { prod: 0.05 } },
+    { id: 'deco-fountain', cat: 'gardenDecor', name: 'Stone Fountain', cost: { gems: 20 }, bonus: { prod: 0.05 } },
+    // Hive styles (one at a time; changes how every hive looks)
+    { id: 'hive-classic', cat: 'hiveStyle', name: 'Classic Boxes', default: true },
+    { id: 'hive-painted', cat: 'hiveStyle', name: 'Painted Cottage', cost: { coins: 2000 } },
+    { id: 'hive-skep', cat: 'hiveStyle', name: 'Straw Skep', cost: { gems: 15 } },
+    { id: 'hive-royal', cat: 'hiveStyle', name: 'Royal Gilded', cost: { gems: 40 } },
+  ];
+
+  // The Store's sections, in display order. `pick` = only one can be used at
+  // a time (like a hat); otherwise every owned item can be placed at once.
+  const STORE_SECTIONS = [
+    { cat: 'hat', name: 'Hats', pick: true },
+    { cat: 'hair', name: 'Hair', pick: true },
+    { cat: 'shirt', name: 'Shirts', pick: true },
+    { cat: 'apron', name: 'Aprons', pick: true },
+    { cat: 'shopDecor', name: 'Shop decorations', pick: false },
+    { cat: 'gardenDecor', name: 'Garden decorations', pick: false },
+    { cat: 'wall', name: 'Wallpaper', pick: true },
+    { cat: 'floor', name: 'Floors', pick: true },
+    { cat: 'hiveStyle', name: 'Hive styles', pick: true },
+  ];
+
+  // ---------------------------------------------------------------------------
+  // GEMS: the rare currency. You earn them from goals, requests, festivals,
+  // new species and golden drips, and spend them to finish timers early or
+  // on special Store items. These are the amounts for each source.
+  // ---------------------------------------------------------------------------
+  const GEMS = {
+    start: 15,
+    newSpecies: 5,
+    seasonChange: 3,
+    festival: 50,
+    orderChance: 0.3, orderMin: 1, orderMax: 3,
+    dripChance: 0.15,
+    secsPerGem: 120, // skipping a timer costs 1 gem per 2 minutes left
+    builderSlot: 80, // price of a second builder
+  };
 
   const BEE_NAMES = [
     'Bumble', 'Waggle', 'Pollen', 'Clementine', 'Hexa', 'Juniper', 'Marigold', 'Buzz', 'Nectarine',
@@ -179,23 +379,31 @@
     'Muffin', 'Nibs', 'Oats', 'Pepper', 'Quill', 'Rusk', 'Scone', 'Truffle', 'Waffles', 'Ziggy',
   ];
 
+  // Who pins requests on the board outside the shop.
   const REQUESTERS = [
     'Mrs. Pemberton', 'The Bakery on Elm', 'Coach Reyes', 'Old Man Hollis', 'Town Hall', 'The Tea Room',
     'Dr. Okafor', 'Harbor Inn', 'Little Library', 'Farmer Quill', 'Miss Delacroix', 'The Candle Guild',
   ];
 
+  // Random tips the shopkeeper says when you tap them.
   const TIPS = [
-    'Customers only buy what is on a shelf. Keep your best products stocked.',
+    'Hives stop making honey when they are full. Tap a hive to send me out to collect it.',
+    'Customers can only pay when someone is at the register. A Cashier helps a lot.',
     'Richer customers show up as your reputation grows.',
+    'Bees raising an egg in the Nursery take a break from making honey.',
+    'The shop closes at night. The bees keep working, so check the hives in the morning.',
     'Breeding two bees of the same species can raise vigor.',
     'Nurse Bees boost every bee in their hive.',
-    'Moonmoth Bees and Night Owls do their best work after dark.',
-    'The Honey Cart turns storehouse overflow into coins.',
+    'Waxwing Beeswax needs the Candle Machine before it can be sold as candles.',
+    'Upgrades take time to build. Gems can finish them instantly.',
     'Seasons change every four days. Tap the season in the status bar to see what it does.',
     'Golden drips appear on hives now and then. Tap one for a bonus.',
   ];
 
-  // Each season lasts SEASON_DAYS in-game days and brings one twist.
+  // ---------------------------------------------------------------------------
+  // SEASONS: each lasts SEASON_DAYS in-game days and brings one twist.
+  // `grass` is the garden's colours that season.
+  // ---------------------------------------------------------------------------
   const SEASONS = [
     { id: 'spring', name: 'Spring', desc: 'Everything blooms: +20% honey from every bee.', prod: 0.2,
       grass: ['#72c458', '#5eae4a', '#8cd870', '#4e9e3e'], pad: '#8ab04a' },
@@ -207,22 +415,27 @@
       grass: ['#e8eef4', '#d4dce8', '#f8fbff', '#c0cad8'], pad: '#c8d0dc' },
   ];
 
+  // Helper: turns a list into a lookup table by id, so the code can write
+  // D.good.clover instead of searching the list every time.
   const byId = (arr) => Object.fromEntries(arr.map((x) => [x.id, x]));
 
   HC.data = {
     SEASONS, GOODS, SPECIES, RECIPES, TRAITS, UPGRADES, HIVE_COSTS, HIVE_MAX_LEVEL, CUSTOMERS,
-    HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, TIPS,
+    HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, TIPS, MACHINE, STAFF, CATALOG, STORE_SECTIONS, GEMS,
     good: byId(GOODS),
     species: byId(SPECIES),
     upgrade: byId(UPGRADES),
     customer: byId(CUSTOMERS),
-    DAY_LENGTH: 480, // seconds per in-game day
+    staff: byId(STAFF),
+    item: byId(CATALOG),
+    DAY_LENGTH: 480, // real seconds in one in-game day (8 minutes)
     SEASON_DAYS: 4,
-    OFFLINE_CAP: 8 * 3600,
-    FESTIVAL_AT: 1e7,
+    OFFLINE_CAP: 8 * 3600, // bees and shop keep going for at most 8h while you're away
+    FESTIVAL_AT: 1e7, // coins earned in one run before a Honey Festival is possible
     SAVE_KEY: 'honeycomb-corner-save-v1',
   };
 
+  // Look up the recipe for a pair of species (in either order), or null.
   HC.data.recipeFor = function (a, b) {
     return RECIPES.find((r) => (r.a === a && r.b === b) || (r.a === b && r.b === a)) || null;
   };

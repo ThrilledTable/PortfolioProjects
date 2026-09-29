@@ -1,5 +1,9 @@
-// Browser smoke test: loads the game, checks for console errors, exercises
-// the main flows and saves screenshots. Usage: node tools/smoke.js [outDir]
+// Browser smoke test: loads the game in headless Chromium, plays through the
+// main flows, saves screenshots and fails on any console error.
+// Usage: node tools/smoke.js [outDir]
+//
+// The game is plain web files, so this opens index.html straight from disk.
+// Web fonts are fetched through Node so screenshots use the real typefaces.
 const path = require('path');
 const fs = require('fs');
 let chromium;
@@ -15,13 +19,11 @@ fs.mkdirSync(out, { recursive: true });
 const target = process.env.TARGET || 'file://' + path.join(root, 'index.html');
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: process.env.CHROME || undefined });
+  const browser = await chromium.launch();
   const errors = [];
   const run = async (name, viewport, script) => {
     const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2 });
     const page = await ctx.newPage();
-    // Fetch web fonts through Node (which honours the environment's proxy and
-    // CA settings) so screenshots use the real typefaces.
     await page.route(/fonts\.(googleapis|gstatic)\.com/, async (route) => {
       try {
         const res = await fetch(route.request().url());
@@ -38,87 +40,145 @@ const target = process.env.TARGET || 'file://' + path.join(root, 'index.html');
     await script(page);
     await ctx.close();
   };
+  const shot = (page, file, full = false) => page.screenshot({ path: path.join(out, file), fullPage: full });
+  // Run the simulation forward quickly inside the page.
+  const advance = (page, secs) => page.evaluate((secs) => { for (let i = 0; i < secs * 20; i++) HC.sim.update(HC.game, 0.05); }, secs);
+  const closeAll = async (page) => {
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => { HC.game.hints = Object.fromEntries(['welcome', 'collect', 'line', 'full', 'night', 'clover', 'build', 'nursery', 'wax', 'order', 'merchant', 'drip', 'boxfull', 'festival'].map((k) => [k, true])); });
+    for (let i = 0; i < 6; i++) await page.click('#textbox', { force: true, timeout: 500 }).catch(() => {});
+  };
 
-  await run('desktop', { width: 1280, height: 860 }, async (page) => {
-    await page.screenshot({ path: path.join(out, 'desktop-start.png') });
-    // Dismiss the tutorial
-    for (let i = 0; i < 8; i++) await page.click('#textbox', { force: true }).catch(() => {});
-    // Fast-forward: give coins and run the sim for a few simulated minutes.
+  await run('desktop', { width: 1280, height: 900 }, async (page) => {
+    await shot(page, 'desktop-start.png');
+    await closeAll(page);
+
+    // Tap hive 1 in the scene: the keeper should walk out and collect.
+    const box = await page.locator('#scene').boundingBox();
+    await page.mouse.click(box.x + box.width * (24 / 240), box.y + box.height * (22 / 160));
+    await advance(page, 6);
+    await page.waitForTimeout(300);
+    await shot(page, 'desktop-keeper-walking.png');
+    await advance(page, 30);
+    const collected = await page.evaluate(() => HC.game.stats.collected);
+    if (!collected) errors.push('[desktop] tapping a hive did not collect honey');
+
+    // Money for testing the rest.
+    await page.evaluate(() => { HC.game.coins = 50000; HC.game.gems = 500; HC.game.lifetime = 500; HC.ui.markDirty(); });
+    // Hire a cashier from the Shop tab.
+    await page.click('.tabs [data-tab="shop"]');
+    await page.waitForTimeout(300);
+    await page.click('[data-act="hire"][data-id="cashier"]');
+    await page.waitForTimeout(200);
+    // Start an upgrade and finish it with gems.
+    await page.click('[data-act="upgrade"][data-id="shelf"]');
+    await page.waitForTimeout(400);
+    await shot(page, 'desktop-building.png');
+    await page.locator('#goalbar [data-act="skipBuild"]').first().click();
+    await page.waitForTimeout(300);
+    const shelves = await page.evaluate(() => HC.game.shelves.length);
+    if (shelves !== 2) errors.push('[desktop] shelf upgrade did not finish via gems (shelves=' + shelves + ')');
+
+    // Breed a Waxwing, build the Candle Machine and tend it.
+    await page.evaluate(() => {
+      HC.act.buyBee('clover');
+      const s = HC.game;
+      const m = Object.values(s.bees).find((b) => b.sp === 'meadow');
+      const c = Object.values(s.bees).find((b) => b.sp === 'clover');
+      s.triedPairs['clover+meadow'] = 4; // guarantee the recipe
+      HC.act.startBreed(0, m.id, c.id);
+    });
+    await closeAll(page);
+    await page.click('.tabs [data-tab="nursery"]');
+    await page.waitForTimeout(300);
+    await shot(page, 'desktop-nursery.png');
+    await page.click('[data-act="skipEgg"]');
+    await page.click('[data-act="hatch"]');
+    await page.waitForTimeout(600);
+    await shot(page, 'desktop-hatch.png');
+    await closeAll(page);
+    await page.evaluate(() => {
+      HC.act.buildMachine();
+      HC.act.skipBuild(HC.game.builds[0].id);
+      HC.game.store.wax = 20;
+      HC.act.tendMachine();
+      HC.act.hire('collector');
+      HC.act.hire('stocker');
+      HC.act.hire('candler');
+    });
+    await advance(page, 60);
+    const machine = await page.evaluate(() => HC.game.machine && HC.game.stats.candles);
+    if (!machine) errors.push('[desktop] candle machine made no candles');
+
+    // Store: buy and place a few things, change hive style.
+    await page.click('.tabs [data-tab="store"]');
+    await page.waitForTimeout(400);
+    await page.evaluate(() => ['hat-straw', 'deco-chalk', 'deco-bench', 'deco-lights', 'deco-fountain', 'hive-painted', 'wall-honeycomb', 'floor-wood'].forEach((id) => HC.act.buyItem(id)));
+    await closeAll(page);
+    await page.waitForTimeout(400);
+    await shot(page, 'desktop-store.png', true);
+
+    // A requester pins an order on the board.
+    await page.evaluate(() => { const o = HC.sim.makeOrder(HC.game); HC.customers.spawnRequester(HC.game, o); });
+    await advance(page, 8);
+    await page.waitForTimeout(300);
+    await shot(page, 'desktop-board.png');
+    const orders = await page.evaluate(() => HC.game.orders.length);
+    if (!orders) errors.push('[desktop] requester never pinned the order');
+
+    // Upgraded hives with the painted style.
     await page.evaluate(() => {
       const s = HC.game;
-      s.coins = 5000;
-      HC.act.buyBee('meadow');
-      HC.sim.catchUp(s, 200);
-      HC.act.buyBee('clover');
-      HC.act.buildHive();
-      HC.act.buyUpgrade('shelf');
-      HC.act.buyUpgrade('shelf');
-      for (let i = 0; i < 400; i++) HC.sim.update(s, 0.05);
-    });
-    await page.waitForTimeout(3000);
-    await page.screenshot({ path: path.join(out, 'desktop-running.png') });
-    await page.keyboard.press('Escape');
-    for (const t of ['shop', 'nursery', 'town', 'guide', 'menu']) {
-      await page.click(`.tabs [data-tab="${t}"]`);
-      await page.waitForTimeout(300);
-      await page.screenshot({ path: path.join(out, `desktop-${t}.png`), fullPage: true });
-    }
-    // Breeding flow through the UI
-    await page.click('.tabs [data-tab="nursery"]');
-    await page.click('[data-act="breed"]');
-    await page.locator('#modalBody .bee-tile').first().click();
-    await page.locator('#modalBody .bee-tile').last().click();
-    await page.screenshot({ path: path.join(out, 'desktop-breed-modal.png') });
-    await page.click('#modalBody [data-act="startBreed"]');
-    await page.evaluate(() => {
-      const n = HC.game.nursery[0];
-      if (n) n.t = n.dur;
-      HC.sim.update(HC.game, 0.05);
+      s.hives.push({ level: 3, bees: [], stock: { wildflower: 40 } }, { level: 5, bees: [], stock: {} });
+      s.hives[0].level = 1;
+      s.up.flowers = 6;
+      HC.ui.markDirty();
     });
     await page.waitForTimeout(400);
-    await page.click('[data-act="hatch"]');
-    await page.waitForTimeout(700);
-    await page.screenshot({ path: path.join(out, 'desktop-hatch.png') });
-    await page.keyboard.press('Escape');
-    // Night scene
+    for (const t of ['apiary', 'shop', 'nursery', 'town', 'store', 'guide']) {
+      await page.click(`.tabs [data-tab="${t}"]`);
+      await page.waitForTimeout(300);
+      await shot(page, `desktop-${t}.png`, true);
+    }
+    await page.click('.hud-gear');
+    await page.waitForTimeout(300);
+    await shot(page, 'desktop-menu.png');
+
+    // Night and winter scenes
     await page.evaluate(() => { HC.game.time = HC.data.DAY_LENGTH * 0.8; });
     await page.waitForTimeout(500);
-    await page.screenshot({ path: path.join(out, 'desktop-night.png') });
-    for (const [name, k] of [['autumn', 2], ['winter', 3]]) {
-      await page.evaluate((k) => { HC.game.time = HC.data.DAY_LENGTH * (HC.data.SEASON_DAYS * k + 0.3); HC.sim.rt.drip = { hive: 0, left: 10 }; }, k);
-      await page.waitForTimeout(700);
-      await page.screenshot({ path: path.join(out, `desktop-${name}.png`) });
-    }
-    // Save/load round trip
-    const ok = await page.evaluate(() => {
-      const code = HC.state.exportSave(HC.game);
-      const back = HC.state.importSave(code);
-      return back.coins === HC.game.coins && Object.keys(back.bees).length === Object.keys(HC.game.bees).length;
-    });
-    if (!ok) errors.push('[desktop] save round trip mismatch');
+    await shot(page, 'desktop-night.png');
+    await page.evaluate(() => { HC.game.time = HC.data.DAY_LENGTH * (HC.data.SEASON_DAYS * 3 + 0.3); HC.sim.rt.drip = { hive: 0, left: 10 }; });
+    await page.waitForTimeout(500);
+    await shot(page, 'desktop-winter.png');
 
-    // Audio: every effect and the music loop should run without throwing.
+    // Audio: every effect and the music loop run without errors.
     await page.evaluate(() => {
       HC.audio.unlock();
       HC.game.settings.music = true;
       HC.audio.syncMusic();
       ['coin', 'buy', 'click', 'fail', 'hatch', 'order', 'discover', 'bell', 'text'].forEach((n) => HC.audio.play(n));
     });
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(400);
     await page.evaluate(() => { HC.game.settings.music = false; HC.audio.syncMusic(); });
 
+    // Save round trip
+    const ok = await page.evaluate(() => {
+      const back = HC.state.importSave(HC.state.exportSave(HC.game));
+      return back.coins === HC.game.coins && Object.keys(back.bees).length === Object.keys(HC.game.bees).length && !!back.staff.cashier;
+    });
+    if (!ok) errors.push('[desktop] save round trip mismatch');
+
     // Festival through the UI
-    await page.keyboard.press('Escape');
     await page.evaluate(() => { HC.game.runEarned = 2e7; HC.ui.markDirty(); });
     await page.click('.tabs [data-tab="town"]');
     await page.waitForTimeout(400);
     await page.click('[data-act="festival"]');
     await page.locator('#modalBody .bee-tile').first().click();
-    await page.screenshot({ path: path.join(out, 'desktop-festival.png') });
     await page.click('#modalBody [data-act="holdFestival"]');
     await page.waitForTimeout(500);
-    const fest = await page.evaluate(() => ({ ribbons: HC.game.ribbons, festivals: HC.game.festivals, bees: Object.keys(HC.game.bees).length }));
-    if (fest.ribbons < 1 || fest.festivals !== 1 || fest.bees !== 3) errors.push('[desktop] festival state wrong ' + JSON.stringify(fest));
+    const fest = await page.evaluate(() => ({ ribbons: HC.game.ribbons, festivals: HC.game.festivals, bees: Object.keys(HC.game.bees).length, hat: HC.game.cos.equip.hat }));
+    if (fest.ribbons < 1 || fest.festivals !== 1 || fest.bees !== 3 || fest.hat !== 'hat-straw') errors.push('[desktop] festival state wrong ' + JSON.stringify(fest));
   });
 
   // Returning player: a save two hours old shows the away report.
@@ -127,31 +187,27 @@ const target = process.env.TARGET || 'file://' + path.join(root, 'index.html');
       HC.game.hints.welcome = true;
       HC.game.lastSeen = Date.now() - 2 * 3600 * 1000;
       localStorage.setItem(HC.data.SAVE_KEY, JSON.stringify(HC.game));
+      HC.state.save = () => {};
+      HC.main.save = () => {};
     });
-    await page.evaluate(() => { window.onbeforeunload = null; });
-    // Reload without letting the page re-save a fresh lastSeen.
-    await page.evaluate(() => { HC.state.save = () => {}; HC.main.save = () => {}; });
     await page.reload();
     await page.waitForTimeout(1200);
     const text = await page.textContent('#modalBody').catch(() => '');
     if (!/While you were away/.test(text || '')) errors.push('[returning] no away report shown');
-    await page.screenshot({ path: path.join(out, 'desktop-returning.png') });
+    await shot(page, 'desktop-returning.png');
   });
 
   await run('phone', { width: 390, height: 844 }, async (page) => {
-    await page.screenshot({ path: path.join(out, 'phone-start.png') });
-    for (let i = 0; i < 8; i++) await page.click('#textbox', { force: true }).catch(() => {});
-    await page.evaluate(() => {
-      HC.game.coins = 800;
-      HC.sim.catchUp(HC.game, 120);
-      for (let i = 0; i < 300; i++) HC.sim.update(HC.game, 0.05);
-    });
-    await page.waitForTimeout(1500);
-    await page.screenshot({ path: path.join(out, 'phone-running.png') });
-    await page.keyboard.press('Escape');
-    await page.click('.tabs [data-tab="shop"]');
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: path.join(out, 'phone-shop.png'), fullPage: true });
+    await shot(page, 'phone-start.png');
+    await closeAll(page);
+    await advance(page, 60);
+    await page.waitForTimeout(800);
+    await shot(page, 'phone-running.png');
+    for (const t of ['shop', 'store']) {
+      await page.click(`.tabs [data-tab="${t}"]`);
+      await page.waitForTimeout(300);
+      await shot(page, `phone-${t}.png`, true);
+    }
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     if (overflow) errors.push('[phone] horizontal overflow');
   });

@@ -14,6 +14,7 @@
   --leaf: #4f9a3f;
   --berry: #c8445a;
   --cream-text: #f8ead0;
+  --gem: #7ad8f8;         /* gems: the rare speed-up currency */
   --focus: #7ad0f0;
 
   --font-display: 'Silkscreen', ui-monospace, 'Courier New', monospace;
@@ -64,11 +65,12 @@ button { font: inherit; color: inherit; }
 }
 
 /* ---- Masthead -------------------------------------------------------- */
-.masthead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.masthead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.masthead .logo { min-width: 0; }
 .logo {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(1.25rem, 4vw, 1.9rem);
+  font-size: clamp(0.95rem, 4.2vw, 1.9rem);
   letter-spacing: 0.02em;
   margin: 0;
   color: var(--honey);
@@ -146,7 +148,14 @@ button { font: inherit; color: inherit; }
   font-variant-numeric: tabular-nums;
 }
 .hud b { font-weight: 700; }
-.hud-coins { font-size: var(--step-1); display: flex; align-items: center; gap: 6px; color: var(--honey); margin-right: auto; }
+.hud-coins { font-size: var(--step-1); display: flex; align-items: center; gap: 6px; color: var(--honey); }
+.hud-gems { font-size: var(--step-0); display: flex; align-items: center; gap: 5px; color: var(--gem); margin-right: auto; }
+.mast-right { display: flex; align-items: center; gap: 12px; }
+.hud-gear {
+  background: none; border: 2px solid var(--bezel-hi); border-radius: 6px; color: var(--cream-text);
+  width: 30px; height: 28px; cursor: pointer; font-size: 1rem; line-height: 1;
+}
+.hud-gear:hover { border-color: var(--honey); color: var(--honey); }
 .hud-coins .ico { width: 20px; height: 20px; }
 .hud-item { display: flex; align-items: center; gap: 5px; }
 .hud .lbl { color: #b89c86; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.7rem; }
@@ -159,7 +168,7 @@ button { font: inherit; color: inherit; }
 .season-autumn { background: #e8702a; }
 .season-winter { background: #e8eef4; }
 
-.goalbar { margin-top: 8px; }
+.goalbar { margin-top: 8px; display: grid; gap: 6px; }
 .goal-inner {
   display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap;
   background: rgba(0, 0, 0, 0.22);
@@ -523,7 +532,7 @@ textarea {
   .stage { position: sticky; top: calc(12px + env(safe-area-inset-top, 0px)); align-self: start; }
 }
 /* Tall phones: keep the scene in view while the menus scroll */
-@media (max-width: 959px) and (min-height: 740px) {
+@media (max-width: 959px) and (min-height: 1000px) {
   .stage {
     position: sticky;
     top: env(safe-area-inset-top, 0px);
@@ -545,8 +554,68 @@ textarea {
   .win { padding: 12px 12px 14px; }
   .bee-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
   .tagline { display: none; }
+  .logo-mark { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+
+/* ---- Work / build rows under the goal ---------------------------------- */
+.work-row, .build-row {
+  display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap;
+  padding: 2px 10px;
+  font-size: var(--step--1);
+}
+.work-text { flex: 1; min-width: 8em; }
+.work-queue { color: var(--honey); font-variant-numeric: tabular-nums; }
+.work-row .link { color: #b89c86; }
+.work-open .open { color: #8cd06a; font-family: var(--font-display); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.work-open .closed { color: #f09080; font-family: var(--font-display); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* A thing under construction: hammer, time left, a bar and a gem skip. */
+.building { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; font-size: var(--step--1); flex-wrap: wrap; }
+.bar.mini { width: 56px; height: 8px; }
+.btn .time { font-weight: 400; opacity: 0.75; font-size: 0.72rem; }
+.btn-gem { background: #bfe8f8; }
+.btn-gem:hover { background: #d4f0fb; }
+
+/* ---- Hives ------------------------------------------------------------ */
+.card-head .hive-ico { width: 27px; height: 48px; }
+.honey-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-variant-numeric: tabular-nums; font-size: var(--step--1); }
+.honey-row .bar { flex: 1; min-width: 80px; }
+.honey-row .lbl { font-family: var(--font-display); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
+.bar.honey i { background: #f8c838; }
+.full-flag { color: #c8601e; font-weight: 600; }
+.full-flag:empty { display: none; }
+.bee-tile.resting { opacity: 0.6; }
+.rest-badge {
+  position: absolute; top: -8px; right: -4px;
+  background: #f8d0dc; border: 2px solid var(--ink); border-radius: 3px;
+  font-family: var(--font-display); font-size: 0.56rem; padding: 0 4px; text-transform: uppercase;
+}
+
+/* ---- Staff and machine ------------------------------------------------ */
+.staff-row .person { width: 32px; height: 40px; }
+.machine-status { display: grid; gap: 6px; font-variant-numeric: tabular-nums; }
+.machine-status > span { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.machine-status .bar { width: 110px; }
+
+/* ---- Store ------------------------------------------------------------ */
+.store-top { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.keeper-preview { width: 64px; height: 80px; background: var(--parch-2); border: 2px solid var(--ink); border-radius: 8px; padding: 4px; }
+.store-sec { font-family: var(--font-display); font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 14px; }
+.store-sec:first-child { margin-top: 0; }
+.store-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.store-card {
+  display: grid; justify-items: center; align-content: start; gap: 4px; text-align: center;
+  background: var(--parch-2); border: 2px solid var(--ink); border-radius: 6px; padding: 8px 6px;
+  min-width: 0;
+}
+.store-card.in-use { background: #fff4b0; }
+.store-card b { font-size: var(--step--1); }
+.store-thumb { height: 50px; display: grid; place-items: center; }
+.store-thumb img { image-rendering: pixelated; }
+.swatch { display: block; width: 44px; height: 30px; border: 2px solid var(--ink); border-radius: 4px; }
+.chip-on { background: #b8e0a0; }

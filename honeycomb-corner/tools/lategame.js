@@ -27,18 +27,23 @@ fs.mkdirSync(out, { recursive: true });
     const { sim, act, data: D } = HC;
     const f = sim.f;
     const s0 = HC.game;
-    s0.hints = Object.fromEntries(['welcome', 'buyBee', 'clover', 'shelf2', 'nursery', 'order', 'merchant', 'boxfull', 'night', 'festival', 'drip'].map((k) => [k, true]));
+    s0.hints = Object.fromEntries(['welcome', 'collect', 'line', 'full', 'night', 'clover', 'build', 'nursery', 'wax', 'order', 'merchant', 'drip', 'boxfull', 'festival'].map((k) => [k, true]));
     HC.bus.on('fail', () => {});
     const bot = () => {
       const s = HC.game;
       HC.goals.claim();
-      const goods = D.GOODS.filter((g) => s.unlockedGoods[g.id]).map((g) => g.id).reverse();
+      if (!s.staff.collector) s.hives.forEach((h, i) => { if (f.honeyIn(h) / f.honeyCap(h) > 0.5) act.collect(i); });
+      for (const st of ['cashier', 'collector', 'stocker', 'candler']) if (!s.staff[st] && (st !== 'candler' || s.machine) && s.coins > D.staff[st].hire * 2) act.hire(st);
+      if (s.discovered.waxwing && !s.machine) act.buildMachine();
+      for (const b of s.builds) if (s.gems >= f.gemsToSkip(HC.builds.left(s, b))) act.skipBuild(b.id);
+      s.gems += 1; // a generous gem trickle so the soak reaches the late game
+      const goods = D.GOODS.filter((g) => s.unlockedGoods[g.id] && !g.raw).map((g) => g.id).reverse();
       s.shelves.forEach((sh, i) => goods[i] && sh.good !== goods[i] && act.setShelf(i, goods[i]));
       for (const o of [...s.orders]) if ((s.store[o.good] || 0) >= o.qty) act.deliverOrder(o.id);
       s.nursery.forEach((n, i) => n && n.ready && act.hatch(i));
       s.nursery.forEach((n, i) => {
         if (n) return;
-        const busy = new Set(s.nursery.filter(Boolean).flatMap((x) => [x.a, x.b]));
+        const busy = f.busyBees(s);
         const bees = Object.values(s.bees).filter((x) => !busy.has(x.id));
         for (const r of [...D.RECIPES].reverse()) {
           if (Object.values(s.bees).filter((x) => x.sp === r.out).length >= 5) continue;
@@ -55,7 +60,7 @@ fs.mkdirSync(out, { recursive: true });
           if (val(s.bees[id]) > val(s.bees[worst]) * 1.2) { act.swapBee(id, hi, worst); break; }
         }
       }
-      const busy = new Set(s.nursery.filter(Boolean).flatMap((x) => [x.a, x.b]));
+      const busy = f.busyBees(s);
       const sellable = s.box.filter((x) => !busy.has(x)).sort((a, c) => val(s.bees[a]) - val(s.bees[c]));
       while (s.box.length > f.boxCap(s) - 2 && sellable.length) act.sellBee(sellable.shift());
       const opts = [];

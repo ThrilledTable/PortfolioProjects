@@ -1,6 +1,29 @@
-// DOM interface: HUD, tab panels, modals, toasts and the tutorial text box.
-// Panels re-render only on structural changes ('dirty'); fast-changing numbers
-// update through [data-live] bindings so buttons are never replaced mid-click.
+// =============================================================================
+// ui.js: THE MENUS, BUTTONS AND MESSAGES AROUND THE GAME PICTURE
+// -----------------------------------------------------------------------------
+// Everything that isn't the pixel scene is built here as ordinary web page
+// content (HTML): the status bar, the goal/work strip, the tabs (Apiary,
+// Shop, Nursery, Town, Store, Guide), pop-up windows ("modals"), the little
+// messages that slide in ("toasts") and the tutorial text box.
+//
+// HOW THE SCREEN STAYS UP TO DATE
+// Rebuilding a whole tab 20 times a second would be slow and would swallow
+// clicks (a button replaced mid-tap never receives the tap). So there are
+// two kinds of updates:
+//   1. Full redraws, only when something structural changes: you bought a
+//      bee, a build finished, a request appeared... Game code signals this
+//      by announcing 'dirty' on the message bus.
+//   2. "Live" values: numbers that tick constantly (coins, timers, honey
+//      meters). These are marked in the HTML with data-live="..." (text),
+//      data-width="..." (progress bars), data-afford="..." (buttons that
+//      grey out when you can't pay) or data-html="..." (small chunks).
+//      Four times a second, refreshLive() updates only those.
+//
+// HOW BUTTONS WORK
+// Every button has data-act="something" (plus optional data-* details).
+// One click listener for the whole page reads data-act and calls
+// handleAct(), which calls the matching function in actions.js.
+// =============================================================================
 (function () {
   const HC = window.HC;
   const { util, data: D, spr, bus } = HC;
@@ -9,34 +32,64 @@
   const S = () => HC.game;
 
   const $ = (sel, root = document) => root.querySelector(sel);
-  const el = {};
-  let tab = 'apiary';
-  let dirty = true;
-  let modal = null; // { render: () => html, onAct?: (act, ds) => bool }
-  const live = new Map();
+  const el = {}; // handy references to page elements, filled in init()
+  let tab = 'apiary'; // which tab is open
+  let dirty = true; // does the open tab need a full redraw?
+  let modal = null; // the open pop-up: { render, onAct?, onSubmit? }
+  const live = new Map(); // live-value functions, looked up by id
   let liveSeq = 0;
 
-  // Register a live binding; returns an id to drop in a data attribute.
+  // Register a live value; returns an id to put in a data-live attribute.
   function L(fn) {
     const id = 'l' + liveSeq++;
     live.set(id, fn);
     return id;
   }
 
-  const coin = () => `<img class="px ico" src="${spr.miscURL('coin')}" alt="" width="16" height="16">`;
+  // ---------------------------------------------------------------------------
+  // Little HTML building blocks
+  // ---------------------------------------------------------------------------
+  const icon = (name, size = 16) => `<img class="px ico" src="${spr.miscURL(name)}" alt="" width="${size}" height="${size}">`;
+  const coin = () => icon('coin');
+  const gem = () => icon('gem');
   const goodImg = (g, size = 16) => `<img class="px ico" src="${spr.goodURL(g)}" alt="" width="${size}" height="${size}">`;
   const beeImg = (sp, sparkle, size = 32, cls = '') => `<img class="px bee-img ${cls}" src="${spr.beeURL(sp, sparkle)}" alt="" width="${size}" height="${size}">`;
   const price = (n) => `${coin()}<span>${fmt(n)}</span>`;
+  const gemPrice = (n) => `${gem()}<span>${n}</span>`;
   const rarityChip = (r) => `<span class="chip chip-${r.toLowerCase()}">${r}</span>`;
+  const bar = (fn, cls = '') => `<span class="bar ${cls}"><i data-width="${L(fn)}"></i></span>`;
 
+  // A button. opts.cost greys it out while you can't afford it;
+  // opts.gems does the same for gems; opts.need is the message shown if
+  // tapped while greyed out.
   function btn(label, act, args = {}, opts = {}) {
     const data = Object.entries(args).map(([k, v]) => `data-${k}="${esc(v)}"`).join(' ');
-    const afford = opts.cost != null ? `data-afford="${L(() => S().coins >= opts.cost)}"` : '';
+    let afford = '';
+    if (opts.cost != null) afford = `data-afford="${L(() => S().coins >= opts.cost && (!opts.build || HC.builds.freeBuilder(S())))}"`;
+    else if (opts.gems != null) afford = `data-afford="${L(() => S().gems >= opts.gems)}"`;
+    const need = opts.need ? `data-need="${esc(opts.need)}"` : '';
     const dis = opts.disabled ? 'disabled' : '';
-    return `<button class="btn ${opts.cls || ''}" data-act="${act}" ${data} ${afford} ${dis}>${label}</button>`;
+    return `<button class="btn ${opts.cls || ''}" data-act="${act}" ${data} ${afford} ${need} ${dis}>${label}</button>`;
   }
 
-  // ---- Toasts & text box --------------------------------------------------
+  // A "build this" button showing cost and how long it takes. If that exact
+  // thing is already under construction, shows its progress and a gem skip.
+  function buildBtn(label, act, args, cost, kind, key) {
+    const s = S();
+    const b = HC.builds.find(s, kind, key);
+    if (b) return buildingChip(b);
+    const busy = HC.builds.freeBuilder(s) ? '' : 'Your builder is busy. Wait for the current build, finish it with gems, or buy a second builder in the Store.';
+    return btn(`${label} ${price(cost)} <span class="time">${util.fmtTime(f().buildTime(cost))}</span>`, act, args, { cost, build: true, need: busy || 'Not enough coins.', cls: 'btn-sm' });
+  }
+  function buildingChip(b) {
+    return `<span class="building">${icon('hammer', 12)}<span data-live="${L(() => util.fmtTime(HC.builds.left(S(), b)))}"></span>
+      ${bar(() => 1 - HC.builds.left(S(), b) / b.dur, 'mini')}
+      <button class="btn btn-sm btn-gem" data-act="skipBuild" data-id="${b.id}" data-afford="${L(() => S().gems >= f().gemsToSkip(HC.builds.left(S(), b)))}" data-need="Not enough gems.">Finish ${gem()}<span data-live="${L(() => f().gemsToSkip(HC.builds.left(S(), b)))}"></span></button></span>`;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Toasts (sliding messages) and the tutorial text box
+  // ---------------------------------------------------------------------------
   function toast(msg, kind = '') {
     if (!msg) return;
     const t = document.createElement('div');
@@ -47,18 +100,28 @@
     setTimeout(() => t.remove(), 3100);
     while (el.toasts.children.length > 4) el.toasts.firstChild.remove();
   }
+  // Same, but at most once every `secs` seconds per `key` (avoids spam).
+  const lastToast = {};
+  function toastOnce(key, secs, msg, kind) {
+    const now = Date.now();
+    if (lastToast[key] && now - lastToast[key] < secs * 1000) return;
+    lastToast[key] = now;
+    toast(msg, kind);
+  }
 
+  // The text box types out lines one letter at a time. Each line can carry a
+  // `valid` check: if it's no longer true (you already did the thing), the
+  // line is skipped or dismissed.
   const textQueue = [];
   let typing = null;
-  let shown = null; // the queue item currently on screen
-  // `valid` (optional) is re-checked before each line so stale hints are skipped.
+  let shown = null;
   function say(lines, valid) {
     textQueue.push(...lines.map((text) => ({ text, valid })));
     if (!typing && el.textbox.hidden) nextLine();
   }
   function nextLine() {
     if (typing) {
-      // Finish the current line instantly on tap.
+      // Tapped while typing: finish the line instantly.
       clearInterval(typing.timer);
       el.textboxText.textContent = typing.line;
       typing = null;
@@ -98,16 +161,32 @@
     };
   }
 
-  // ---- HUD ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // STATUS BAR (under the picture) and the goal / work / build strip
+  // ---------------------------------------------------------------------------
   function renderHud() {
-    el.goalbar.innerHTML = `<div class="goal-inner" data-html="${L(goalHtml)}"></div>`;
+    const s = S();
     el.hud.innerHTML = `
       <div class="hud-coins" title="Coins">${coin()}<b data-live="${L(() => fmt(S().coins))}"></b></div>
+      <div class="hud-gems" title="Gems: finish timers early, buy special items">${gem()}<b data-live="${L(() => fmt(S().gems))}"></b></div>
       <div class="hud-item" title="Income over the last minute"><span class="lbl">per min</span><b data-live="${L(() => fmt(HC.sim.incomePerMin()))}"></b></div>
       <div class="hud-item" title="Reputation"><span class="lbl">rep</span><span class="stars" data-html="${L(starsHtml)}"></span></div>
       <div class="hud-item hud-time" title="Time of day"><span data-html="${L(timeHtml)}"></span></div>
       <button class="hud-item season-chip" data-act="season" data-html="${L(seasonHtml)}"></button>
-      ${S().ribbons ? `<div class="hud-item" title="Festival ribbons: +${S().ribbons * 10}% sale prices"><img class="px ico" src="${spr.miscURL('ribbon')}" alt="" width="16" height="16"><b>${S().ribbons}</b></div>` : ''}
+      ${s.ribbons ? `<div class="hud-item" title="Festival ribbons: +${s.ribbons * 10}% sale prices">${icon('ribbon')}<b>${s.ribbons}</b></div>` : ''}
+    `;
+    // The strip: current goal, what the shopkeeper is doing, and builds.
+    const keeper = HC.workers.keeper();
+    el.goalbar.innerHTML = `
+      <div class="goal-inner" data-html="${L(goalHtml)}"></div>
+      <div class="work-row">
+        <span class="goal-label">Shopkeeper</span>
+        <span class="work-text" data-live="${L(() => (keeper ? HC.workers.statusOf(S(), keeper) : ''))}"></span>
+        <span class="work-queue" data-live="${L(() => (HC.workers.keeperJobs.length ? '+' + HC.workers.keeperJobs.length + ' errand' + (HC.workers.keeperJobs.length > 1 ? 's' : '') : ''))}"></span>
+        ${HC.workers.keeperJobs.length ? '<button class="link" data-act="cancelErrands">clear</button>' : ''}
+        <span class="work-open" data-html="${L(() => (f().isOpen(S()) ? '<span class="open">Open</span>' : '<span class="closed">Closed for the night</span>'))}"></span>
+      </div>
+      ${s.builds.map((b) => `<div class="build-row"><span class="goal-label">Building</span><span class="work-text">${esc(b.label)}</span>${buildingChip(b)}</div>`).join('')}
     `;
   }
   function goalHtml() {
@@ -115,8 +194,9 @@
     const g = HC.goals.current(s);
     if (!g) return '<span class="goal-text">Every goal complete. The town is proud of you.</span>';
     const ok = g.check(s);
+    const reward = price(g.reward) + (g.gems ? ' ' + gemPrice(g.gems) : '');
     return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span><button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
-      (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${price(g.reward)}</button>` : `<span class="goal-reward">${price(g.reward)}</span>`);
+      (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${reward}</button>` : `<span class="goal-reward">${reward}</span>`);
   }
   function seasonHtml() {
     const s = S();
@@ -126,27 +206,29 @@
   function starsHtml() {
     const r = S().rep;
     let h = '';
-    for (let i = 0; i < 5; i++) {
-      const on = r >= i + 0.5;
-      h += `<img class="px ico" src="${spr.miscURL(on ? 'star' : 'starEmpty')}" alt="" width="12" height="12">`;
-    }
+    for (let i = 0; i < 5; i++) h += icon(r >= i + 0.5 ? 'star' : 'starEmpty', 12);
     return h + `<span class="sr-only">${r.toFixed(1)} of 5</span>`;
   }
   function timeHtml() {
     const p = f().dayPhase(S());
-    const mins = Math.floor(((p * 24 + 6) % 24) * 60);
+    const mins = Math.floor(((p * 24 + 6) % 24) * 60); // day starts at 6am
     const hh = Math.floor(mins / 60), mm = mins % 60;
     const night = f().isNight(S());
     const label = `${((hh + 11) % 12) + 1}:${String(mm - (mm % 10)).padStart(2, '0')} ${hh < 12 ? 'am' : 'pm'}`;
-    return `<img class="px ico" src="${spr.miscURL(night ? 'moon' : 'sun')}" alt="" width="14" height="14"><b>${label}</b>`;
+    return `${icon(night ? 'moon' : 'sun', 14)}<b>${label}</b>`;
   }
 
-  // ---- Panels ---------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // TAB PANELS. Each returns the HTML for one tab.
+  // ---------------------------------------------------------------------------
   const panels = {};
 
+  // A small card for one bee (used in hives, the bee box, pickers).
   function beeTile(bee, extra = '') {
     const sp = D.species[bee.sp];
-    return `<button class="bee-tile ${bee.sparkle ? 'is-sparkle' : ''}" data-act="bee" data-id="${bee.id}" title="${esc(bee.name)}">
+    const resting = f().busyBees(S()).has(bee.id);
+    return `<button class="bee-tile ${bee.sparkle ? 'is-sparkle' : ''} ${resting ? 'resting' : ''}" data-act="bee" data-id="${bee.id}" title="${esc(bee.name)}">
+      ${resting ? '<span class="rest-badge">nursery</span>' : ''}
       ${beeImg(bee.sp, bee.sparkle, 32)}
       <span class="bee-name">${esc(bee.name)}</span>
       <span class="bee-sub">${sp.name.replace(' Bee', '')} · ${util.pct(bee.vigor)}</span>
@@ -154,9 +236,11 @@
     </button>`;
   }
 
+  // ---- APIARY ---------------------------------------------------------------
   panels.apiary = function () {
     const s = S();
     const rates = f().goodRates(s);
+    const style = s.cos.equip.hiveStyle;
     const hiveCards = s.hives.map((h, i) => {
       const cap = f().hiveCap(h);
       const slots = [];
@@ -164,42 +248,53 @@
         const id = h.bees[k];
         slots.push(id ? beeTile(s.bees[id]) : `<button class="bee-tile empty" data-act="addToHive" data-i="${i}" title="Add a bee"><span class="plus">+</span><span class="bee-sub">Add bee</span></button>`);
       }
-      const upCost = h.level < D.HIVE_MAX_LEVEL ? f().hiveUpgradeCost(s, i) : null;
-      const mult = f().hiveMult(s, h);
+      const upgrade = h.level < D.HIVE_MAX_LEVEL
+        ? buildBtn('Upgrade', 'upgradeHive', { i }, f().hiveUpgradeCost(s, i), 'hiveUp', i)
+        : '<span class="chip">Max level</span>';
       return `<article class="card hive-card" id="hive-${i}">
         <header class="card-head">
-          <img class="px" src="${spr.hiveURL(h.level)}" alt="" width="32" height="32">
-          <div class="grow"><h3>Hive ${i + 1}</h3><p class="muted">Level ${h.level + 1} · ${h.bees.length}/${cap} bees · ${util.pct(mult)} output</p></div>
-          ${upCost != null ? btn(`Upgrade ${price(upCost)}`, 'upgradeHive', { i }, { cost: upCost, cls: 'btn-sm' }) : '<span class="chip">Max level</span>'}
+          <img class="px hive-ico" src="${spr.hiveURL(h.level, style)}" alt="" width="27" height="48">
+          <div class="grow"><h3>Hive ${i + 1}</h3><p class="muted">Level ${h.level + 1} · ${h.bees.length}/${cap} bees · ${util.pct(f().hiveMult(s, h))} output</p></div>
+          ${upgrade}
         </header>
+        <div class="honey-row">
+          <span class="lbl">Honey</span>
+          ${bar(() => f().honeyIn(S().hives[i]) / f().honeyCap(S().hives[i]), 'honey')}
+          <b data-live="${L(() => f().honeyIn(S().hives[i]) + '/' + f().honeyCap(S().hives[i]))}"></b>
+          <span class="full-flag" data-html="${L(() => (f().hiveFull(S().hives[i]) ? 'Full! Bees are waiting' : ''))}"></span>
+          ${btn('Collect', 'collect', { i }, { cls: 'btn-sm' })}
+        </div>
         <div class="bee-grid">${slots.join('')}</div>
       </article>`;
     }).join('');
 
-    const nextHive = s.hives.length < 6 ? `<article class="card build-card">
-        <div class="grow"><h3>Build hive ${s.hives.length + 1}</h3><p class="muted">Room for 3 more bees. Upgrades add slots and output.</p></div>
-        ${btn(`Build ${price(f().hiveCost(s))}`, 'buildHive', {}, { cost: f().hiveCost(s) })}
-      </article>` : '';
+    let nextHive = '';
+    if (s.hives.length < 6) {
+      const b = HC.builds.find(s, 'hive', s.hives.length);
+      nextHive = `<article class="card build-card">
+        <div class="grow"><h3>Build hive ${s.hives.length + 1}</h3><p class="muted">Room for 3 more bees and ${f().honeyCap({ level: 0 })} jars of honey.</p></div>
+        ${b ? buildingChip(b) : buildBtn('Build', 'buildHive', {}, f().hiveCost(s), 'hive', s.hives.length)}
+      </article>`;
+    }
 
     const boxBees = s.box.map((id) => beeTile(s.bees[id])).join('') || '<p class="muted empty-note">No spare bees. Bees you buy or hatch land here when the hives are full.</p>';
-
     const market = ['meadow', 'clover'].map((sp) => {
       const spec = D.species[sp];
       const unlocked = f().marketUnlocked(s, sp);
       const cost = f().marketPrice(s, sp);
       return `<div class="row-item ${unlocked ? '' : 'locked'}">
         ${beeImg(sp, false, 32)}
-        <div class="grow"><b>${spec.name}</b><p class="muted">${unlocked ? `Makes ${D.good[spec.good].name} · 1 per ${spec.secs}s` : `Unlocks after earning ₵${fmt(120)} in total.`}</p></div>
+        <div class="grow"><b>${spec.name}</b><p class="muted">${unlocked ? `Makes ${D.good[spec.good].name} · 1 per ${spec.secs}s` : `Unlocks after earning ₵${fmt(150)} in total.`}</p></div>
         ${unlocked ? btn(`Buy ${price(cost)}`, 'buyBee', { sp }, { cost }) : '<span class="chip">Locked</span>'}
       </div>`;
     }).join('');
-
     const prod = Object.entries(rates).sort((a, b) => D.good[a[0]].tier - D.good[b[0]].tier)
       .map(([g, r]) => `<span class="pill">${goodImg(g)} ${(r * 60).toFixed(1)}/min</span>`).join('');
 
     return `
       <section class="win">
-        <div class="win-head"><h2>Apiary</h2><span class="muted">${f().beeCount(s)} bees · ${s.hives.length}/6 hives</span></div>
+        <div class="win-head"><h2>Apiary</h2>${btn('Collect all', 'collectAll', {}, { cls: 'btn-sm' })}</div>
+        <p class="muted small">${f().beeCount(s)} bees · ${s.hives.length}/6 hives. Bees fill their hive with honey; when it's full they stop until someone collects it. Tap a hive in the garden to send the shopkeeper.</p>
         <div class="pills">${prod || '<span class="muted">Nothing in production.</span>'}</div>
         <div class="stack">${hiveCards}${nextHive}</div>
       </section>
@@ -208,7 +303,7 @@
           ${s.box.length >= 4 ? btn('Sell extras', 'sellExtras', {}, { cls: 'btn-sm btn-ghost' }) : ''}</div>
         <div class="bee-grid">${boxBees}</div>
       </section>
-      <section class="win">
+      <section class="win" id="market">
         <div class="win-head"><h2>Bee Market</h2><span class="muted">Prices rise with each purchase</span></div>
         <div class="list">${market}</div>
         ${s.merchant ? merchantCard() : ''}
@@ -230,9 +325,48 @@
     </div>`;
   }
 
+  // ---- SHOP -----------------------------------------------------------------
   panels.shop = function () {
     const s = S();
     const cap = f().shelfCap(s);
+
+    // Staff
+    const staff = D.STAFF.map((st) => {
+      const hired = !!s.staff[st.id];
+      const locked = st.needs === 'machine' && !s.machine;
+      const w = HC.workers.list.find((x) => x.role === st.id);
+      return `<div class="row-item staff-row ${locked ? 'locked' : ''}">
+        <img class="px person" src="${spr.personURL(st.look)}" alt="" width="32" height="40">
+        <div class="grow"><b>${st.name}</b> <span class="chip">${hired ? 'Hired' : '₵' + st.wage + '/day'}</span>
+          <p class="muted">${st.desc}</p>
+          ${hired && w ? `<p class="small">Now: <span data-live="${L(() => { const x = HC.workers.list.find((y) => y.role === st.id); return x ? HC.workers.statusOf(S(), x) : ''; })}"></span></p>` : ''}
+        </div>
+        ${hired ? btn('Let go', 'fire', { id: st.id }, { cls: 'btn-sm btn-ghost' }) : locked ? '<span class="chip">Needs machine</span>' : btn(`Hire ${price(st.hire)}`, 'hire', { id: st.id }, { cost: st.hire, cls: 'btn-sm' })}
+      </div>`;
+    }).join('');
+    const wages = f().wagesPerDay(s);
+
+    // Candle Machine
+    let machine;
+    if (!s.discovered.waxwing) {
+      machine = '<p class="muted">Breed a Waxwing Bee to start making Beeswax. The Candle Machine turns wax into candles.</p>';
+    } else if (!s.machine) {
+      const b = HC.builds.find(s, 'machine', 0);
+      machine = `<div class="row-item"><div class="grow"><b>Candle Machine</b><p class="muted">Turns Beeswax from your Waxwings into Beeswax Candles. Someone has to load the wax and carry the candles out.</p></div>
+        ${b ? buildingChip(b) : buildBtn('Build', 'buildMachine', {}, D.MACHINE.buildCost, 'machine', 0)}</div>`;
+    } else {
+      const m = s.machine;
+      const mcap = f().machineCap(s);
+      machine = `<div class="machine-status">
+          <span>${goodImg('wax', 20)} Wax inside ${bar(() => S().machine.wax / f().machineCap(S()))} <b data-live="${L(() => S().machine.wax + '/' + mcap)}"></b></span>
+          <span>${goodImg('candle', 20)} Candles ready ${bar(() => S().machine.candles / f().machineCap(S()), 'honey')} <b data-live="${L(() => S().machine.candles + '/' + mcap)}"></b></span>
+          <span class="muted small">Level ${m.level + 1} · one candle every ${D.MACHINE.secsPerCandle(m.level).toFixed(1)}s · <span data-live="${L(() => fmt(S().store.wax || 0))}"></span> wax in the storehouse</span>
+        </div>
+        <div class="btn-row">${btn('Tend the machine', 'tendMachine', {}, { cls: 'btn-sm' })}
+          ${m.level < D.MACHINE.maxLevel ? buildBuildMachineUp(s) : '<span class="chip">Max level</span>'}</div>`;
+    }
+
+    // Shelves
     const shelves = s.shelves.map((sh, i) => {
       const g = sh.good && D.good[sh.good];
       return `<button class="shelf-tile" data-act="shelf" data-i="${i}">
@@ -240,11 +374,12 @@
         ${g ? goodImg(g.id, 24) : '<span class="shelf-empty">empty</span>'}
         <span class="grow shelf-info">
           <b>${g ? g.name : 'Choose a product'}</b>
-          ${g ? `<span class="muted">₵${fmt(f().price(s, g.id))} each · <span data-live="${L(() => sh.qty + '/' + cap)}"></span> on shelf · <span data-live="${L(() => fmt(S().store[sh.good] || 0))}"></span> in store</span>` : '<span class="muted">Tap to stock this shelf</span>'}
+          ${g ? `<span class="muted">₵${fmt(f().price(s, g.id))} each · <span data-live="${L(() => sh.qty + '/' + cap)}"></span> on shelf · <span data-live="${L(() => fmt(S().store[sh.good] || 0))}"></span> in store</span>` : '<span class="muted">Tap to choose what this shelf sells</span>'}
         </span>
       </button>`;
     }).join('');
 
+    // Storehouse
     const storeCap = f().storageCap(s);
     const store = D.GOODS.filter((g) => s.unlockedGoods[g.id]).map((g) => `
       <div class="store-item" title="${g.name}">
@@ -253,32 +388,47 @@
         <span class="bar"><i data-width="${L(() => Math.min(1, (S().store[g.id] || 0) / storeCap))}"></i></span>
       </div>`).join('');
 
+    // Upgrades
     const ups = D.UPGRADES.map((u) => {
       const lv = s.up[u.id];
       const maxed = lv >= u.max;
-      const cost = maxed ? 0 : f().upgradeCost(s, u.id);
       return `<div class="row-item">
         <div class="grow"><b>${u.name}</b> <span class="chip">${maxed ? 'Max' : 'Lv ' + lv}</span><p class="muted">${u.desc(lv)}</p></div>
-        ${maxed ? '' : btn(price(cost), 'upgrade', { id: u.id }, { cost, cls: 'btn-sm' })}
+        ${maxed ? '' : buildBtn('', 'upgrade', { id: u.id }, f().upgradeCost(s, u.id), 'upgrade', u.id)}
       </div>`;
     }).join('');
 
     return `
-      <section class="win">
-        <div class="win-head"><h2>Shelves</h2><span class="muted">Customers buy what's on display</span></div>
-        <div class="stack">${shelves}</div>
-        <p class="muted small">Reputation <b data-live="${L(() => S().rep.toFixed(2))}"></b>/5 · a customer every <b data-live="${L(() => f().spawnInterval(S()).toFixed(1) + 's')}"></b> on average · prices ×${f().priceMult(s).toFixed(2)}</p>
+      <section class="win" id="staff">
+        <div class="win-head"><h2>Staff</h2><span class="muted">${wages ? 'Wages ₵' + fmt(wages) + ' each morning' : 'Nobody hired yet'}</span></div>
+        <p class="muted small">Staff work on their own and keep working while you're away. If you can't pay the morning wages, someone quits.</p>
+        <div class="list">${staff}</div>
+      </section>
+      <section class="win" id="machine">
+        <div class="win-head"><h2>Candle Machine</h2></div>
+        ${machine}
       </section>
       <section class="win">
+        <div class="win-head"><h2>Shelves</h2>${btn('Restock now', 'restockNow', {}, { cls: 'btn-sm btn-ghost' })}</div>
+        <p class="muted small">Goods have to be carried from the storehouse to the shelves. Customers buy what's on display.</p>
+        <div class="stack">${shelves}</div>
+        <p class="muted small">Reputation <b data-live="${L(() => S().rep.toFixed(2))}"></b>/5 · a customer every <b data-live="${L(() => f().spawnInterval(S()).toFixed(1) + 's')}"></b> while open · prices ×${f().priceMult(s).toFixed(2)} · <b data-live="${L(() => fmt(S().stats.walkouts))}"></b> walked out of a slow line</p>
+      </section>
+      <section class="win" id="storehouse">
         <div class="win-head"><h2>Storehouse</h2><span class="muted">Holds ${fmt(storeCap)} of each product</span></div>
         <div class="store-grid">${store}</div>
       </section>
       <section class="win">
-        <div class="win-head"><h2>Upgrades</h2></div>
+        <div class="win-head"><h2>Upgrades</h2><span class="muted">${s.builders} builder${s.builders > 1 ? 's' : ''}</span></div>
+        <p class="muted small">Upgrades take time to build. Your builder works on one at a time; gems finish a build instantly.</p>
         <div class="list">${ups}</div>
       </section>`;
   };
+  function buildBuildMachineUp(s) {
+    return buildBtn('Upgrade', 'upgradeMachine', {}, f().machineUpgradeCost(s), 'machineUp', 0);
+  }
 
+  // ---- NURSERY --------------------------------------------------------------
   panels.nursery = function () {
     const s = S();
     const slots = s.nursery.map((n, i) => {
@@ -291,25 +441,25 @@
       }
       const a = s.bees[n.a], b = s.bees[n.b];
       const parents = [a, b].map((x) => (x ? beeImg(x.sp, x.sparkle, 32) : '<span class="muted">gone</span>')).join('<span class="heart">+</span>');
+      const secsLeft = () => (S().nursery[i] ? S().nursery[i].dur - S().nursery[i].t : 0);
       return `<article class="card cradle ${n.ready ? 'ready' : ''}">
         <div class="parents">${parents}</div>
         <div class="grow">
           <h3>Cradle ${i + 1}</h3>
-          ${n.ready ? '<p><b>The egg is ready to hatch!</b></p>' : `<p class="muted">Hatching in <span data-live="${L(() => (S().nursery[i] ? util.fmtTime(S().nursery[i].dur - S().nursery[i].t) : ''))}"></span></p>
-          <span class="bar big"><i data-width="${L(() => (S().nursery[i] ? S().nursery[i].t / S().nursery[i].dur : 1))}"></i></span>`}
+          ${n.ready ? '<p><b>The egg is ready to hatch!</b></p>' : `<p class="muted">Hatching in <span data-live="${L(() => util.fmtTime(secsLeft()))}"></span>. The parents are resting and not making honey.</p>
+          ${bar(() => (S().nursery[i] ? S().nursery[i].t / S().nursery[i].dur : 1), 'big')}`}
         </div>
-        ${n.ready ? btn('Hatch!', 'hatch', { slot: i }, { cls: 'btn-go' }) : btn('Cancel', 'cancelBreed', { slot: i }, { cls: 'btn-sm btn-ghost' })}
+        ${n.ready ? btn('Hatch!', 'hatch', { slot: i }, { cls: 'btn-go' })
+          : `<div class="order-actions"><button class="btn btn-sm btn-gem" data-act="skipEgg" data-slot="${i}" data-need="Not enough gems." data-afford="${L(() => S().gems >= f().gemsToSkip(secsLeft()))}">Finish ${gem()}<span data-live="${L(() => f().gemsToSkip(secsLeft()))}"></span></button>${btn('Cancel', 'cancelBreed', { slot: i }, { cls: 'btn-sm btn-ghost' })}</div>`}
       </article>`;
     }).join('');
-
     const known = D.RECIPES.filter((r) => s.discovered[r.out]).map((r) => `
       <div class="recipe">${beeImg(r.a, false, 24)}<span>+</span>${beeImg(r.b, false, 24)}<span>→</span>${beeImg(r.out, false, 24)}
         <span class="muted">${D.species[r.out].name} · ${Math.round(r.p * 100)}%</span></div>`).join('');
     const unknown = D.RECIPES.filter((r) => !s.discovered[r.out]).length;
-
     return `
       <section class="win">
-        <div class="win-head"><h2>Nursery</h2><span class="muted">Parents keep working while they raise an egg</span></div>
+        <div class="win-head"><h2>Nursery</h2><span class="muted">Parents rest while they raise an egg</span></div>
         <div class="stack">${slots}</div>
         <p class="muted small">Eggs from two different species can hatch into a new kind of bee. Same-species pairs pass on their vigor, often a little stronger. Rarely, an egg hatches with a sparkle: double output and a rose-gold coat.</p>
       </section>
@@ -320,6 +470,7 @@
       </section>`;
   };
 
+  // ---- TOWN -----------------------------------------------------------------
   panels.town = function () {
     const s = S();
     const orders = s.orders.map((o) => {
@@ -329,34 +480,100 @@
         <div class="grow">
           <h3>${esc(o.who)}</h3>
           <p>Wants <b>${o.qty} × ${g.name}</b></p>
-          <p class="muted">Have <span data-live="${L(() => fmt(S().store[o.good] || 0))}"></span> · expires in <span data-live="${L(() => { const x = S().orders.find((y) => y.id === o.id); return x ? util.fmtTime(x.left) : '—'; })}"></span></p>
+          <p class="muted">Have <span data-live="${L(() => fmt(S().store[o.good] || 0))}"></span> in the storehouse · expires in <span data-live="${L(() => { const x = S().orders.find((y) => y.id === o.id); return x ? util.fmtTime(x.left) : '—'; })}"></span></p>
         </div>
         <div class="order-actions">
-          <button class="btn" data-act="deliver" data-id="${o.id}" data-need="Not enough ${g.name} in the storehouse yet." data-afford="${L(() => (S().store[o.good] || 0) >= o.qty)}">Deliver ${price(o.reward)}</button>
+          <button class="btn" data-act="deliver" data-id="${o.id}" data-need="Not enough ${g.name} in the storehouse yet." data-afford="${L(() => (S().store[o.good] || 0) >= o.qty)}">Deliver ${price(o.reward)}${o.gems ? ' ' + gemPrice(o.gems) : ''}</button>
           <button class="link" data-act="dismiss" data-id="${o.id}">Decline</button>
         </div>
       </article>`;
     }).join('');
-
     const ribbons = f().festivalRibbons(s);
     const progress = Math.min(1, s.runEarned / D.FESTIVAL_AT);
-    const festival = `<section class="win festival">
-      <div class="win-head"><h2>Honey Festival</h2>${s.ribbons ? `<span class="muted">${s.ribbons} ribbons · +${s.ribbons * 10}% prices</span>` : ''}</div>
-      <p>Once the shop has earned ₵${fmt(D.FESTIVAL_AT)} since the last festival, the town will throw you a Honey Festival. You start over with a fresh garden, and you keep your Field Guide, your ribbons and one keepsake bee. Every ribbon raises sale prices by 10% for good.</p>
-      <span class="bar big"><i data-width="${L(() => Math.min(1, S().runEarned / D.FESTIVAL_AT))}"></i></span>
-      <p class="muted small">₵<span data-live="${L(() => fmt(S().runEarned))}"></span> of ₵${fmt(D.FESTIVAL_AT)}${ribbons ? ` · the festival would award <b>${ribbons}</b> ribbons` : ''}</p>
-      ${progress >= 1 ? btn('Plan the festival', 'festival', {}, { cls: 'btn-go' }) : ''}
-    </section>`;
-
     return `
       <section class="win">
-        <div class="win-head"><h2>Request board</h2><span class="muted">New requests every couple of minutes</span></div>
-        <div class="stack">${orders || '<p class="muted empty-note">No requests pinned right now. Check back soon.</p>'}</div>
+        <div class="win-head"><h2>Request board</h2><span class="muted">Townsfolk pin new requests outside every few minutes</span></div>
+        <div class="stack">${orders || '<p class="muted empty-note">No requests pinned right now. Watch for someone walking up to the board outside the shop.</p>'}</div>
       </section>
       ${s.merchant ? `<section class="win"><div class="win-head"><h2>On the street</h2></div>${merchantCard()}</section>` : ''}
-      ${festival}`;
+      <section class="win festival">
+        <div class="win-head"><h2>Honey Festival</h2>${s.ribbons ? `<span class="muted">${s.ribbons} ribbons · +${s.ribbons * 10}% prices</span>` : ''}</div>
+        <p>Once the shop has earned ₵${fmt(D.FESTIVAL_AT)} since the last festival, the town will throw you a Honey Festival. You start over with a fresh garden and keep your Field Guide, cosmetics, gems, ribbons and one keepsake bee. Every ribbon raises sale prices by 10% for good, and the festival pays ${D.GEMS.festival} gems.</p>
+        ${bar(() => Math.min(1, S().runEarned / D.FESTIVAL_AT), 'big')}
+        <p class="muted small">₵<span data-live="${L(() => fmt(S().runEarned))}"></span> of ₵${fmt(D.FESTIVAL_AT)}${ribbons ? ` · the festival would award <b>${ribbons}</b> ribbons` : ''}</p>
+        ${progress >= 1 ? btn('Plan the festival', 'festival', {}, { cls: 'btn-go' }) : ''}
+      </section>`;
   };
 
+  // ---- STORE ----------------------------------------------------------------
+  panels.store = function () {
+    const s = S();
+    const look = spr.keeperLook(s);
+    const sections = D.STORE_SECTIONS.map((sec) => {
+      const items = D.CATALOG.filter((it) => it.cat === sec.cat).map((it) => storeCard(s, it, sec)).join('');
+      return `<h3 class="store-sec">${sec.name}${sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>'}</h3><div class="store-cards">${items}</div>`;
+    }).join('');
+    const nextBuilder = D.GEMS.builderSlot * s.builders;
+    return `
+      <section class="win">
+        <div class="win-head"><h2>Store</h2><span class="muted">${gem()} ${fmt(s.gems)} gems</span></div>
+        <div class="store-top">
+          <img class="px keeper-preview" src="${spr.personURL(look)}" alt="Your shopkeeper" width="64" height="80">
+          <div class="grow">
+            <p>Dress up your shopkeeper, decorate the shop and garden, and restyle your hives. Many decorations come with a small bonus.</p>
+            <p class="muted small">Gems come from goals, requests, new species, festivals, season changes and golden drips.</p>
+          </div>
+        </div>
+        <div class="row-item">
+          <div class="grow"><b>Extra builder</b><p class="muted">Build ${s.builders + 1} things at the same time. You have ${s.builders}.</p></div>
+          ${s.builders < 3 ? btn(`Hire ${gemPrice(nextBuilder)}`, 'buyBuilder', {}, { gems: nextBuilder, cls: 'btn-sm btn-gem', need: 'Not enough gems.' }) : '<span class="chip">Max</span>'}
+        </div>
+      </section>
+      <section class="win store">${sections}</section>`;
+  };
+
+  // One item card in the Store.
+  function storeCard(s, it, sec) {
+    const owned = !!s.cos.owned[it.id];
+    const inUse = sec.pick ? s.cos.equip[it.cat] === it.id : !!s.cos.placed[it.id];
+    let action;
+    if (!owned) {
+      const c = it.cost || {};
+      action = c.gems ? btn(`Buy ${gemPrice(c.gems)}`, 'buyItem', { id: it.id }, { gems: c.gems, cls: 'btn-sm btn-gem', need: 'Not enough gems.' })
+        : btn(`Buy ${price(c.coins || 0)}`, 'buyItem', { id: it.id }, { cost: c.coins || 0, cls: 'btn-sm' });
+    } else if (sec.pick) {
+      action = inUse ? '<span class="chip chip-on">Using</span>' : btn('Use', 'useItem', { id: it.id }, { cls: 'btn-sm btn-ghost' });
+    } else {
+      action = btn(inUse ? 'Put away' : 'Place', 'useItem', { id: it.id }, { cls: 'btn-sm btn-ghost' });
+    }
+    const bonus = it.bonus ? Object.entries(it.bonus).map(([k, v]) => '+' + Math.round(v * 100) + '% ' + { customers: 'customers', prod: 'honey', rep: 'reputation gain' }[k]).join(', ') : '';
+    return `<div class="store-card ${inUse ? 'in-use' : ''}">
+      <div class="store-thumb">${storeThumb(s, it)}</div>
+      <b>${it.name}</b>
+      ${bonus ? `<span class="muted small">${bonus}</span>` : ''}
+      ${action}
+    </div>`;
+  }
+  // A little preview picture for each kind of Store item.
+  function storeThumb(s, it) {
+    const look = spr.keeperLook(s);
+    if (it.cat === 'hat') return `<img class="px" src="${spr.personURL(Object.assign({}, look, { hat: it.value }))}" alt="" width="32" height="40">`;
+    if (it.cat === 'hair') return `<img class="px" src="${spr.personURL(Object.assign({}, look, { hair: it.colors, hat: null }))}" alt="" width="32" height="40">`;
+    if (it.cat === 'shirt') return `<img class="px" src="${spr.personURL(Object.assign({}, look, { shirt: it.colors }))}" alt="" width="32" height="40">`;
+    if (it.cat === 'apron') return `<img class="px" src="${spr.personURL(Object.assign({}, look, { apron: it.colors[0] }))}" alt="" width="32" height="40">`;
+    if (it.cat === 'hiveStyle') return `<img class="px" src="${spr.hiveURL(3, it.id)}" alt="" width="27" height="48">`;
+    const sw = {
+      'wall-planks': ['#b86a32', '#9a5626'], 'wall-honeycomb': ['#f2c050', '#e0a838'], 'wall-stripes': ['#e4f4e8', '#a8dcc0'], 'wall-rose': ['#f4d4dc', '#d890a4'],
+      'floor-checker': ['#f2dfb4', '#e6cc98'], 'floor-wood': ['#c8945a', '#a0703e'], 'floor-tiles': ['#cfe4f0', '#f4f8fb'],
+    }[it.id];
+    if (sw) return `<span class="swatch" style="background: repeating-linear-gradient(90deg, ${sw[0]} 0 6px, ${sw[1]} 6px 12px)"></span>`;
+    const th = HC.render.decorThumb(it.id);
+    if (!th) return '';
+    const scale = Math.min(2, 44 / Math.max(th.w, th.h));
+    return `<img class="px" src="${th.url}" alt="" width="${Math.round(th.w * scale)}" height="${Math.round(th.h * scale)}">`;
+  }
+
+  // ---- GUIDE ----------------------------------------------------------------
   panels.guide = function () {
     const s = S();
     const found = D.SPECIES.filter((x) => s.discovered[x.id]).length;
@@ -382,24 +599,29 @@
         <div class="win-head"><h2>Ledger</h2></div>
         <div class="stats">
           ${stat('Earned (all time)', '₵' + fmt(s.lifetime))}
+          ${stat('Honey collected', fmt(st.collected))}
+          ${stat('Candles made', fmt(st.candles))}
           ${stat('Customers served', fmt(st.customers))}
           ${stat('Items sold', fmt(st.sold))}
+          ${stat('Walked out of the line', fmt(st.walkouts))}
           ${stat('Left empty-handed', fmt(st.disappointed))}
           ${stat('Biggest sale', '₵' + fmt(st.best))}
           ${stat('Eggs hatched', fmt(st.bred))}
           ${stat('Requests filled', fmt(st.orders))}
+          ${stat('Timers finished with gems', fmt(st.skips))}
           ${stat('Festivals held', fmt(s.festivals))}
           ${stat('Time in the shop', util.fmtTime(s.playTime))}
         </div>
       </section>`;
   };
 
+  // ---- MENU (opened with the ⚙ button) -------------------------------------
   panels.menu = function () {
     const s = S();
     const tog = (key, label) => `<label class="toggle"><input type="checkbox" id="set-${key}" data-act="setting" data-key="${key}" ${s.settings[key] ? 'checked' : ''}> <span>${label}</span></label>`;
     return `
       <section class="win">
-        <div class="win-head"><h2>Settings</h2></div>
+        <div class="win-head"><h2>Settings</h2>${btn('Back to the game', 'tab', { tab: 'apiary' }, { cls: 'btn-sm btn-ghost' })}</div>
         <div class="stack">${tog('sfx', 'Sound effects')}${tog('music', 'Music')}</div>
       </section>
       <section class="win">
@@ -409,13 +631,15 @@
       </section>
       <section class="win">
         <div class="win-head"><h2>About</h2></div>
-        <p>Honeycomb Corner is a prototype idle game about a honey shop in a small town. The shop runs while you're away, for up to 8 hours.</p>
+        <p>Honeycomb Corner is a prototype idle game about a honey shop in a small town. Bees fill their hives, you carry the honey in, and townsfolk buy it. Staff keep things running while you're away (for up to 8 hours).</p>
         <p class="muted small">All art, music and characters are original and drawn in code. Tip: ${esc(util.pick(D.TIPS))}</p>
         <div class="btn-row">${btn('Replay tutorial', 'tutorial', {}, { cls: 'btn-ghost' })}${btn('Start over', 'reset', {}, { cls: 'btn-danger' })}</div>
       </section>`;
   };
 
-  // ---- Modals ---------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // POP-UP WINDOWS
+  // ---------------------------------------------------------------------------
   function openModal(m) {
     modal = m;
     renderModal();
@@ -451,11 +675,12 @@
     const s = S();
     const sp = D.species[bee.sp];
     const hi = f().hiveOf(s, bee.id);
+    const resting = f().busyBees(s).has(bee.id);
     const rate = hi >= 0 ? f().beeRate(s, bee, s.hives[hi], f().isNight(s)) : (1 / sp.secs) * bee.vigor * (bee.sparkle ? 2 : 1);
     const trait = bee.trait && D.TRAITS[bee.trait];
     return `<div class="stats">
       <div class="stat-row"><span>Makes</span><b>${goodImg(sp.good)} ${D.good[sp.good].name}</b></div>
-      <div class="stat-row"><span>Output</span><b>${(rate * 60).toFixed(1)}/min${hi < 0 ? ' (resting)' : ''}</b></div>
+      <div class="stat-row"><span>Output</span><b>${resting ? 'Resting in the nursery' : (rate * 60).toFixed(1) + '/min' + (hi < 0 ? ' (in the bee box)' : '')}</b></div>
       <div class="stat-row"><span>Vigor</span><b>${util.pct(bee.vigor)}</b></div>
       <div class="stat-row"><span>Trait</span><b>${trait ? trait.name + ' · <span class="muted">' + trait.desc + '</span>' : '—'}</b></div>
       ${sp.aura ? `<div class="stat-row"><span>Special</span><b>${sp.aura.hive ? '+' + sp.aura.hive * 100 + '% hive output' : '+' + sp.aura.customers * 100 + '% customers'}</b></div>` : ''}
@@ -546,7 +771,7 @@
         if (act === 'gotoMarket') {
           closeModal();
           setTab('apiary');
-          requestAnimationFrame(() => el.panel.querySelector('.win:last-child')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+          requestAnimationFrame(() => $('#market')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
           return true;
         }
       },
@@ -559,12 +784,12 @@
         const s = S();
         const sh = s.shelves[i];
         const onOther = new Set(s.shelves.filter((x, k) => k !== i).map((x) => x.good));
-        const rows = D.GOODS.filter((g) => s.unlockedGoods[g.id]).reverse().map((g) => `
+        const rows = D.GOODS.filter((g) => s.unlockedGoods[g.id] && !g.raw).reverse().map((g) => `
           <button class="pick-row ${sh.good === g.id ? 'selected' : ''}" data-act="pickGood" data-good="${g.id}">
             ${goodImg(g.id, 24)}
             <span class="grow"><b>${g.name}</b><span class="muted">₵${fmt(f().price(s, g.id))} each · ${fmt(s.store[g.id] || 0)} in store${onOther.has(g.id) ? ' · also on another shelf' : ''}</span></span>
           </button>`).join('');
-        return `<h2>Shelf ${i + 1}</h2><p class="muted">Pick what this shelf sells. Pricier goods need richer customers, and they come with reputation.</p>
+        return `<h2>Shelf ${i + 1}</h2><p class="muted">Pick what this shelf sells. Pricier goods need richer customers, and they come with reputation. Someone has to carry the stock over from the storehouse.</p>
           <div class="pick-list">${rows}</div>
           <div class="btn-row end">${sh.good ? btn('Clear shelf', 'pickGood', { good: '' }, { cls: 'btn-ghost' }) : ''}${btn('Close', 'closeModal', {}, { cls: 'btn-ghost' })}</div>`;
       },
@@ -584,7 +809,7 @@
     openModal({
       render: () => {
         const s = S();
-        const busy = new Set(s.nursery.filter(Boolean).flatMap((n) => [n.a, n.b]));
+        const busy = f().busyBees(s);
         const bees = Object.values(s.bees).filter((b) => !busy.has(b.id))
           .sort((x, y) => D.species[y.sp].tier - D.species[x.sp].tier || y.vigor - x.vigor);
         const list = bees.map((b) => {
@@ -596,7 +821,7 @@
             <span class="bee-sub">${D.species[b.sp].name.replace(' Bee', '')} · ${util.pct(b.vigor)}</span>
           </button>`;
         }).join('');
-        let preview = '<p class="muted">Choose two bees.</p>';
+        let preview = '<p class="muted">Choose two bees. They will rest (and stop making honey) until the egg hatches.</p>';
         let startBtn = '';
         if (pick.a && pick.b) {
           const a = s.bees[pick.a], b = s.bees[pick.b];
@@ -608,7 +833,7 @@
           else outcome = 'The egg will take after one of its parents.';
           const cost = f().breedCost(a, b);
           preview = `<div class="breed-preview">${beeImg(a.sp, a.sparkle, 40)}<span class="heart">+</span>${beeImg(b.sp, b.sparkle, 40)}
-            <div class="grow"><p>${outcome}</p><p class="muted">Takes ${util.fmtTime(f().breedTime(a, b))} · costs ₵${fmt(cost)}</p></div></div>`;
+            <div class="grow"><p>${outcome}</p><p class="muted">Takes ${util.fmtTime(f().breedTime(a, b))} · costs ₵${fmt(cost)} · both parents rest meanwhile</p></div></div>`;
           startBtn = btn(`Start ${price(cost)}`, 'startBreed', {}, { cost, cls: 'btn-go' });
         }
         return `<h2>Cradle ${slot + 1}: pick parents</h2>
@@ -659,7 +884,7 @@
         <p>${known ? sp.flavor : '<i>' + sp.hint + '</i>'}</p>
         ${known ? `<div class="stats">
           <div class="stat-row"><span>Base output</span><b>1 per ${sp.secs}s</b></div>
-          <div class="stat-row"><span>Sells for</span><b>₵${fmt(f().price(s, sp.good))} each</b></div>
+          <div class="stat-row"><span>${D.good[sp.good].raw ? 'Becomes' : 'Sells for'}</span><b>${D.good[sp.good].raw ? 'Candles, in the Candle Machine' : '₵' + fmt(f().price(s, sp.good)) + ' each'}</b></div>
           ${recipesIn.map((r) => `<div class="stat-row"><span>Bred from</span><b>${D.species[r.a].name} + ${D.species[r.b].name}</b></div>`).join('')}
           ${usedIn.map((r) => `<div class="stat-row"><span>Parent of</span><b>${D.species[r.out].name}</b></div>`).join('')}
         </div>` : ''}
@@ -670,6 +895,7 @@
   function newBeeModal(evt) {
     const { bee, isNew, newSparkle } = evt;
     const sp = D.species[bee.sp];
+    const good = D.good[sp.good];
     HC.audio.play(isNew || newSparkle ? 'discover' : 'hatch');
     openModal({
       render: () => `
@@ -678,7 +904,7 @@
           ${beeImg(bee.sp, bee.sparkle, 128, 'pop')}
           <h2>${esc(bee.name)} the ${sp.name}</h2>
           <p>${rarityChip(sp.rarity)} ${bee.sparkle ? '<span class="chip chip-sparkle">Sparkle</span>' : ''} vigor ${util.pct(bee.vigor)}${bee.trait ? ' · ' + D.TRAITS[bee.trait].name : ''}</p>
-          ${isNew ? `<p class="muted">${sp.flavor}</p><p>Makes <b>${D.good[sp.good].name}</b>, sold at ₵${fmt(f().price(S(), sp.good))} each.</p>` : ''}
+          ${isNew ? `<p class="muted">${sp.flavor}</p><p>${good.raw ? `Makes <b>${good.name}</b>, which the Candle Machine turns into candles.` : `Makes <b>${good.name}</b>, sold at ₵${fmt(f().price(S(), sp.good))} each.`} You earned ${gemPrice(D.GEMS.newSpecies)} for the discovery.</p>` : ''}
         </div>
         <div class="btn-row center">${btn('Meet them', 'viewBee', { id: bee.id })}${btn('Lovely', 'closeModal', {}, { cls: 'btn-go' })}</div>`,
       onAct: (act, ds) => {
@@ -690,8 +916,16 @@
     });
   }
 
+  // "While you were away" report after returning to the game.
   function offlineModal(r) {
     const made = Object.entries(r.made).filter(([, n]) => n > 0).map(([g, n]) => `<span class="pill">${goodImg(g)} +${fmt(n)}</span>`).join('');
+    const notes = [
+      r.fullHives.length ? `<b>${r.fullHives.length === 1 ? 'Hive ' + (r.fullHives[0] + 1) + ' is' : r.fullHives.length + ' hives are'} full</b>, and the bees are waiting. Tap a hive to collect.` : '',
+      r.eggs ? `${r.eggs === 1 ? 'An egg is' : r.eggs + ' eggs are'} ready to hatch in the Nursery.` : '',
+      r.newOrders ? `${r.newOrders} new ${r.newOrders === 1 ? 'request is' : 'requests are'} pinned on the board.` : '',
+      r.merchant ? 'A travelling merchant is parked outside.' : '',
+      r.season ? `${r.season.name} has arrived. ${r.season.desc}` : '',
+    ].filter(Boolean).map((t) => `<p>• ${t}</p>`).join('');
     openModal({
       render: () => `
         <p class="eyebrow">Welcome back</p>
@@ -699,15 +933,12 @@
         <div class="stats">
           <div class="stat-row"><span>Coins earned</span><b>${coin()} ${fmt(r.coins)}</b></div>
           <div class="stat-row"><span>Items sold</span><b>${fmt(r.sold)}</b></div>
+          ${r.collected ? `<div class="stat-row"><span>Honey your collector brought in</span><b>${fmt(r.collected)}</b></div>` : ''}
+          ${r.gems ? `<div class="stat-row"><span>Gems</span><b>${gem()} +${r.gems}</b></div>` : ''}
         </div>
-        ${made ? `<p class="muted">Added to the storehouse:</p><div class="pills">${made}</div>` : ''}
-        ${[
-          r.eggs ? `${r.eggs === 1 ? 'An egg is' : r.eggs + ' eggs are'} ready to hatch in the Nursery.` : '',
-          r.newOrders ? `${r.newOrders} new ${r.newOrders === 1 ? 'request is' : 'requests are'} pinned on the Town board.` : '',
-          r.merchant ? 'A travelling merchant is parked outside.' : '',
-          r.season ? `${r.season.name} has arrived. ${r.season.desc}` : '',
-        ].filter(Boolean).map((t) => `<p>• ${t}</p>`).join('')}
-        <p class="muted small">Your helper runs the shop at a slower pace while you're gone, for up to 8 hours.</p>
+        ${made ? `<p class="muted">Storehouse changes:</p><div class="pills">${made}</div>` : ''}
+        ${notes}
+        <p class="muted small">While you're gone the shopkeeper minds the register and shelves, but only a Honey Collector brings honey in from the hives. Customers stay home at night.</p>
         <div class="btn-row end">${btn('Open the shop', 'closeModal', {}, { cls: 'btn-go' })}</div>`,
     });
   }
@@ -720,8 +951,8 @@
         const gain = f().festivalRibbons(s);
         const bees = Object.values(s.bees).sort((a, b) => f().beeValue(b) - f().beeValue(a)).slice(0, 18);
         return `<h2>Honey Festival</h2>
-          <p>The whole town turns out. You earn <b>${gain} ribbons</b> (+${gain * 10}% sale prices, for good).</p>
-          <p class="muted">You start over with a fresh garden, and you keep the Field Guide and ribbons. Pick one keepsake bee to bring along:</p>
+          <p>The whole town turns out. You earn <b>${gain} ribbons</b> (+${gain * 10}% sale prices, for good) and ${gemPrice(D.GEMS.festival)}.</p>
+          <p class="muted">You start over with a fresh garden, and keep the Field Guide, cosmetics, gems and ribbons. Pick one keepsake bee to bring along:</p>
           <div class="bee-grid pick">${bees.map((b) => `<button class="bee-tile ${keep === b.id ? 'selected' : ''} ${b.sparkle ? 'is-sparkle' : ''}" data-act="keep" data-id="${b.id}">${beeImg(b.sp, b.sparkle, 32)}<span class="bee-name">${esc(b.name)}</span><span class="bee-sub">${D.species[b.sp].name.replace(' Bee', '')} · ${util.pct(b.vigor)}</span></button>`).join('')}</div>
           <div class="btn-row end">${btn('Not yet', 'closeModal', {}, { cls: 'btn-ghost' })}${btn('Hold the festival', 'holdFestival', {}, { cls: 'btn-go', disabled: !keep })}</div>`;
       },
@@ -743,7 +974,10 @@
     });
   }
 
-  // ---- Live bindings --------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // LIVE VALUES: refresh everything marked data-live / data-html / data-width /
+  // data-afford inside `root` (the whole page by default).
+  // ---------------------------------------------------------------------------
   function refreshLive(root = document) {
     root.querySelectorAll('[data-live],[data-afford],[data-width],[data-html]').forEach((node) => {
       try {
@@ -773,11 +1007,12 @@
           if (fn) node.style.width = Math.round(util.clamp(fn(), 0, 1) * 100) + '%';
         }
       } catch (e) {
-        /* a binding whose subject vanished; the next render replaces it */
+        /* the thing this value described is gone; the next redraw replaces it */
       }
     });
   }
 
+  // Full redraw of the status bar, strip and the open tab.
   function render() {
     live.clear();
     renderHud();
@@ -793,12 +1028,13 @@
     dirty = false;
   }
 
+  // Little red dots on tabs that need attention.
   function updateBadges() {
     const s = S();
     const badge = (t, on) => el.tabs.querySelector(`[data-tab="${t}"]`)?.classList.toggle('badge', !!on);
     badge('nursery', s.nursery.some((n) => n && n.ready));
     badge('town', s.orders.some((o) => (s.store[o.good] || 0) >= o.qty) || f().festivalRibbons(s) > 0);
-    badge('apiary', !!s.merchant);
+    badge('apiary', !!s.merchant || s.hives.some((h) => f().hiveFull(h)));
   }
 
   function setTab(t) {
@@ -808,11 +1044,13 @@
     el.panel.scrollTop = 0;
   }
 
-  // ---- Event handling -------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // BUTTON PRESSES: data-act="name" → what happens
+  // ---------------------------------------------------------------------------
   function handleAct(act, ds) {
     const s = S();
     HC.audio.unlock();
-    if (modal && modal.onAct && modal.onAct(act, ds)) return;
+    if (modal && modal.onAct && modal.onAct(act, ds)) return; // the pop-up handled it
     let r;
     switch (act) {
       case 'tab': return setTab(ds.tab);
@@ -821,21 +1059,45 @@
       case 'buildHive': r = HC.act.buildHive(); break;
       case 'upgradeHive': r = HC.act.upgradeHive(Number(ds.i)); break;
       case 'upgrade': r = HC.act.buyUpgrade(ds.id); break;
+      case 'buildMachine': r = HC.act.buildMachine(); break;
+      case 'upgradeMachine': r = HC.act.upgradeMachine(); break;
+      case 'tendMachine': r = HC.act.tendMachine(); break;
+      case 'skipBuild': r = HC.act.skipBuild(ds.id); break;
+      case 'buyBuilder': r = HC.act.buyBuilder(); break;
+      case 'collect': r = HC.act.collect(Number(ds.i)); break;
+      case 'collectAll': r = HC.act.collectAll(); break;
+      case 'restockNow': r = HC.act.restockNow(); break;
+      case 'cancelErrands': r = HC.act.cancelErrands(); break;
+      case 'hire': r = HC.act.hire(ds.id); break;
+      case 'fire':
+        return confirmModal('Let your ' + D.staff[ds.id].name + ' go?', 'They leave right away and the hiring fee is not refunded.', 'Let them go', () => {
+          const res = HC.act.fire(ds.id);
+          if (res.ok) toast(res.msg);
+        }, true);
+      case 'buyItem': r = HC.act.buyItem(ds.id); break;
+      case 'useItem': r = HC.act.useItem(ds.id); break;
       case 'bee': return beeModal(ds.id);
       case 'addToHive': return addToHiveModal(Number(ds.i));
       case 'shelf': return shelfModal(Number(ds.i));
       case 'breed': return breedModal(Number(ds.slot));
       case 'hatch': r = HC.act.hatch(Number(ds.slot)); break;
+      case 'skipEgg': r = HC.act.skipEgg(Number(ds.slot)); break;
       case 'cancelBreed':
-        return confirmModal('Cancel this egg?', 'The coins spent on it are not refunded.', 'Cancel egg', () => HC.act.cancelBreed(Number(ds.slot)), true);
+        return confirmModal('Cancel this egg?', 'The coins spent on it are not refunded. The parents go back to work.', 'Cancel egg', () => HC.act.cancelBreed(Number(ds.slot)), true);
       case 'deliver': r = HC.act.deliverOrder(ds.id); break;
       case 'dismiss': r = HC.act.dismissOrder(ds.id); break;
       case 'merchant': r = HC.act.buyMerchant(); break;
       case 'festival': return festivalModal();
+      case 'guide': return guideModal(ds.sp);
       case 'claimGoal': r = HC.goals.claim(); break;
       case 'goalHint': {
         const g = HC.goals.current(s);
-        if (g) say([g.sp && !s.discovered[g.sp] ? 'Field Guide hint: ' + D.species[g.sp].hint : g.tip || 'Keep at it. You\'re on the right track.']);
+        if (g) say([g.sp && !s.discovered[g.sp] ? 'Field Guide hint: ' + D.species[g.sp].hint : g.tip || "Keep at it. You're on the right track."]);
+        return;
+      }
+      case 'season': {
+        const se = f().season(s);
+        say([`${se.name}. ${se.desc} ${util.fmtTime(f().seasonLeft(s))} until the season turns.`]);
         return;
       }
       case 'sellExtras': {
@@ -846,12 +1108,6 @@
           if (res.ok) toast(res.msg);
         });
       }
-      case 'season': {
-        const se = f().season(s);
-        say([`${se.name}. ${se.desc} ${util.fmtTime(f().seasonLeft(s))} until the season turns.`]);
-        return;
-      }
-      case 'guide': return guideModal(ds.sp);
       case 'save':
         HC.main.save();
         toast('Saved.');
@@ -895,12 +1151,14 @@
     if (r && r.ok && r.msg) toast(r.msg);
   }
 
+  // One click listener for the whole page.
   function onClick(e) {
     const t = e.target.closest('[data-act]');
     if (!t || t.disabled) return;
-    if (t.type === 'checkbox') return; // handled on change
+    if (t.type === 'checkbox') return; // handled by onChange
     e.preventDefault();
     if (t.classList.contains('cant') && t.dataset.afford) {
+      // Greyed-out button: explain why and give it a little shake.
       bus.emit('fail', t.dataset.need || 'Not enough coins.');
       t.classList.remove('shake');
       void t.offsetWidth;
@@ -920,6 +1178,7 @@
     }
   }
 
+  // Tapping the game picture: work out what was tapped and react.
   function onCanvasTap(e) {
     HC.audio.unlock();
     const rect = el.canvas.getBoundingClientRect();
@@ -934,8 +1193,9 @@
       if (!el.textbox.hidden) nextLine();
       return;
     }
+    const s = S();
     if (hit.kind === 'drip') {
-      const amt = HC.sim.claimDrip(S());
+      const amt = HC.sim.claimDrip(s);
       if (amt) {
         HC.audio.play('discover');
         toast('Golden drip! +₵' + fmt(amt), 'good');
@@ -944,6 +1204,12 @@
     }
     HC.audio.play('click');
     if (hit.kind === 'hive') {
+      // Honey waiting: send the shopkeeper. Otherwise show the hive card.
+      if (f().honeyIn(s.hives[hit.index]) > 0) {
+        const r = HC.act.collect(hit.index);
+        if (r.ok) toast(r.msg);
+        return;
+      }
       setTab('apiary');
       requestAnimationFrame(() => {
         const card = $('#hive-' + hit.index);
@@ -958,22 +1224,43 @@
       requestAnimationFrame(() => $('.build-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
     } else if (hit.kind === 'shelf') shelfModal(hit.index);
     else if (hit.kind === 'buyShelf') setTab('shop');
+    else if (hit.kind === 'machine') {
+      if (s.machine) {
+        const r = HC.act.tendMachine();
+        if (r.ok) toast(r.msg);
+      } else {
+        setTab('shop');
+        requestAnimationFrame(() => $('#machine')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      }
+    } else if (hit.kind === 'crates') {
+      setTab('shop');
+      requestAnimationFrame(() => $('#storehouse')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    } else if (hit.kind === 'board') setTab('town');
     else if (hit.kind === 'merchant') setTab('town');
-    else if (hit.kind === 'keeper') say([util.pick(D.TIPS)]);
+    else if (hit.kind === 'worker') {
+      const w = HC.workers.list.find((x) => x.role === hit.role);
+      if (hit.role === 'keeper') say([util.pick(D.TIPS)]);
+      else if (w) toast(D.staff[hit.role].name + ': ' + HC.workers.statusOf(s, w));
+    }
   }
 
-  // ---- Tutorial hints -------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // TUTORIAL HINTS: shown once each, the first time their condition is true.
+  // ---------------------------------------------------------------------------
   const HINTS = [
-    { id: 'welcome', when: () => true, lines: ['Welcome to Honeycomb Corner!', 'Your bees fill jars out in the garden, and customers buy whatever is on the shelves.', 'Earn coins, grow the apiary, and breed new kinds of bees. Tap the shopkeeper any time for a tip.'] },
-    { id: 'buyBee', when: (s) => s.coins >= f().marketPrice(s, 'meadow') && f().beeCount(s) < 3, lines: ['Hive 1 has room for one more bee. Open the Apiary tab and buy a Meadow Bee.'] },
+    { id: 'welcome', when: () => true, lines: ['Welcome to Honeycomb Corner!', 'Your bees fill their hive with honey out in the garden. When a hive is full, they stop and wait.', 'Tap a hive to walk out and collect it. Then customers can buy it from the shelves, as long as someone is at the register.'] },
+    { id: 'collect', when: (s) => s.stats.collected === 0 && f().honeyIn(s.hives[0]) >= 4, lines: ['Hive 1 has honey waiting. Tap it in the garden to send the shopkeeper out.'] },
+    { id: 'line', when: (s) => HC.sim.rt.queue.length >= 2 && !HC.workers.cashierPresent(s), lines: ["Customers are waiting at the register, but nobody's there! They'll leave if they wait too long. A Cashier (Shop tab) can cover for you."] },
+    { id: 'full', when: (s) => s.hives.some((h) => f().hiveFull(h)), lines: ['A hive is full, so those bees have stopped working. Collect it to get them going again.'] },
+    { id: 'night', when: (s) => f().isNight(s), lines: ["The shop is closed for the night. Bees keep working, so it's a good time to collect honey and restock for the morning."] },
     { id: 'clover', when: (s) => f().marketUnlocked(s, 'clover') && !s.discovered.clover, lines: ['Word is getting around! The Bee Market now sells Clover Bees.'] },
-    { id: 'shelf2', when: (s) => Object.keys(s.unlockedGoods).length >= 2 && s.shelves.length === 1, lines: ['You make two products now. Buy an Extra Shelf in the Shop tab so customers can find both.'] },
-    { id: 'nursery', when: (s) => s.discovered.clover && !s.discovered.waxwing, lines: ['Try the Nursery: pair a Meadow Bee with a Clover Bee and see what hatches.'] },
-    { id: 'order', when: (s) => s.orders.length > 0, lines: ['Someone pinned a request on the Town board. Fill it for a big payout and a boost to your reputation.'] },
-    { id: 'merchant', when: (s) => !!s.merchant, lines: ['A travelling merchant has parked outside. The bees are rare, and the wagon won\'t stay long.'] },
+    { id: 'build', when: (s) => s.builds.length > 0, lines: ['Upgrades take time to build. You can keep playing, or tap Finish to use gems.'] },
+    { id: 'nursery', when: (s) => s.discovered.clover && !s.discovered.waxwing, lines: ['Try the Nursery: pair a Meadow Bee with a Clover Bee. The parents rest while they raise the egg.'] },
+    { id: 'wax', when: (s) => s.discovered.waxwing && !s.machine, lines: ["Waxwing Bees make Beeswax, which can't be sold as-is. Build the Candle Machine in the Shop tab to turn it into candles."] },
+    { id: 'order', when: (s) => s.orders.length > 0, lines: ['Someone pinned a request on the board outside. Fill it from the Town tab for a big payout.'] },
+    { id: 'merchant', when: (s) => !!s.merchant, lines: ["A travelling merchant has parked outside. The bees are rare, and the wagon won't stay long."] },
     { id: 'drip', when: () => !!HC.sim.rt.drip, lines: ['A golden drip is glistening on one of your hives. Tap it before it drips away!'] },
-    { id: 'boxfull', when: (s) => s.box.length >= f().boxCap(s), lines: ['Your bee box is full. Build or upgrade a hive, or sell bees you don\'t need.'] },
-    { id: 'night', when: (s) => s.discovered.moonmoth && f().isNight(s), lines: ['Night has fallen. Moonmoth Bees are hard at work.'] },
+    { id: 'boxfull', when: (s) => s.box.length >= f().boxCap(s), lines: ["Your bee box is full. Build or upgrade a hive, or sell bees you don't need."] },
     { id: 'festival', when: (s) => f().festivalRibbons(s) > 0, lines: ['The town wants to throw a Honey Festival in your honour! Take a look in the Town tab.'] },
   ];
   function checkHints() {
@@ -997,7 +1284,9 @@
     }
   }
 
-  // ---- Init -----------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // START-UP: find page elements, wire up listeners, start the refresh timers.
+  // ---------------------------------------------------------------------------
   function init() {
     el.hud = $('#hud');
     el.goalbar = $('#goalbar');
@@ -1022,12 +1311,13 @@
       nextLine();
     });
     el.modal.addEventListener('pointerdown', (e) => {
-      if (e.target === el.modal) closeModal();
+      if (e.target === el.modal) closeModal(); // tapped the dark area outside
     });
     document.addEventListener('keydown', (e) => {
-      const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement && document.activeElement.tagName);
-      if (!typing && !modal && /^[1-6]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        setTab(['apiary', 'shop', 'nursery', 'town', 'guide', 'menu'][Number(e.key) - 1]);
+      const typingInField = /^(INPUT|TEXTAREA)$/.test(document.activeElement && document.activeElement.tagName);
+      // Keys 1-6 switch tabs on a keyboard.
+      if (!typingInField && !modal && /^[1-6]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        setTab(['apiary', 'shop', 'nursery', 'town', 'store', 'guide'][Number(e.key) - 1]);
         return;
       }
       if (e.key === 'Escape' && modal) closeModal();
@@ -1037,6 +1327,8 @@
       }
     });
 
+    // React to things the game announces.
+    const quiet = () => HC.sim.rt.silent; // fast-forwarding: the away report covers it
     bus.on('dirty', () => (dirty = true));
     bus.on('fail', (msg) => {
       toast(msg, 'bad');
@@ -1048,7 +1340,6 @@
       if (evt.source === 'market' && !evt.isNew) return;
       newBeeModal(evt);
     });
-    const quiet = () => HC.sim.rt.silent;
     bus.on('eggReady', (i) => {
       if (quiet()) return;
       toast('An egg in cradle ' + (i + 1) + ' is ready to hatch!', 'good');
@@ -1060,13 +1351,22 @@
       toast('A travelling merchant parked outside!', 'good');
       HC.audio.play('bell');
     });
+    bus.on('gems', (e) => toast('+' + e.n + ' 💎 from ' + e.why + '!', 'good'));
+    bus.on('built', (b) => {
+      toast(b.label + ' is finished!', 'good');
+      HC.audio.play('bell');
+    });
+    bus.on('buildStart', () => (dirty = true));
+    bus.on('hiveFull', (i) => toastOnce('full' + i, 60, 'Hive ' + (i + 1) + ' is full. Tap it to collect.'));
+    bus.on('walkout', () => toastOnce('walkout', 20, 'A customer got tired of waiting and walked out.', 'bad'));
+    bus.on('staffQuit', (st) => toast('Your ' + st.name + " quit: you couldn't pay the morning wages.", 'bad'));
+    bus.on('wagesPaid', (n) => toastOnce('wages', 5, 'Paid ₵' + fmt(n) + ' in wages this morning.'));
     bus.on('season', (se) => {
       toast(se.name + ' has arrived. ' + se.desc, 'good');
       HC.audio.play('bell');
     });
     bus.on('festival', (e) => {
-      renderHud();
-      say(['What a festival! The town awarded you ' + e.gain + ' ribbons.', 'You have ' + e.total + ' ribbons now, so every sale earns ' + e.total * 10 + '% more. Time to build it all again!']);
+      say(['What a festival! The town awarded you ' + e.gain + ' ribbons and ' + D.GEMS.festival + ' gems.', 'You have ' + e.total + ' ribbons now, so every sale earns ' + e.total * 10 + '% more. Time to build it all again!']);
     });
 
     // Don't rebuild the page under someone who is typing (rename, import).
@@ -1074,6 +1374,7 @@
       const a = document.activeElement;
       return a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && a.type !== 'checkbox';
     };
+    // Four times a second: full redraw if needed, otherwise just live values.
     setInterval(() => {
       if (dirty && !typingNow()) render();
       else {
@@ -1082,6 +1383,13 @@
       }
     }, 250);
     setInterval(checkHints, 1000);
+    // The keeper's errand list changes often; redraw the strip when it does.
+    let lastErrands = -1;
+    setInterval(() => {
+      const n = HC.workers.keeperJobs.length;
+      if ((n > 0) !== (lastErrands > 0)) dirty = true;
+      lastErrands = n;
+    }, 500);
     render();
   }
 

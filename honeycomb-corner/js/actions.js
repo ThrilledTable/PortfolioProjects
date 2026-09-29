@@ -1,10 +1,21 @@
-// Player actions. Each returns {ok, msg} and emits 'dirty' so the UI redraws.
+// =============================================================================
+// actions.js: EVERYTHING THE PLAYER CAN DO
+// -----------------------------------------------------------------------------
+// Every button in the game ends up calling one of these functions. Each one
+// checks the move is allowed (enough coins? room for the bee?), changes the
+// save, and returns { ok: true/false, msg: 'what happened' }. The UI shows
+// `msg` as a little pop-up message.
+//
+// They also announce 'dirty' on the message bus, which tells the menus to
+// redraw because something changed, plus a sound effect name ('buy', 'click'...).
+// =============================================================================
 (function () {
   const HC = window.HC;
   const { util, data: D, bus } = HC;
-  const S = () => HC.game;
-  const f = () => HC.sim.f;
+  const S = () => HC.game; // the current save
+  const f = () => HC.sim.f; // the formulas in sim.js
 
+  // Helpers for returning results.
   function fail(msg) {
     bus.emit('fail', msg);
     return { ok: false, msg };
@@ -14,11 +25,16 @@
     if (sound) bus.emit('sfx', sound);
     return { ok: true, msg };
   }
+  // Pay `cost` coins if you can afford it. Returns true if paid.
   function spend(cost) {
     const s = S();
     if (s.coins < cost) return false;
     s.coins -= cost;
     return true;
+  }
+  // Pass a builds.js result through as an action result.
+  function fromBuild(r) {
+    return r.ok ? done(r.msg, 'buy') : fail(r.msg);
   }
 
   // Put a new bee in the first hive with space, else the bee box.
@@ -36,8 +52,15 @@
     const s = S();
     return s.hives.some((h) => h.bees.length < f().hiveCap(h)) || s.box.length < f().boxCap(s);
   }
+  // First time you get a species: a few gems.
+  function newSpeciesReward(isNew) {
+    if (isNew) HC.sim.gainGems(S(), D.GEMS.newSpecies, 'a new species');
+  }
 
   const act = {
+    // -------------------------------------------------------------------------
+    // BEES
+    // -------------------------------------------------------------------------
     buyBee(sp) {
       const s = S();
       if (!f().marketUnlocked(s, sp)) return fail('That bee is not for sale yet.');
@@ -48,35 +71,12 @@
       const isNew = !s.discovered[sp];
       const bee = HC.state.makeBee(s, sp);
       const where = placeBee(bee);
+      newSpeciesReward(isNew);
       bus.emit('newBee', { bee, isNew, source: 'market' });
       return done(bee.name + ' the ' + D.species[sp].name + ' joined your ' + (where === 'hive' ? 'hive' : 'bee box') + '.');
     },
 
-    buildHive() {
-      const s = S();
-      if (s.hives.length >= 6) return fail('The garden has room for six hives.');
-      const cost = f().hiveCost(s);
-      if (!spend(cost)) return fail('Not enough coins.');
-      s.hives.push({ level: 0, bees: [] });
-      // Fill it straight away from the bee box.
-      const h = s.hives[s.hives.length - 1];
-      while (s.box.length && h.bees.length < f().hiveCap(h)) h.bees.push(s.box.shift());
-      bus.emit('hiveBuilt', s.hives.length - 1);
-      return done('Hive ' + s.hives.length + ' is built.');
-    },
-
-    upgradeHive(i) {
-      const s = S();
-      const h = s.hives[i];
-      if (!h) return fail('No such hive.');
-      if (h.level >= D.HIVE_MAX_LEVEL) return fail('This hive is fully upgraded.');
-      if (!spend(f().hiveUpgradeCost(s, i))) return fail('Not enough coins.');
-      h.level++;
-      while (s.box.length && h.bees.length < f().hiveCap(h)) h.bees.push(s.box.shift());
-      return done('Hive ' + (i + 1) + ' is now level ' + (h.level + 1) + '.');
-    },
-
-    // target: hive index (number) or 'box'
+    // Move a bee to hive number `target`, or to 'box'.
     moveBee(id, target) {
       const s = S();
       if (!s.bees[id]) return fail('That bee is gone.');
@@ -98,6 +98,7 @@
       return done(s.bees[id].name + ' moved to hive ' + (target + 1) + '.', 'click');
     },
 
+    // Swap a spare bee with one living in a hive.
     swapBee(boxId, hiveIdx, hiveBeeId) {
       const s = S();
       const h = s.hives[hiveIdx];
@@ -122,15 +123,15 @@
       return done(bee.name + ' went to a keeper in the next town for ₵' + util.fmt(price) + '.', 'coin');
     },
 
-    // Sells every bee in the box except the best one of each species and any
-    // bee busy in the nursery. Returns the plan when dryRun is set.
+    // Sell every spare bee except the best of each species, sparkles, and
+    // any bee raising an egg. With dryRun, only reports what would happen.
     sellExtras(dryRun) {
       const s = S();
-      const busy = new Set(s.nursery.filter(Boolean).flatMap((n) => [n.a, n.b]));
+      const busy = f().busyBees(s);
       const best = {};
       for (const id of s.box) {
         const b = s.bees[id];
-        if (b.sparkle) continue; // sparkles are always kept; don't let them displace the best normal bee
+        if (b.sparkle) continue; // sparkles are always kept, so they can't displace the best normal bee
         if (!best[b.sp] || f().beeValue(b) > f().beeValue(s.bees[best[b.sp]])) best[b.sp] = id;
       }
       const sell = s.box.filter((id) => !busy.has(id) && best[s.bees[id].sp] !== id && !s.bees[id].sparkle);
@@ -152,51 +153,160 @@
       return done('Renamed to ' + name + '.', 'click');
     },
 
+    // -------------------------------------------------------------------------
+    // HONEY COLLECTION AND ERRANDS (the shopkeeper walks out to do these)
+    // -------------------------------------------------------------------------
+    collect(i) {
+      const s = S();
+      const h = s.hives[i];
+      if (!h) return fail('No such hive.');
+      if (f().honeyIn(h) <= 0) return fail('Hive ' + (i + 1) + ' has no honey yet.');
+      const r = HC.workers.orderCollect(s, i);
+      if (!r.ok) return fail(r.msg);
+      return done('The shopkeeper will collect from Hive ' + (i + 1) + '.', 'click');
+    },
+    collectAll() {
+      const s = S();
+      let n = 0;
+      s.hives.forEach((h, i) => {
+        if (f().honeyIn(h) > 0 && HC.workers.orderCollect(s, i).ok) n++;
+      });
+      if (!n) return fail('No hives have honey waiting (or they are already on the list).');
+      return done('The shopkeeper will visit ' + n + (n === 1 ? ' hive.' : ' hives.'), 'click');
+    },
+    tendMachine() {
+      const s = S();
+      if (!s.machine) return fail('Build the Candle Machine first.');
+      if (!s.machine.candles && !(s.store.wax > 0)) return fail('No Beeswax in the storehouse and no candles to unload.');
+      const r = HC.workers.orderTend();
+      if (!r.ok) return fail(r.msg);
+      return done('The shopkeeper will tend the Candle Machine.', 'click');
+    },
+    restockNow() {
+      const r = HC.workers.orderRestock();
+      if (!r.ok) return fail(r.msg);
+      return done('The shopkeeper will restock the shelves.', 'click');
+    },
+    cancelErrands() {
+      HC.workers.cancelErrands();
+      return done('Errands cleared.', 'click');
+    },
+
+    // -------------------------------------------------------------------------
+    // SHELVES
+    // -------------------------------------------------------------------------
+    // Choose what shelf i sells. Items already on it go back to the storehouse.
     setShelf(i, good) {
       const s = S();
       const sh = s.shelves[i];
       if (!sh) return fail('No such shelf.');
       if (good && !s.unlockedGoods[good]) return fail('You have not made that yet.');
-      if (sh.good && sh.qty) s.store[sh.good] = (s.store[sh.good] || 0) + sh.qty; // return stock
+      if (good && D.good[good].raw) return fail(D.good[good].name + ' is an ingredient, not something to sell.');
+      if (sh.good && sh.qty) HC.sim.addToStore(s, sh.good, sh.qty);
       sh.good = good || null;
       sh.qty = 0;
-      HC.sim.restock(s);
-      return done(good ? 'Shelf ' + (i + 1) + ' now sells ' + D.good[good].name + '.' : 'Shelf ' + (i + 1) + ' cleared.', 'click');
+      return done(good ? 'Shelf ' + (i + 1) + ' will sell ' + D.good[good].name + ' once it is restocked.' : 'Shelf ' + (i + 1) + ' cleared.', 'click');
     },
 
+    // -------------------------------------------------------------------------
+    // BUILDING (all timed: see builds.js)
+    // -------------------------------------------------------------------------
     buyUpgrade(id) {
       const s = S();
       const u = D.upgrade[id];
       if (!u) return fail('Unknown upgrade.');
       if (s.up[id] >= u.max) return fail(u.name + ' is maxed out.');
-      if (!spend(f().upgradeCost(s, id))) return fail('Not enough coins.');
-      s.up[id]++;
-      if (id === 'shelf') {
-        s.shelves.push({ good: null, qty: 0 });
-        // Auto-fill the new shelf with the best product not already shelved.
-        const shelved = new Set(s.shelves.map((x) => x.good));
-        const best = D.GOODS.filter((g) => s.unlockedGoods[g.id] && !shelved.has(g.id)).pop();
-        if (best) s.shelves[s.shelves.length - 1].good = best.id;
-        HC.sim.restock(s);
-      }
-      if (id === 'nursery') s.nursery.push(null);
-      bus.emit('upgraded', id);
-      return done(u.name + ' is now level ' + s.up[id] + '.');
+      return fromBuild(HC.builds.start(s, 'upgrade', id, u.name + ' Lv ' + (s.up[id] + 1), f().upgradeCost(s, id)));
+    },
+    buildHive() {
+      const s = S();
+      if (s.hives.length >= 6) return fail('The garden has room for six hives.');
+      if (HC.builds.find(s, 'hive', s.hives.length)) return fail('That hive is already being built.');
+      return fromBuild(HC.builds.start(s, 'hive', s.hives.length, 'Hive ' + (s.hives.length + 1), f().hiveCost(s)));
+    },
+    upgradeHive(i) {
+      const s = S();
+      const h = s.hives[i];
+      if (!h) return fail('No such hive.');
+      if (h.level >= D.HIVE_MAX_LEVEL) return fail('This hive is fully upgraded.');
+      return fromBuild(HC.builds.start(s, 'hiveUp', i, 'Hive ' + (i + 1) + ' → Lv ' + (h.level + 2), f().hiveUpgradeCost(s, i)));
+    },
+    buildMachine() {
+      const s = S();
+      if (s.machine) return fail('You already have a Candle Machine.');
+      if (!s.discovered.waxwing) return fail('You need Waxwing Bees making Beeswax first.');
+      return fromBuild(HC.builds.start(s, 'machine', 0, 'Candle Machine', D.MACHINE.buildCost));
+    },
+    upgradeMachine() {
+      const s = S();
+      if (!s.machine) return fail('Build the Candle Machine first.');
+      if (s.machine.level >= D.MACHINE.maxLevel) return fail('The machine is fully upgraded.');
+      return fromBuild(HC.builds.start(s, 'machineUp', 0, 'Candle Machine Lv ' + (s.machine.level + 2), f().machineUpgradeCost(s)));
+    },
+    skipBuild(id) {
+      const r = HC.builds.skip(S(), id);
+      return r.ok ? done(r.msg, 'discover') : fail(r.msg);
+    },
+    // A second (or third) builder, bought with gems.
+    buyBuilder() {
+      const s = S();
+      if (s.builders >= 3) return fail('Three builders is plenty.');
+      const cost = D.GEMS.builderSlot * s.builders;
+      if (s.gems < cost) return fail('Not enough gems.');
+      s.gems -= cost;
+      s.builders++;
+      return done('A new builder joins the crew. You can build ' + s.builders + ' things at once.', 'discover');
     },
 
+    // -------------------------------------------------------------------------
+    // STAFF
+    // -------------------------------------------------------------------------
+    hire(id) {
+      const s = S();
+      const st = D.staff[id];
+      if (!st) return fail('Unknown job.');
+      if (s.staff[id]) return fail('You already have a ' + st.name + '.');
+      if (st.needs === 'machine' && !s.machine) return fail('Build the Candle Machine first.');
+      if (!spend(st.hire)) return fail('Not enough coins.');
+      s.staff[id] = true;
+      HC.workers.sync(s);
+      return done('You hired a ' + st.name + '. Wages are ₵' + st.wage + ' each morning.');
+    },
+    fire(id) {
+      const s = S();
+      if (!s.staff[id]) return fail('Nobody to let go.');
+      s.staff[id] = false;
+      HC.workers.sync(s);
+      return done('Your ' + D.staff[id].name + ' has left. No more wages for them.', 'click');
+    },
+
+    // -------------------------------------------------------------------------
+    // NURSERY
+    // -------------------------------------------------------------------------
     startBreed(slot, aId, bId) {
       const s = S();
       const a = s.bees[aId], b = s.bees[bId];
       if (!a || !b || aId === bId) return fail('Pick two different bees.');
       if (s.nursery[slot]) return fail('That cradle is busy.');
-      if (s.nursery.some((n) => n && [n.a, n.b].some((x) => x === aId || x === bId))) return fail('One of those bees is already in the nursery.');
+      if (f().busyBees(s).has(aId) || f().busyBees(s).has(bId)) return fail('One of those bees is already in the nursery.');
       const cost = f().breedCost(a, b);
       if (!spend(cost)) return fail('Not enough coins.');
       s.nursery[slot] = { a: aId, b: bId, t: 0, dur: f().breedTime(a, b), ready: false };
       bus.emit('breedStart', slot);
-      return done(a.name + ' and ' + b.name + ' are tending an egg.');
+      return done(a.name + ' and ' + b.name + ' are resting in the nursery with an egg.');
     },
-
+    skipEgg(slot) {
+      const s = S();
+      const n = s.nursery[slot];
+      if (!n || n.ready) return fail('Nothing to hurry.');
+      const cost = f().gemsToSkip(n.dur - n.t);
+      if (s.gems < cost) return fail('Not enough gems.');
+      s.gems -= cost;
+      s.stats.skips++;
+      n.t = n.dur;
+      n.ready = true;
+      return done('The egg is ready to hatch!', 'discover');
+    },
     hatch(slot) {
       const s = S();
       const n = s.nursery[slot];
@@ -216,17 +326,20 @@
       placeBee(bee);
       s.nursery[slot] = null;
       s.stats.bred++;
+      newSpeciesReward(isNew);
       bus.emit('newBee', { bee, isNew, newSparkle, source: 'nursery' });
       return done(null, 'hatch');
     },
-
     cancelBreed(slot) {
       const s = S();
       if (!s.nursery[slot]) return fail('Nothing to cancel.');
       s.nursery[slot] = null;
-      return done('The cradle is empty again.', 'click');
+      return done('The cradle is empty again. The parents are back at work.', 'click');
     },
 
+    // -------------------------------------------------------------------------
+    // TOWN
+    // -------------------------------------------------------------------------
     deliverOrder(id) {
       const s = S();
       const o = s.orders.find((x) => x.id === id);
@@ -235,18 +348,17 @@
       s.store[o.good] -= o.qty;
       s.orders = s.orders.filter((x) => x.id !== id);
       HC.sim.earn(s, o.reward);
+      if (o.gems) HC.sim.gainGems(s, o.gems, o.who);
       s.rep = Math.min(5, s.rep + 0.15);
       s.stats.orders++;
       bus.emit('orderDone', o);
-      return done(o.who + ' paid ₵' + util.fmt(o.reward) + '. Word gets around.', 'order');
+      return done(o.who + ' paid ₵' + util.fmt(o.reward) + (o.gems ? ' and ' + o.gems + ' 💎' : '') + '. Word gets around.', 'order');
     },
-
     dismissOrder(id) {
       const s = S();
       s.orders = s.orders.filter((x) => x.id !== id);
       return done(null, 'click');
     },
-
     buyMerchant() {
       const s = S();
       if (!s.merchant) return fail('The merchant has left.');
@@ -258,15 +370,51 @@
       const bee = HC.state.makeBee(s, o.sp, o);
       placeBee(bee);
       s.merchant = null;
+      newSpeciesReward(isNew);
       bus.emit('newBee', { bee, isNew, newSparkle, source: 'merchant' });
       return done(null, 'hatch');
     },
 
+    // -------------------------------------------------------------------------
+    // STORE (cosmetics)
+    // -------------------------------------------------------------------------
+    buyItem(id) {
+      const s = S();
+      const item = D.item[id];
+      if (!item) return fail('Unknown item.');
+      if (s.cos.owned[id]) return fail('You already own that.');
+      const cost = item.cost || {};
+      if (cost.coins && s.coins < cost.coins) return fail('Not enough coins.');
+      if (cost.gems && s.gems < cost.gems) return fail('Not enough gems.');
+      if (cost.coins) s.coins -= cost.coins;
+      if (cost.gems) s.gems -= cost.gems;
+      s.cos.owned[id] = true;
+      if (/Decor$/.test(item.cat)) s.stats.decor++;
+      act.useItem(id, true);
+      return done(item.name + ' is yours!', 'discover');
+    },
+    // Wear/use an owned item; decorations toggle between placed and stored.
+    useItem(id, quiet) {
+      const s = S();
+      const item = D.item[id];
+      if (!item || !s.cos.owned[id]) return fail('You do not own that yet.');
+      const section = D.STORE_SECTIONS.find((x) => x.cat === item.cat);
+      if (section.pick) s.cos.equip[item.cat] = id;
+      else s.cos.placed[id] = quiet ? true : !s.cos.placed[id];
+      if (quiet) return { ok: true };
+      return done(section.pick ? item.name + ' equipped.' : item.name + (s.cos.placed[id] ? ' placed.' : ' put away.'), 'click');
+    },
+
+    // -------------------------------------------------------------------------
+    // FESTIVAL (start over for permanent ribbons)
+    // -------------------------------------------------------------------------
     holdFestival(keepId) {
       const old = S();
       const gain = f().festivalRibbons(old);
       if (!gain) return fail('The town is not ready for a festival yet.');
       const s = HC.state.newGame();
+      // Carried over: lifetime totals, ribbons, the Field Guide, cosmetics,
+      // gems, stats, settings and tutorial progress.
       s.lifetime = old.lifetime;
       s.ribbons = old.ribbons + gain;
       s.festivals = old.festivals + 1;
@@ -276,8 +424,14 @@
       s.stats = old.stats;
       s.settings = old.settings;
       s.hints = old.hints;
+      s.goal = old.goal;
+      s.cos = old.cos;
+      s.gems = old.gems + D.GEMS.festival;
+      s.builders = old.builders;
       s.playTime = old.playTime;
       s.time = old.time;
+      s.clock = old.clock;
+      s.lastDay = old.lastDay;
       s.coins = 50 * (1 + s.ribbons);
       for (const sp of Object.keys(s.discovered)) s.unlockedGoods[D.species[sp].good] = true;
       const keep = old.bees[keepId];
@@ -287,6 +441,7 @@
         s.hives[0].bees.push(copy.id);
       }
       HC.game = s;
+      HC.workers.cancelErrands();
       HC.sim.resetRuntime();
       bus.emit('festival', { gain, total: s.ribbons });
       return done(null, 'hatch');
