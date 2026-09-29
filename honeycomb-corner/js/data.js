@@ -176,18 +176,33 @@
     'Nurse Bees boost every bee in their hive.',
     'Moonmoth Bees and Night Owls do their best work after dark.',
     'The Honey Cart turns storehouse overflow into coins.',
+    'Seasons change every four days. Tap the season in the status bar to see what it does.',
+    'Golden drips appear on hives now and then. Tap one for a bonus.',
+  ];
+
+  // Each season lasts SEASON_DAYS in-game days and brings one twist.
+  const SEASONS = [
+    { id: 'spring', name: 'Spring', desc: 'Everything blooms: +20% honey from every bee.', prod: 0.2,
+      grass: ['#72c458', '#5eae4a', '#8cd870', '#4e9e3e'], pad: '#8ab04a' },
+    { id: 'summer', name: 'Summer', desc: 'Tourists in town: +25% customer visits.', customers: 0.25,
+      grass: ['#6cbc54', '#5aa848', '#86d06c', '#4a9a3c'], pad: '#8ab04a' },
+    { id: 'autumn', name: 'Autumn', desc: 'Harvest season: eggs hatch 30% faster.', breed: 0.3,
+      grass: ['#a8b048', '#8e9a3a', '#c8b858', '#7a8a30'], pad: '#b0a050' },
+    { id: 'winter', name: 'Winter', desc: 'Cozy demand: +20% prices, candles +50%. Bees slow down 10%.', price: 0.2, prod: -0.1, candle: 0.5,
+      grass: ['#e8eef4', '#d4dce8', '#f8fbff', '#c0cad8'], pad: '#c8d0dc' },
   ];
 
   const byId = (arr) => Object.fromEntries(arr.map((x) => [x.id, x]));
 
   HC.data = {
-    GOODS, SPECIES, RECIPES, TRAITS, UPGRADES, HIVE_COSTS, HIVE_MAX_LEVEL, CUSTOMERS,
+    SEASONS, GOODS, SPECIES, RECIPES, TRAITS, UPGRADES, HIVE_COSTS, HIVE_MAX_LEVEL, CUSTOMERS,
     HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, TIPS,
     good: byId(GOODS),
     species: byId(SPECIES),
     upgrade: byId(UPGRADES),
     customer: byId(CUSTOMERS),
     DAY_LENGTH: 480, // seconds per in-game day
+    SEASON_DAYS: 4,
     OFFLINE_CAP: 8 * 3600,
     FESTIVAL_AT: 1e7,
     SAVE_KEY: 'honeycomb-corner-save-v1',

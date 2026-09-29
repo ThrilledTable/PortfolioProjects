@@ -84,6 +84,11 @@ const target = process.env.TARGET || 'file://' + path.join(root, 'index.html');
     await page.evaluate(() => { HC.game.time = HC.data.DAY_LENGTH * 0.8; });
     await page.waitForTimeout(500);
     await page.screenshot({ path: path.join(out, 'desktop-night.png') });
+    for (const [name, k] of [['autumn', 2], ['winter', 3]]) {
+      await page.evaluate((k) => { HC.game.time = HC.data.DAY_LENGTH * (HC.data.SEASON_DAYS * k + 0.3); HC.sim.rt.drip = { hive: 0, left: 10 }; }, k);
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: path.join(out, `desktop-${name}.png`) });
+    }
     // Save/load round trip
     const ok = await page.evaluate(() => {
       const code = HC.state.exportSave(HC.game);

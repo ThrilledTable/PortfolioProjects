@@ -20,6 +20,9 @@ bees gather ─► jars in the storehouse ─► shelves ─► customers buy �
 - **Town**: timed requests pay 2.5× market value plus reputation. A travelling merchant sometimes parks outside selling a rare bee, occasionally one you haven't discovered.
 - **Honey Festival** (prestige): after ₵10M earned in a run, reset for permanent ribbons (+10% sale prices each). You keep the Field Guide and one keepsake bee.
 - **Day/night cycle**: an 8-minute day. Moonmoth Bees and Night Owls work harder after dark, and the shop's lamps come on.
+- **Seasons**: each lasts 4 in-game days (32 minutes). Spring gives +20% output, summer +25% customers, and in autumn eggs hatch 30% faster. Winter brings +20% prices and +50% on candles, but bees slow down 10%. Each season has its own grass, flowers and weather.
+- **Golden drips**: a drop appears on a hive every minute or two. Tap it within 12 seconds for about 30 seconds' worth of income.
+- **Goals**: a chain of 26 goals with rewards guides the first few hours.
 - **Idle**: production and sales continue while you're away, at 60% speed for up to 8 hours. A report shows what happened when you return.
 
 Special bees add composition choices. Nurse Bees give +20% to every bee in their hive, and Scout Bees bring in +6% more customers.

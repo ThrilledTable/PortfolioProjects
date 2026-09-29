@@ -108,8 +108,9 @@ test('full breed flow through actions', (HC) => {
   const c = Object.values(s.bees).find((b) => b.sp === 'clover').id;
   assert(HC.act.startBreed(0, m, c).ok);
   assert(!HC.act.hatch(0).ok, 'cannot hatch early');
-  for (let i = 0; i < 20 * 60; i++) HC.sim.update(s, 0.05);
-  assert(s.nursery[0].ready);
+  const dur = s.nursery[0].dur;
+  for (let i = 0; i < 20 * (dur + 1); i++) HC.sim.update(s, 0.05);
+  assert(s.nursery[0].ready, 'egg ready after its duration');
   const before = HC.sim.f.beeCount(s);
   assert(HC.act.hatch(0).ok);
   assert.strictEqual(HC.sim.f.beeCount(s), before + 1);

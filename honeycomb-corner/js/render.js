@@ -5,7 +5,8 @@
   const { util, data: D, spr, layout: L } = HC;
   const INK = spr.INK;
 
-  let ctx, cvs, staticLayer, flowers;
+  let ctx, cvs, flowers;
+  const staticLayers = {};
   const KEEPER_LOOK = { hair: ['#6a3e1e', '#4a2a12'], skin: ['#f8c898', '#d89868'], shirt: ['#f4f0e0', '#d0c8b0'], hat: 'bandana', apron: '#e8a020' };
   const MERCHANT_LOOK = { hair: ['#d8d0c8', '#a8a098'], skin: ['#e0a878', '#b87c50'], shirt: ['#6a4a9a', '#4a3070'], hat: 'tophat' };
   const FLOWER_COLS = ['#f07898', '#ffffff', '#b890e8', '#f8d030', '#f06a4a', '#80c8f0'];
@@ -14,12 +15,18 @@
     cvs = canvasEl;
     ctx = cvs.getContext('2d');
     ctx.imageSmoothingEnabled = false;
-    staticLayer = buildStatic();
     flowers = buildFlowers();
   }
 
   // ---- Static background ---------------------------------------------------
-  function buildStatic() {
+  function staticFor(season) {
+    if (!staticLayers[season.id]) staticLayers[season.id] = buildStatic(season);
+    return staticLayers[season.id];
+  }
+
+  function buildStatic(season) {
+    const [grass, grassDark, grassLight, tuft] = season.grass;
+    const winter = season.id === 'winter';
     const c = spr.canvas(L.W, L.H);
     const g = c.getContext('2d');
     const rnd = util.seeded(7);
@@ -29,21 +36,27 @@
     };
 
     // Garden grass
-    rect(0, 0, 112, 144, '#6cbc54');
+    rect(0, 0, 112, 144, grass);
     for (let i = 0; i < 520; i++) {
       const x = Math.floor(rnd() * 112), y = Math.floor(rnd() * 144);
-      rect(x, y, 1, 1, rnd() < 0.5 ? '#5aa848' : '#86d06c');
+      rect(x, y, 1, 1, rnd() < 0.5 ? grassDark : grassLight);
     }
     for (let i = 0; i < 40; i++) {
       // grass tufts
       const x = Math.floor(rnd() * 104) + 2, y = Math.floor(rnd() * 136) + 4;
-      rect(x, y, 1, 2, '#4a9a3c');
-      rect(x + 2, y, 1, 2, '#4a9a3c');
-      rect(x + 1, y + 1, 1, 1, '#4a9a3c');
+      rect(x, y, 1, 2, tuft);
+      rect(x + 2, y, 1, 2, tuft);
+      rect(x + 1, y + 1, 1, 1, tuft);
+    }
+    if (season.id === 'autumn') {
+      // leaf litter
+      for (let i = 0; i < 90; i++) {
+        rect(Math.floor(rnd() * 100), Math.floor(rnd() * 140), 2, 1, ['#d8702a', '#c84a2a', '#e8a030'][i % 3]);
+      }
     }
     // Hive pads: trodden dirt under each slot
     for (const [cx, cy] of L.hiveSlots) {
-      rect(cx * 16 - 1, cy * 16 + 11, 18, 6, '#8ab04a');
+      rect(cx * 16 - 1, cy * 16 + 11, 18, 6, season.pad);
     }
     // Picket fence between garden and shop
     for (let y = 2; y < 140; y += 4) {
@@ -51,6 +64,7 @@
       rect(102, y + 3, 3, 1, '#c8b898');
     }
     rect(101, 4, 1, 136, '#b8a888');
+    if (winter) for (let y = 2; y < 140; y += 4) rect(102, y - 1, 3, 1, '#ffffff');
     // Lamp post
     rect(106, 116, 2, 26, '#3a3040');
     rect(104, 112, 6, 5, '#3a3040');
@@ -61,6 +75,10 @@
     rect(0, 144, 240, 1, '#b89858');
     for (let i = 0; i < 90; i++) {
       rect(Math.floor(rnd() * 240), 146 + Math.floor(rnd() * 13), 2, 1, rnd() < 0.5 ? '#c4a466' : '#e6caa0');
+    }
+    if (winter) {
+      // snow drifts on the street edges and the front wall ledge
+      for (let i = 0; i < 26; i++) rect(Math.floor(rnd() * 236), rnd() < 0.5 ? 145 : 157, 4 + Math.floor(rnd() * 6), 2, '#f4f8fc');
     }
 
     // Shop floor: warm checkerboard
@@ -80,7 +98,7 @@
     // Front wall with door gap
     rect(112, 128, 128, 16, '#a85a2a');
     for (let x = 112; x < 240; x += 8) rect(x, 128, 1, 16, '#8a4420');
-    rect(112, 128, 128, 2, '#6a3418');
+    rect(112, 128, 128, 2, winter ? '#f4f8fc' : '#6a3418');
     rect(144, 128, 16, 16, '#6a3418');
     rect(145, 130, 14, 14, '#d84a3a'); // doormat seen through the door
     rect(147, 132, 10, 10, '#e8704a');
@@ -165,18 +183,24 @@
     return out;
   }
 
+  const AUTUMN_COLS = ['#e8702a', '#d84a2a', '#f0a830', '#b85a2a'];
   function visibleFlowers(s) {
-    return flowers.slice(0, Math.min(flowers.length, 14 + 5 * s.up.flowers));
+    const se = HC.sim.f.season(s);
+    let n = 14 + 5 * s.up.flowers + (se.id === 'spring' ? 10 : 0);
+    // Bees still need somewhere to fly in winter: keep a few hardy blooms.
+    if (se.id === 'winter') n = Math.min(n, 6 + s.up.flowers);
+    return flowers.slice(0, Math.min(flowers.length, n));
   }
 
   // ---- Dynamic pieces -------------------------------------------------------
   function drawFlowers(s, t) {
+    const autumn = HC.sim.f.season(s).id === 'autumn';
     for (const f of visibleFlowers(s)) {
       const sway = Math.sin(t * 1.6 + f.ph) > 0.6 ? 1 : 0;
       ctx.fillStyle = '#3e8a34';
       ctx.fillRect(f.x, f.y + 1, 1, 3);
       const x = f.x + sway, y = f.y;
-      ctx.fillStyle = f.col;
+      ctx.fillStyle = autumn ? AUTUMN_COLS[Math.floor(f.ph * 10) % 4] : f.col;
       ctx.fillRect(x - 1, y, 3, 1);
       ctx.fillRect(x, y - 1, 1, 3);
       ctx.fillStyle = f.col === '#f8d030' ? '#e86a20' : '#f8d030';
@@ -185,11 +209,18 @@
   }
 
   function drawHives(s, t) {
+    const winterNow = HC.sim.f.season(s).id === 'winter';
     L.hiveSlots.forEach(([cx, cy], i) => {
       const x = cx * 16, y = cy * 16;
       const h = s.hives[i];
       if (h) {
         ctx.drawImage(spr.hive(h.level), x, y);
+        if (winterNow) {
+          ctx.fillStyle = '#f8fbff';
+          ctx.fillRect(x + 2, y + 1, 12, 1);
+          ctx.fillRect(x + 1, y + 2, 5, 1);
+          ctx.fillRect(x + 9, y + 2, 4, 1);
+        }
         // level pips
         for (let l = 0; l < h.level; l++) {
           ctx.fillStyle = '#fff4c0';
@@ -417,6 +448,61 @@
     if (Math.floor(t * 2) % 2 === 0) spr.drawText(ctx, '!', x + 46, y - 4, '#fff08a');
   }
 
+  function drawDrip(t) {
+    const d = HC.sim.rt.drip;
+    if (!d) return;
+    const [cx, cy] = L.hiveSlots[d.hive];
+    const x = cx * 16 + 8, y = cy * 16 - 4 + Math.round(Math.sin(t * 5) * 2);
+    const blink = d.left < 3 && Math.floor(t * 8) % 2;
+    if (blink) return;
+    // sparkle ring
+    ctx.fillStyle = '#fff6b0';
+    for (let i = 0; i < 4; i++) {
+      const a = t * 3 + (i * Math.PI) / 2;
+      ctx.fillRect(Math.round(x + Math.cos(a) * 8), Math.round(y + Math.sin(a) * 6), 1, 1);
+    }
+    // the drop
+    ctx.fillStyle = INK;
+    ctx.fillRect(x - 3, y - 2, 7, 6);
+    ctx.fillRect(x - 2, y - 4, 5, 2);
+    ctx.fillRect(x - 1, y - 6, 3, 2);
+    ctx.fillStyle = '#ffd23a';
+    ctx.fillRect(x - 2, y - 2, 5, 5);
+    ctx.fillRect(x - 1, y - 4, 3, 2);
+    ctx.fillRect(x, y - 5, 1, 1);
+    ctx.fillStyle = '#fff4c0';
+    ctx.fillRect(x - 1, y - 1, 1, 2);
+  }
+
+  // Seasonal particles over the garden and street (not inside the shop).
+  function drawWeather(s, t) {
+    const id = HC.sim.f.season(s).id;
+    const insideShop = (x, y) => x >= 112 && y < 128;
+    if (id === 'winter') {
+      ctx.fillStyle = '#ffffff';
+      for (let i = 0; i < 46; i++) {
+        const sp = 10 + (i % 5) * 3;
+        const x = Math.floor((i * 53 + Math.sin(t * 0.8 + i) * 6 + 400) % 240);
+        const y = Math.floor((i * 37 + t * sp) % 160);
+        if (!insideShop(x, y)) ctx.fillRect(x, y, i % 4 === 0 ? 2 : 1, 1);
+      }
+    } else if (id === 'autumn') {
+      for (let i = 0; i < 9; i++) {
+        const x = Math.floor((i * 29 + Math.sin(t * 1.3 + i) * 10 + 200) % 104);
+        const y = Math.floor((i * 41 + t * (8 + i)) % 150);
+        ctx.fillStyle = AUTUMN_COLS[i % 4];
+        ctx.fillRect(x, y, 2, 1);
+      }
+    } else if (id === 'spring') {
+      ctx.fillStyle = '#f8b8d0';
+      for (let i = 0; i < 6; i++) {
+        const x = Math.floor((i * 37 + t * 9 + Math.sin(t + i) * 8) % 104);
+        const y = Math.floor((i * 23 + Math.cos(t * 0.7 + i) * 20 + t * 4) % 144);
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+
   function drawFx(t) {
     for (const e of HC.sim.rt.fx) {
       if (e.kind !== 'text') continue;
@@ -482,18 +568,25 @@
   }
 
   function draw(s, t) {
-    ctx.drawImage(staticLayer, 0, 0);
+    ctx.drawImage(staticFor(HC.sim.f.season(s)), 0, 0);
     drawFlowers(s, t);
     drawHives(s, t);
     drawShelves(s, t);
     drawActors(s, t);
     drawBees(s, t);
+    drawDrip(t);
+    drawWeather(s, t);
     drawFx(t);
     drawLighting(s, t);
   }
 
   // ---- Hit testing for taps on the scene -----------------------------------
   function hitTest(s, x, y) {
+    const d = HC.sim.rt.drip;
+    if (d) {
+      const [cx, cy] = L.hiveSlots[d.hive];
+      if (Math.abs(x - (cx * 16 + 8)) < 12 && y > cy * 16 - 16 && y < cy * 16 + 8) return { kind: 'drip' };
+    }
     for (let i = 0; i < L.hiveSlots.length; i++) {
       const [cx, cy] = L.hiveSlots[i];
       if (x >= cx * 16 - 2 && x < cx * 16 + 18 && y >= cy * 16 && y < cy * 16 + 17) {

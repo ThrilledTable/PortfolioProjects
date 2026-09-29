@@ -24,6 +24,15 @@
       const p = f.dayPhase(s);
       return p >= 0.7 && p < 0.95;
     },
+    season(s) {
+      const len = D.DAY_LENGTH * D.SEASON_DAYS;
+      return D.SEASONS[Math.floor(s.time / len) % 4];
+    },
+    seasonLeft(s) {
+      const len = D.DAY_LENGTH * D.SEASON_DAYS;
+      return len - (s.time % len);
+    },
+    day: (s) => Math.floor(s.time / D.DAY_LENGTH) + 1,
     hiveCap: (h) => 3 + h.level,
     hiveCost: (s) => D.HIVE_COSTS[s.hives.length],
     hiveUpgradeCost: (s, i) => Math.ceil(100 * Math.pow(3, s.hives[i].level) * Math.pow(1 + i, 1.4)),
@@ -35,7 +44,12 @@
     shelfCap: () => 6,
     boxCap: (s) => 10 + 4 * s.up.beebox,
     priceMult: (s) => (1 + 0.08 * s.up.labels) * (1 + 0.1 * s.ribbons),
-    price: (s, goodId, mult = 1) => Math.max(1, Math.round(D.good[goodId].price * f.priceMult(s) * mult)),
+    price(s, goodId, mult = 1) {
+      const se = f.season(s);
+      let m = mult * (1 + (se.price || 0));
+      if (goodId === 'candle' && se.candle) m *= 1 + se.candle;
+      return Math.max(1, Math.round(D.good[goodId].price * f.priceMult(s) * m));
+    },
     cartRate: (s) => (s.up.cart ? 0.2 + 0.05 * (s.up.cart - 1) : 0),
     checkoutTime: (s) => 1.4 * Math.pow(0.88, s.up.register),
 
@@ -51,7 +65,7 @@
     beeRate(s, bee, h, night) {
       const sp = D.species[bee.sp];
       let r = (1 / sp.secs) * bee.vigor * (bee.sparkle ? 2 : 1);
-      r *= f.hiveMult(s, h) * (1 + 0.08 * s.up.flowers);
+      r *= f.hiveMult(s, h) * (1 + 0.08 * s.up.flowers) * (1 + (f.season(s).prod || 0));
       const t = bee.trait && D.TRAITS[bee.trait];
       if (t) {
         if (t.prod) r *= 1 + t.prod;
@@ -77,7 +91,7 @@
     },
 
     customerBoost(s) {
-      let b = 0.15 * s.up.sign;
+      let b = 0.15 * s.up.sign + (f.season(s).customers || 0);
       for (const h of s.hives) {
         for (const id of h.bees) {
           const bee = s.bees[id];
@@ -125,6 +139,8 @@
     spawnT: 3,
     income: [], // [gameTime, amount] for the last 60s
     clock: 0,
+    drip: null, // { hive, left } a golden drop waiting to be tapped
+    dripT: 45,
   };
 
   function earn(s, amt, x, y) {
@@ -428,7 +444,7 @@
   function updateNursery(s, dt) {
     s.nursery.forEach((slot, i) => {
       if (!slot || slot.ready) return;
-      slot.t += dt;
+      slot.t += dt * (1 + (f.season(s).breed || 0));
       if (slot.t >= slot.dur) {
         slot.ready = true;
         bus.emit('eggReady', i);
@@ -504,6 +520,13 @@
     return offer;
   }
 
+  let lastSeason = null;
+  function updateSeason(s) {
+    const se = f.season(s);
+    if (lastSeason && lastSeason !== se.id) bus.emit('season', se);
+    lastSeason = se.id;
+  }
+
   function updateTown(s, dt) {
     s.nextOrderAt -= dt;
     if (s.nextOrderAt <= 0) {
@@ -540,6 +563,30 @@
     }
   }
 
+  function updateDrip(s, dt) {
+    if (rt.drip) {
+      rt.drip.left -= dt;
+      if (rt.drip.left <= 0) rt.drip = null;
+      return;
+    }
+    rt.dripT -= dt;
+    if (rt.dripT <= 0) {
+      rt.dripT = util.rand(60, 120);
+      rt.drip = { hive: util.randInt(0, s.hives.length - 1), left: 12 };
+      bus.emit('drip');
+    }
+  }
+
+  // Tapping the drop pays about half a minute of recent income.
+  function claimDrip(s) {
+    if (!rt.drip) return 0;
+    const [cx, cy] = layout.hiveSlots[rt.drip.hive];
+    const amt = Math.max(25, Math.round(incomePerMin() * 0.5));
+    rt.drip = null;
+    earn(s, amt, cx * 16 + 8, cy * 16 - 2);
+    return amt;
+  }
+
   function updateFx(dt) {
     for (const e of rt.fx) e.t += dt;
     rt.fx = rt.fx.filter((e) => e.t < e.life);
@@ -555,6 +602,8 @@
     updateCustomers(s, dt);
     updateNursery(s, dt);
     updateTown(s, dt);
+    updateDrip(s, dt);
+    updateSeason(s);
     updateFx(dt);
   }
 
@@ -591,11 +640,13 @@
     rt.fx = [];
     rt.spawnT = 2;
     rt.income = [];
+    rt.drip = null;
+    rt.dripT = 45;
   }
 
   HC.layout = layout;
   HC.sim = {
     f, rt, update, catchUp, resetRuntime, earn, addGood, restock, decideEgg,
-    makeOrder, makeMerchantOffer, incomePerMin, chooseShelf, instantCustomers,
+    makeOrder, makeMerchantOffer, incomePerMin, chooseShelf, instantCustomers, claimDrip,
   };
 })();

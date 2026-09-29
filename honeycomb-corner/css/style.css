@@ -151,6 +151,13 @@ button { font: inherit; color: inherit; }
 .hud-item { display: flex; align-items: center; gap: 5px; }
 .hud .lbl { color: #b89c86; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.7rem; }
 .stars { display: inline-flex; gap: 1px; }
+.season-chip { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; }
+.season-chip:hover b { text-decoration: underline; }
+.season-dot { width: 10px; height: 10px; border: 2px solid var(--ink); display: inline-block; }
+.season-spring { background: #f8b8d0; }
+.season-summer { background: #f8d030; }
+.season-autumn { background: #e8702a; }
+.season-winter { background: #e8eef4; }
 
 .goalbar { margin-top: 8px; }
 .goal-inner {

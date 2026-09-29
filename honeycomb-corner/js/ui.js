@@ -101,6 +101,7 @@
       <div class="hud-item" title="Income over the last minute"><span class="lbl">per min</span><b data-live="${L(() => fmt(HC.sim.incomePerMin()))}"></b></div>
       <div class="hud-item" title="Reputation"><span class="lbl">rep</span><span class="stars" data-html="${L(starsHtml)}"></span></div>
       <div class="hud-item hud-time" title="Time of day"><span data-html="${L(timeHtml)}"></span></div>
+      <button class="hud-item season-chip" data-act="season" data-html="${L(seasonHtml)}"></button>
       ${S().ribbons ? `<div class="hud-item" title="Festival ribbons: +${S().ribbons * 10}% sale prices"><img class="px ico" src="${spr.miscURL('ribbon')}" alt="" width="16" height="16"><b>${S().ribbons}</b></div>` : ''}
     `;
   }
@@ -111,6 +112,11 @@
     const ok = g.check(s);
     return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span><span class="goal-text">${g.text}</span>` +
       (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${price(g.reward)}</button>` : `<span class="goal-reward">${price(g.reward)}</span>`);
+  }
+  function seasonHtml() {
+    const s = S();
+    const se = f().season(s);
+    return `<span class="season-dot season-${se.id}"></span><b>${se.name}</b><span class="lbl">day ${f().day(s)}</span>`;
   }
   function starsHtml() {
     const r = S().rep;
@@ -814,6 +820,11 @@
       case 'merchant': r = HC.act.buyMerchant(); break;
       case 'festival': return festivalModal();
       case 'claimGoal': r = HC.goals.claim(); break;
+      case 'season': {
+        const se = f().season(s);
+        say([`${se.name}. ${se.desc} ${util.fmtTime(f().seasonLeft(s))} until the season turns.`]);
+        return;
+      }
       case 'guide': return guideModal(ds.sp);
       case 'save':
         HC.main.save();
@@ -897,6 +908,14 @@
       if (!el.textbox.hidden) nextLine();
       return;
     }
+    if (hit.kind === 'drip') {
+      const amt = HC.sim.claimDrip(S());
+      if (amt) {
+        HC.audio.play('discover');
+        toast('Golden drip! +₵' + fmt(amt), 'good');
+      }
+      return;
+    }
     HC.audio.play('click');
     if (hit.kind === 'hive') {
       setTab('apiary');
@@ -926,6 +945,7 @@
     { id: 'nursery', when: (s) => s.discovered.clover && !s.discovered.waxwing, lines: ['Try the Nursery: pair a Meadow Bee with a Clover Bee and see what hatches.'] },
     { id: 'order', when: (s) => s.orders.length > 0, lines: ['Someone pinned a request on the Town board. Fill it for a big payout and a boost to your reputation.'] },
     { id: 'merchant', when: (s) => !!s.merchant, lines: ['A travelling merchant has parked outside. The bees are rare, and the wagon won\'t stay long.'] },
+    { id: 'drip', when: () => !!HC.sim.rt.drip, lines: ['A golden drip is glistening on one of your hives. Tap it before it drips away!'] },
     { id: 'boxfull', when: (s) => s.box.length >= f().boxCap(s), lines: ['Your bee box is full. Build or upgrade a hive, or sell bees you don\'t need.'] },
     { id: 'night', when: (s) => s.discovered.moonmoth && f().isNight(s), lines: ['Night has fallen. Moonmoth Bees are hard at work.'] },
     { id: 'festival', when: (s) => f().festivalRibbons(s) > 0, lines: ['The town wants to throw a Honey Festival in your honour! Take a look in the Town tab.'] },
@@ -996,6 +1016,10 @@
     bus.on('order', (o) => toast(o.who + ' pinned a request for ' + D.good[o.good].name + '.'));
     bus.on('merchant', () => {
       toast('A travelling merchant parked outside!', 'good');
+      HC.audio.play('bell');
+    });
+    bus.on('season', (se) => {
+      toast(se.name + ' has arrived. ' + se.desc, 'good');
       HC.audio.play('bell');
     });
     bus.on('festival', (e) => {
