@@ -116,6 +116,26 @@
     rect(116, 104, 4, 4, '#4a9a3c');
     rect(121, 102, 4, 6, '#5aae48');
     rect(119, 100, 3, 4, '#6cc054');
+    // Display table with a jar pyramid (kept clear of the customer paths)
+    rect(118, 84, 26, 3, 'rgba(43,29,20,0.25)');
+    rect(117, 70, 28, 13, INK);
+    rect(118, 71, 26, 9, '#c88a4a');
+    rect(118, 71, 26, 1, '#e8b070');
+    rect(118, 80, 26, 2, '#8a5a2a');
+    rect(119, 82, 2, 4, '#6a3a1a');
+    rect(141, 82, 2, 4, '#6a3a1a');
+    const jar = (x, y) => {
+      rect(x, y, 5, 6, INK);
+      rect(x + 1, y + 2, 3, 3, '#f8c838');
+      rect(x + 1, y + 1, 3, 1, '#c8642a');
+      rect(x + 1, y + 2, 1, 1, '#fde8a0');
+    };
+    jar(121, 70); jar(126, 70); jar(131, 70); jar(136, 70);
+    jar(123, 65); jar(128, 65); jar(133, 65);
+    jar(126, 60); jar(131, 60);
+    // "Try me" sample dish
+    rect(138, 76, 5, 2, '#fff4d8');
+    rect(139, 75, 3, 1, '#f8c838');
     // Wall clock
     rect(226, 4, 7, 7, INK);
     rect(227, 5, 5, 5, '#fff4d8');

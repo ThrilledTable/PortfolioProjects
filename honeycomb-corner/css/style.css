@@ -152,6 +152,20 @@ button { font: inherit; color: inherit; }
 .hud .lbl { color: #b89c86; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.7rem; }
 .stars { display: inline-flex; gap: 1px; }
 
+.goalbar { margin-top: 8px; }
+.goal-inner {
+  display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap;
+  background: rgba(0, 0, 0, 0.22);
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  padding: 6px 8px 6px 10px;
+  min-height: 40px;
+}
+.goal-label { font-family: var(--font-display); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--honey); white-space: nowrap; }
+.goal-text { flex: 1; min-width: 10em; font-size: var(--step--1); }
+.goal-reward { display: inline-flex; align-items: center; gap: 4px; font-size: var(--step--1); color: #b89c86; font-variant-numeric: tabular-nums; }
+.goal-reward .ico { width: 14px; height: 14px; vertical-align: 0; }
+
 .tabs {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));

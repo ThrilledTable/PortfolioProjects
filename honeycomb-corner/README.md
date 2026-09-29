@@ -28,7 +28,7 @@ Special bees add composition choices. Nurse Bees give +20% to every bee in their
 
 - **Resolution:** the scene renders at 240×160, the GBA's native resolution, and scales up with crisp pixels. In-scene numbers use a hand-made 3×5 bitmap font.
 - **IP safety:** the goal was the *era* (a pixel town shop, chiptune music, retro text boxes), not anyone's brand. The shop has an orange roof and a honey theme; there are no creature balls, no "-dex", and no borrowed silhouettes.
-- **Pacing** comes from `tools/balance.js`, which plays the real simulation headlessly with a greedy bot. Current bot timings are clover at about 4 min, waxwing about 8, lavender about 25, royal about 45, golden about 60 and starlight about 100. A human should take roughly 1.5–2× longer.
+- **Pacing** comes from `tools/balance.js`, which plays the real simulation headlessly with a greedy bot. Current bot timings are clover at about 4 min, waxwing about 8, lavender about 35, royal about 80, golden about 90 and starlight about 130. A human should take roughly 1.5–2× longer. A goal chain of 26 steps guides the whole arc.
 - **Market context:** the leading bee idle game (Green Panda's *Idle Bee Factory Tycoon*, about 39M Android downloads) is an abstract factory with aggressive ads. This prototype tests whether a warmer, character-driven presentation plus real breeding depth stands out.
 
 ## Code map
@@ -50,7 +50,8 @@ The sim never touches the DOM; it emits events on `HC.bus`, which is why it runs
 ## Dev tools
 
 ```bash
-node tools/balance.js 4 2        # simulate 4 hours of play, 2 runs, print milestones
+node tools/balance.js 4 2 [5]    # simulate 4h of play, 2 runs, bot acting every [5]s; prints milestones
+node tools/test.js               # mechanics tests (Node, no browser)
 node tools/smoke.js out/         # Playwright: load the game, exercise flows, screenshot, fail on console errors
 python3 tools/build.py           # bundle into dist/honeycomb-corner.html
 ```

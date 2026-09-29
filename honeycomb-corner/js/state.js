@@ -36,6 +36,7 @@
       hints: {},
       settings: { sfx: true, music: false },
       keepsake: null,
+      goal: 0,
     };
     for (const u of data.UPGRADES) s.up[u.id] = 0;
     const a = makeBee(s, 'meadow', { vigor: 1 });

@@ -95,6 +95,7 @@
 
   // ---- HUD ------------------------------------------------------------------
   function renderHud() {
+    el.goalbar.innerHTML = `<div class="goal-inner" data-html="${L(goalHtml)}"></div>`;
     el.hud.innerHTML = `
       <div class="hud-coins" title="Coins">${coin()}<b data-live="${L(() => fmt(S().coins))}"></b></div>
       <div class="hud-item" title="Income over the last minute"><span class="lbl">per min</span><b data-live="${L(() => fmt(HC.sim.incomePerMin()))}"></b></div>
@@ -102,6 +103,14 @@
       <div class="hud-item hud-time" title="Time of day"><span data-html="${L(timeHtml)}"></span></div>
       ${S().ribbons ? `<div class="hud-item" title="Festival ribbons: +${S().ribbons * 10}% sale prices"><img class="px ico" src="${spr.miscURL('ribbon')}" alt="" width="16" height="16"><b>${S().ribbons}</b></div>` : ''}
     `;
+  }
+  function goalHtml() {
+    const s = S();
+    const g = HC.goals.current(s);
+    if (!g) return '<span class="goal-text">Every goal complete. The town is proud of you.</span>';
+    const ok = g.check(s);
+    return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span><span class="goal-text">${g.text}</span>` +
+      (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${price(g.reward)}</button>` : `<span class="goal-reward">${price(g.reward)}</span>`);
   }
   function starsHtml() {
     const r = S().rep;
@@ -804,6 +813,7 @@
       case 'dismiss': r = HC.act.dismissOrder(ds.id); break;
       case 'merchant': r = HC.act.buyMerchant(); break;
       case 'festival': return festivalModal();
+      case 'claimGoal': r = HC.goals.claim(); break;
       case 'guide': return guideModal(ds.sp);
       case 'save':
         HC.main.save();
@@ -936,6 +946,7 @@
   // ---- Init -----------------------------------------------------------------
   function init() {
     el.hud = $('#hud');
+    el.goalbar = $('#goalbar');
     el.panel = $('#panel');
     el.tabs = $('#tabs');
     el.modal = $('#modal');

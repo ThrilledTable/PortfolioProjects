@@ -1,11 +1,12 @@
 // Headless balance check: runs the real sim with a greedy bot and reports when
-// milestones are reached. Usage: node tools/balance.js [hours] [seed-runs]
+// milestones are reached. Usage: node tools/balance.js [hours] [runs] [secondsBetweenBotActions]
 const fs = require('fs');
+const BOT_EVERY = Number(process.argv[4] || 1); // seconds between bot decisions
 const path = require('path');
 const vm = require('vm');
 
 const root = path.join(__dirname, '..', 'js');
-const files = ['util.js', 'data.js', 'state.js', 'sim.js', 'actions.js'];
+const files = ['util.js', 'data.js', 'state.js', 'sim.js', 'actions.js', 'goals.js'];
 
 function boot() {
   const store = {};
@@ -45,6 +46,7 @@ function run(hours) {
       const want = goods[i] || null;
       if (sh.good !== want && want) act.setShelf(i, want);
     });
+    HC.goals.claim();
     // Orders
     for (const o of [...s.orders]) if ((s.store[o.good] || 0) >= o.qty) act.deliverOrder(o.id);
     // Hatch
@@ -107,7 +109,7 @@ function run(hours) {
     t += dt;
     if (t >= nextBot) {
       bot();
-      nextBot = t + 1;
+      nextBot = t + BOT_EVERY;
     }
     const s = HC.game;
     for (const sp of D.SPECIES) if (s.discovered[sp.id]) mark(sp.id, t);

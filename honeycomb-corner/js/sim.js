@@ -103,7 +103,7 @@
     sellPrice: (bee) => Math.ceil(f.beeValue(bee) * 0.4),
     maxTier: (a, b) => Math.max(D.species[a.sp].tier, D.species[b.sp].tier),
     breedCost: (a, b) => Math.ceil(40 * Math.pow(3.4, f.maxTier(a, b))),
-    breedTime: (a, b) => Math.round(20 * Math.pow(1 + f.maxTier(a, b), 1.4)),
+    breedTime: (a, b) => Math.round(20 * Math.pow(1 + f.maxTier(a, b), 1.6)),
 
     beeCount: (s) => Object.keys(s.bees).length,
     hiveOf(s, beeId) {

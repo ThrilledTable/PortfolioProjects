@@ -134,7 +134,7 @@
     { id: 'nursery', name: 'Nursery Cradle', base: 3000, growth: 12, max: 2, desc: () => '+1 breeding slot.' },
   ];
 
-  const HIVE_COSTS = [0, 200, 1200, 8000, 60000, 500000];
+  const HIVE_COSTS = [0, 200, 1200, 8000, 120000, 1500000];
   const HIVE_MAX_LEVEL = 5;
 
   // `offset` controls what a customer can afford relative to the best product

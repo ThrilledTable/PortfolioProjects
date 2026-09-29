@@ -163,6 +163,20 @@ button { font: inherit; color: inherit; }
 .hud .lbl { color: #b89c86; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.7rem; }
 .stars { display: inline-flex; gap: 1px; }
 
+.goalbar { margin-top: 8px; }
+.goal-inner {
+  display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap;
+  background: rgba(0, 0, 0, 0.22);
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  padding: 6px 8px 6px 10px;
+  min-height: 40px;
+}
+.goal-label { font-family: var(--font-display); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--honey); white-space: nowrap; }
+.goal-text { flex: 1; min-width: 10em; font-size: var(--step--1); }
+.goal-reward { display: inline-flex; align-items: center; gap: 4px; font-size: var(--step--1); color: #b89c86; font-variant-numeric: tabular-nums; }
+.goal-reward .ico { width: 14px; height: 14px; vertical-align: 0; }
+
 .tabs {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -558,6 +572,7 @@ textarea {
         </div>
       </div>
       <div id="hud" class="hud"></div>
+      <div id="goalbar" class="goalbar"></div>
     </div>
     <nav id="tabs" class="tabs" role="tablist" aria-label="Menus">
       <button role="tab" data-act="tab" data-tab="apiary">Apiary</button>
@@ -856,7 +871,7 @@ textarea {
     { id: 'nursery', name: 'Nursery Cradle', base: 3000, growth: 12, max: 2, desc: () => '+1 breeding slot.' },
   ];
 
-  const HIVE_COSTS = [0, 200, 1200, 8000, 60000, 500000];
+  const HIVE_COSTS = [0, 200, 1200, 8000, 120000, 1500000];
   const HIVE_MAX_LEVEL = 5;
 
   // `offset` controls what a customer can afford relative to the best product
@@ -960,6 +975,7 @@ textarea {
       hints: {},
       settings: { sfx: true, music: false },
       keepsake: null,
+      goal: 0,
     };
     for (const u of data.UPGRADES) s.up[u.id] = 0;
     const a = makeBee(s, 'meadow', { vigor: 1 });
@@ -1160,7 +1176,7 @@ textarea {
     sellPrice: (bee) => Math.ceil(f.beeValue(bee) * 0.4),
     maxTier: (a, b) => Math.max(D.species[a.sp].tier, D.species[b.sp].tier),
     breedCost: (a, b) => Math.ceil(40 * Math.pow(3.4, f.maxTier(a, b))),
-    breedTime: (a, b) => Math.round(20 * Math.pow(1 + f.maxTier(a, b), 1.4)),
+    breedTime: (a, b) => Math.round(20 * Math.pow(1 + f.maxTier(a, b), 1.6)),
 
     beeCount: (s) => Object.keys(s.bees).length,
     hiveOf(s, beeId) {
@@ -1938,6 +1954,64 @@ textarea {
 
 </script>
 <script>
+// A linear chain of goals that guides the first few hours. Each pays a reward
+// when claimed; the current goal shows in a strip under the scene.
+(function () {
+  const HC = window.HC;
+  const { bus } = HC;
+  const f = () => HC.sim.f;
+  const disc = (sp) => (s) => !!s.discovered[sp];
+
+  const GOALS = [
+    { text: 'Buy another Meadow Bee', check: (s) => f().beeCount(s) >= 3, reward: 30 },
+    { text: 'Build a second hive', check: (s) => s.hives.length >= 2, reward: 80 },
+    { text: 'Buy a Clover Bee', check: disc('clover'), reward: 100 },
+    { text: 'Stock two different shelves', check: (s) => new Set(s.shelves.map((x) => x.good).filter(Boolean)).size >= 2, reward: 120 },
+    { text: 'Hatch an egg in the Nursery', check: (s) => s.stats.bred >= 1, reward: 150 },
+    { text: 'Discover the Waxwing Bee', check: disc('waxwing'), reward: 250 },
+    { text: 'Fill a request from the Town board', check: (s) => s.stats.orders >= 1, reward: 300 },
+    { text: 'Reach 3 stars of reputation', check: (s) => s.rep >= 3, reward: 500 },
+    { text: 'Build a third hive', check: (s) => s.hives.length >= 3, reward: 600 },
+    { text: 'Discover the Citrus Bee', check: disc('citrus'), reward: 1000 },
+    { text: 'Upgrade any hive to level 3', check: (s) => s.hives.some((h) => h.level >= 2), reward: 1500 },
+    { text: 'Discover the Lavender Bee', check: disc('lavender'), reward: 3000 },
+    { text: 'Sell 1,000 items', check: (s) => s.stats.sold >= 1000, reward: 5000 },
+    { text: 'Discover the Scout Bee', check: disc('scout'), reward: 6000 },
+    { text: 'Build a fourth hive', check: (s) => s.hives.length >= 4, reward: 8000 },
+    { text: 'Discover the Royal Bee', check: disc('royal'), reward: 15000 },
+    { text: 'Discover the Moonmoth Bee', check: disc('moonmoth'), reward: 30000 },
+    { text: 'Build a fifth hive', check: (s) => s.hives.length >= 5, reward: 40000 },
+    { text: 'Discover the Nurse Bee', check: disc('nurse'), reward: 60000 },
+    { text: 'Discover the Golden Bee', check: disc('golden'), reward: 120000 },
+    { text: 'Reach 4.5 stars of reputation', check: (s) => s.rep >= 4.5, reward: 150000 },
+    { text: 'Hatch a sparkle bee', check: (s) => Object.keys(s.sparkleSeen).length > 0, reward: 250000 },
+    { text: 'Build all six hives', check: (s) => s.hives.length >= 6, reward: 400000 },
+    { text: 'Discover the Crystal Bee', check: disc('crystal'), reward: 800000 },
+    { text: 'Discover the Starlight Bee', check: disc('star'), reward: 3000000 },
+    { text: 'Hold a Honey Festival', check: (s) => s.festivals >= 1, reward: 1000 },
+  ];
+
+  function current(s) {
+    return GOALS[s.goal || 0] || null;
+  }
+
+  function claim() {
+    const s = HC.game;
+    const g = current(s);
+    if (!g || !g.check(s)) return { ok: false };
+    s.goal = (s.goal || 0) + 1;
+    HC.sim.earn(s, g.reward);
+    bus.emit('sfx', 'order');
+    bus.emit('goalClaimed', g);
+    bus.emit('dirty');
+    return { ok: true, msg: 'Goal complete: +₵' + HC.util.fmt(g.reward) };
+  }
+
+  HC.goals = { GOALS, current, claim };
+})();
+
+</script>
+<script>
 // Pixel art. Everything is drawn from code or tiny character grids: no image
 // files, no third-party art. Sprites are cached as offscreen canvases.
 (function () {
@@ -2451,6 +2525,26 @@ textarea {
     rect(116, 104, 4, 4, '#4a9a3c');
     rect(121, 102, 4, 6, '#5aae48');
     rect(119, 100, 3, 4, '#6cc054');
+    // Display table with a jar pyramid (kept clear of the customer paths)
+    rect(118, 84, 26, 3, 'rgba(43,29,20,0.25)');
+    rect(117, 70, 28, 13, INK);
+    rect(118, 71, 26, 9, '#c88a4a');
+    rect(118, 71, 26, 1, '#e8b070');
+    rect(118, 80, 26, 2, '#8a5a2a');
+    rect(119, 82, 2, 4, '#6a3a1a');
+    rect(141, 82, 2, 4, '#6a3a1a');
+    const jar = (x, y) => {
+      rect(x, y, 5, 6, INK);
+      rect(x + 1, y + 2, 3, 3, '#f8c838');
+      rect(x + 1, y + 1, 3, 1, '#c8642a');
+      rect(x + 1, y + 2, 1, 1, '#fde8a0');
+    };
+    jar(121, 70); jar(126, 70); jar(131, 70); jar(136, 70);
+    jar(123, 65); jar(128, 65); jar(133, 65);
+    jar(126, 60); jar(131, 60);
+    // "Try me" sample dish
+    rect(138, 76, 5, 2, '#fff4d8');
+    rect(139, 75, 3, 1, '#f8c838');
     // Wall clock
     rect(226, 4, 7, 7, INK);
     rect(227, 5, 5, 5, '#fff4d8');
@@ -3023,6 +3117,7 @@ textarea {
 
   // ---- HUD ------------------------------------------------------------------
   function renderHud() {
+    el.goalbar.innerHTML = `<div class="goal-inner" data-html="${L(goalHtml)}"></div>`;
     el.hud.innerHTML = `
       <div class="hud-coins" title="Coins">${coin()}<b data-live="${L(() => fmt(S().coins))}"></b></div>
       <div class="hud-item" title="Income over the last minute"><span class="lbl">per min</span><b data-live="${L(() => fmt(HC.sim.incomePerMin()))}"></b></div>
@@ -3030,6 +3125,14 @@ textarea {
       <div class="hud-item hud-time" title="Time of day"><span data-html="${L(timeHtml)}"></span></div>
       ${S().ribbons ? `<div class="hud-item" title="Festival ribbons: +${S().ribbons * 10}% sale prices"><img class="px ico" src="${spr.miscURL('ribbon')}" alt="" width="16" height="16"><b>${S().ribbons}</b></div>` : ''}
     `;
+  }
+  function goalHtml() {
+    const s = S();
+    const g = HC.goals.current(s);
+    if (!g) return '<span class="goal-text">Every goal complete. The town is proud of you.</span>';
+    const ok = g.check(s);
+    return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span><span class="goal-text">${g.text}</span>` +
+      (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${price(g.reward)}</button>` : `<span class="goal-reward">${price(g.reward)}</span>`);
   }
   function starsHtml() {
     const r = S().rep;
@@ -3732,6 +3835,7 @@ textarea {
       case 'dismiss': r = HC.act.dismissOrder(ds.id); break;
       case 'merchant': r = HC.act.buyMerchant(); break;
       case 'festival': return festivalModal();
+      case 'claimGoal': r = HC.goals.claim(); break;
       case 'guide': return guideModal(ds.sp);
       case 'save':
         HC.main.save();
@@ -3864,6 +3968,7 @@ textarea {
   // ---- Init -----------------------------------------------------------------
   function init() {
     el.hud = $('#hud');
+    el.goalbar = $('#goalbar');
     el.panel = $('#panel');
     el.tabs = $('#tabs');
     el.modal = $('#modal');
