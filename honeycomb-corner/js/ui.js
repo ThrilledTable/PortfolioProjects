@@ -331,7 +331,7 @@
           <p class="muted">Have <span data-live="${L(() => fmt(S().store[o.good] || 0))}"></span> · expires in <span data-live="${L(() => { const x = S().orders.find((y) => y.id === o.id); return x ? util.fmtTime(x.left) : '—'; })}"></span></p>
         </div>
         <div class="order-actions">
-          <button class="btn" data-act="deliver" data-id="${o.id}" data-afford="${L(() => (S().store[o.good] || 0) >= o.qty)}">Deliver ${price(o.reward)}</button>
+          <button class="btn" data-act="deliver" data-id="${o.id}" data-need="Not enough ${g.name} in the storehouse yet." data-afford="${L(() => (S().store[o.good] || 0) >= o.qty)}">Deliver ${price(o.reward)}</button>
           <button class="link" data-act="dismiss" data-id="${o.id}">Decline</button>
         </div>
       </article>`;
@@ -425,6 +425,7 @@
   function closeModal() {
     modal = null;
     el.modal.hidden = true;
+    el.modalBody.innerHTML = ''; // also drops focus from any field inside it
   }
   function renderModal() {
     if (!modal) return;
@@ -886,7 +887,7 @@
     if (t.type === 'checkbox') return; // handled on change
     e.preventDefault();
     if (t.classList.contains('cant') && t.dataset.afford) {
-      bus.emit('fail', 'Not enough coins.');
+      bus.emit('fail', t.dataset.need || 'Not enough coins.');
       t.classList.remove('shake');
       void t.offsetWidth;
       t.classList.add('shake');
@@ -1010,6 +1011,11 @@
       if (e.target === el.modal) closeModal();
     });
     document.addEventListener('keydown', (e) => {
+      const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement && document.activeElement.tagName);
+      if (!typing && !modal && /^[1-6]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        setTab(['apiary', 'shop', 'nursery', 'town', 'guide', 'menu'][Number(e.key) - 1]);
+        return;
+      }
       if (e.key === 'Escape' && modal) closeModal();
       else if ((e.key === 'Enter' || e.key === ' ') && !el.textbox.hidden && document.activeElement === document.body) {
         e.preventDefault();
@@ -1049,8 +1055,13 @@
       say(['What a festival! The town awarded you ' + e.gain + ' ribbons.', 'You have ' + e.total + ' ribbons now, so every sale earns ' + e.total * 10 + '% more. Time to build it all again!']);
     });
 
+    // Don't rebuild the page under someone who is typing (rename, import).
+    const typingNow = () => {
+      const a = document.activeElement;
+      return a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && a.type !== 'checkbox';
+    };
     setInterval(() => {
-      if (dirty) render();
+      if (dirty && !typingNow()) render();
       else {
         refreshLive();
         updateBadges();
