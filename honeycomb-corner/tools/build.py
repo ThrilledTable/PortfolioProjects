@@ -30,6 +30,8 @@ def fragment(html: str) -> str:
     body = re.search(r"<body>(.*?)</body>", html, re.S).group(1)
     # The host supplies charset/viewport; keep title, fonts and styles.
     head = re.sub(r"<meta (charset|name=\"viewport\")[^>]*>\n?", "", head)
+    # Manifest, icons and the service worker only make sense on a real web host.
+    head = re.sub(r'<link rel="(manifest|icon|apple-touch-icon)"[^>]*>\n?', "", head)
     return head.strip() + "\n" + body.strip() + "\n"
 
 
@@ -40,8 +42,9 @@ def main():
         out = DIST / "honeycomb-corner.fragment.html"
         out.write_text(fragment(html))
     else:
+        # The single file has no icons folder beside it, so drop the PWA links.
         out = DIST / "honeycomb-corner.html"
-        out.write_text(html)
+        out.write_text(re.sub(r'<link rel="(manifest|icon|apple-touch-icon)"[^>]*>\n?', "", html))
     print(f"wrote {out.relative_to(ROOT)} ({out.stat().st_size // 1024} KB)")
 
 

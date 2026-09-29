@@ -6,6 +6,10 @@ It combines the proven bee-factory idle loop with the look and feel of a GBA-era
 
 **Play:** open `index.html` in a browser, or the single-file build `dist/honeycomb-corner.html`. There's no install and no build step.
 
+## Install on a phone
+
+Serve the folder from any static host (GitHub Pages works) and open it in a phone browser, then choose **Add to Home Screen**. The game ships a web manifest, icons and a service worker, so it installs like an app and plays offline. The same folder is ready to wrap with Capacitor for the App Store and Play Store.
+
 ## The loop
 
 ```
@@ -58,6 +62,7 @@ node tools/test.js               # mechanics tests (Node, no browser)
 node tools/smoke.js out/         # Playwright: flows, audio, festival, away report; fails on console errors
 node tools/phone-walkthrough.js out/  # tap-only opening minutes at 390x844, screenshots each step
 python3 tools/build.py           # bundle into dist/honeycomb-corner.html
+node tools/make-icons.js         # regenerate icons/ from the game's own sprites
 ```
 
 ## Ideas for next steps
@@ -67,4 +72,4 @@ python3 tools/build.py           # bundle into dist/honeycomb-corner.html
 - Customer regulars with names and preferences
 - Achievements and a daily request streak
 - Touch-and-drag bee management
-- Wrapping it for the app stores with Capacitor
+- Wrapping the PWA for the app stores with Capacitor

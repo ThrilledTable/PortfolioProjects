@@ -41,6 +41,18 @@
     requestAnimationFrame(frame);
   }
 
+  // Installable/offline support when served from a normal web host. Inside
+  // sandboxed embeds registration is refused, which is fine.
+  function registerServiceWorker() {
+    if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
+    if (!document.querySelector('link[rel="manifest"]')) return;
+    try {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    } catch (e) {
+      /* not allowed here */
+    }
+  }
+
   function awayCatchUp(seconds, showReport) {
     if (seconds < 5) return;
     const r = HC.sim.catchUp(HC.game, seconds);
@@ -90,6 +102,8 @@
     if (window.claude && window.claude.hot && window.claude.hot.snapshot) {
       window.claude.hot.snapshot(() => ({ save: HC.state.serialize(HC.game) }));
     }
+
+    registerServiceWorker();
 
     requestAnimationFrame(frame);
   }
