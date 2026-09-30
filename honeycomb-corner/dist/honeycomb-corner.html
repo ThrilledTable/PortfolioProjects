@@ -796,6 +796,15 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
 .hearts { color: #d8446a; letter-spacing: 1px; font-size: 0.9rem; }
 .row-item .person.mystery { filter: brightness(0) opacity(0.4); }
 
+/* Guide on/off switch on the goal bar (playtest 6): a small slider. */
+.guide-switch { display: inline-flex; align-items: center; gap: 5px; background: none; border: 0; padding: 0; cursor: pointer; color: #c8ae96; font-weight: 800; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; order: 10; margin-left: auto; }
+.guide-switch .knob { position: relative; width: 30px; height: 16px; border-radius: 999px; background: #5a4a44; border: 2px solid var(--ink); flex: none; transition: background 0.15s; }
+.guide-switch .knob::after { content: ''; position: absolute; top: 1px; left: 1px; width: 10px; height: 10px; border-radius: 50%; background: #f8ead0; transition: transform 0.15s; }
+.guide-switch.on { color: var(--honey); }
+.guide-switch.on .knob { background: #8cd06a; }
+.guide-switch.on .knob::after { transform: translateX(14px); }
+.goal-progress { order: 20; }
+
 </style>
 <!-- Lets phones install the game to the home screen (see manifest.webmanifest and sw.js). -->
 <meta name="theme-color" content="#221a24">
@@ -6697,8 +6706,15 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       const [have, need] = g.progress(s);
       prog = `<span class="goal-progress"><span class="bar"><i style="width:${Math.round(util.clamp(have / need, 0, 1) * 100)}%"></i></span><b>${fmt(have)} / ${fmt(need)}</b></span>`;
     }
+    // GUIDE SWITCH (playtest 6): during the guided goals, a little on/off
+    // switch on the goal bar turns the flashing guide on or off. It's the
+    // same setting as "Guided goals" in the ⚙ Settings menu.
+    const guideOn = s.settings.guide !== false;
+    const guideSwitch = (s.goal || 0) < HC.goals.GUIDED
+      ? `<button class="guide-switch ${guideOn ? 'on' : ''}" data-act="toggleGuide" role="switch" aria-checked="${guideOn}" title="Turn the flashing guide ${guideOn ? 'off' : 'on'}"><span class="knob"></span><span class="lbl">Guide</span></button>`
+      : '';
     // Milestone goals (the only ones that pay gems) get a small gem badge.
-    return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span>${g.milestone ? '<span class="chip chip-gem">Milestone</span>' : ''}<button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
+    return guideSwitch + `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span>${g.milestone ? '<span class="chip chip-gem">Milestone</span>' : ''}<button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
       (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${reward}</button>` : `<span class="goal-reward">${reward}</span>`) + prog;
   }
   // "Open", "Lunch rush!" or "Closed for the night".
@@ -7785,6 +7801,13 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       case 'setDuty': r = HC.act.setDuty(ds.who, ds.duty); break;
       case 'train': r = HC.act.train(ds.id, ds.track); break;
       case 'rep': return repModal();
+      case 'toggleGuide':
+        s.settings.guide = s.settings.guide === false; // flip it
+        HC.main.save();
+        toast(s.settings.guide ? 'Guide on: the next thing to tap will flash.' : 'Guide off. You can turn it back on here or in ⚙ Settings.');
+        updateSpotlight();
+        dirty = true;
+        return;
       case 'feedback': return feedbackModal();
       case 'sleep': closeModal(); r = HC.act.sleep(); break;
       case 'collect': r = HC.act.collect(Number(ds.i)); break;

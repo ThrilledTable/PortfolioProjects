@@ -211,8 +211,15 @@
       const [have, need] = g.progress(s);
       prog = `<span class="goal-progress"><span class="bar"><i style="width:${Math.round(util.clamp(have / need, 0, 1) * 100)}%"></i></span><b>${fmt(have)} / ${fmt(need)}</b></span>`;
     }
+    // GUIDE SWITCH (playtest 6): during the guided goals, a little on/off
+    // switch on the goal bar turns the flashing guide on or off. It's the
+    // same setting as "Guided goals" in the ⚙ Settings menu.
+    const guideOn = s.settings.guide !== false;
+    const guideSwitch = (s.goal || 0) < HC.goals.GUIDED
+      ? `<button class="guide-switch ${guideOn ? 'on' : ''}" data-act="toggleGuide" role="switch" aria-checked="${guideOn}" title="Turn the flashing guide ${guideOn ? 'off' : 'on'}"><span class="knob"></span><span class="lbl">Guide</span></button>`
+      : '';
     // Milestone goals (the only ones that pay gems) get a small gem badge.
-    return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span>${g.milestone ? '<span class="chip chip-gem">Milestone</span>' : ''}<button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
+    return guideSwitch + `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span>${g.milestone ? '<span class="chip chip-gem">Milestone</span>' : ''}<button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
       (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${reward}</button>` : `<span class="goal-reward">${reward}</span>`) + prog;
   }
   // "Open", "Lunch rush!" or "Closed for the night".
@@ -1299,6 +1306,13 @@
       case 'setDuty': r = HC.act.setDuty(ds.who, ds.duty); break;
       case 'train': r = HC.act.train(ds.id, ds.track); break;
       case 'rep': return repModal();
+      case 'toggleGuide':
+        s.settings.guide = s.settings.guide === false; // flip it
+        HC.main.save();
+        toast(s.settings.guide ? 'Guide on: the next thing to tap will flash.' : 'Guide off. You can turn it back on here or in ⚙ Settings.');
+        updateSpotlight();
+        dirty = true;
+        return;
       case 'feedback': return feedbackModal();
       case 'sleep': closeModal(); r = HC.act.sleep(); break;
       case 'collect': r = HC.act.collect(Number(ds.i)); break;

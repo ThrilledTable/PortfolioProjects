@@ -25,7 +25,7 @@ bees fill their hive ─► shopkeeper walks out, collects ─► storehouse ─
 - **Hives fill up.** Each hive holds a limited amount of honey (16 jars, +12 per level). When it's full, its bees stop working until someone collects.
 - **You carry the honey.** Tap a hive and the shopkeeper walks out through the door, down the garden path, scoops the honey, and carries it to the storeroom. They also carry stock from the storeroom to the shelves.
 - **The register needs a person.** Customers can only pay while someone stands at the register. While the shopkeeper is out, the line waits. Customers who wait too long put their items back and walk out, and reputation drops.
-- **Guided start.** For the first 15 goals, the button you need flashes with a gold ring and the rest of the page dims (the tab first, if it's on another tab). Counting goals ("Sell 1,000 items") show a progress bar. Turn the guide off in Settings.
+- **Guided start.** For the first 15 goals, the button you need flashes with a gold ring and the rest of the page dims (the tab first, if it's on another tab). Counting goals ("Sell 1,000 items") show a progress bar. Turn the guide off with the "Guide" switch on the goal bar, or in Settings.
 - **Helpers with duties.** Hire up to four helpers (Rosa, Theo, Mabel, Otis). Each is paid a base wage every morning **plus 5% of what the shop earned the day before** (miss a payday and someone quits). Nobody is locked into one job: in **Shop → Staff**, tap a duty button to assign each person, including the shopkeeper:
   - **Register:** stays at the register. Two people on the Register ring up faster. At night, restocks the shelves.
   - **Stock shelves:** keeps the shelves full.
