@@ -93,20 +93,7 @@
     return { ok: true, msg: b.label + ' finished.' };
   }
 
-  // OVERTIME (playtest 3): finish a build with COINS instead of gems. You pay
-  // the builder twice the unfinished share of what the build cost, e.g. a
-  // ₵10,000 upgrade that's half done costs ₵10,000 to finish now. It gives
-  // spare coins a use once money piles up, without handing out gems.
-  const overtimeCost = (s, b) => util.nice(2 * (b.cost || 0) * (left(s, b) / b.dur));
-  function overtime(s, id) {
-    const b = s.builds.find((x) => x.id === id);
-    if (!b) return { ok: false, msg: 'That build already finished.' };
-    const cost = overtimeCost(s, b);
-    if (s.coins < cost) return { ok: false, msg: 'Not enough coins for overtime.' };
-    s.coins -= cost;
-    finish(s, b);
-    return { ok: true, msg: 'The builder worked overtime: ' + b.label + ' finished.' };
-  }
-
-  HC.builds = { start, finish, update, skip, overtime, overtimeCost, find, left, freeBuilder };
+  // Note: finishing early costs GEMS only. (Playtest 4: coins must not
+  // shortcut builds; waiting, or spending gems, is the point.)
+  HC.builds = { start, finish, update, skip, find, left, freeBuilder };
 })();

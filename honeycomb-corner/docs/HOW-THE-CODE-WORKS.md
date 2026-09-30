@@ -85,7 +85,9 @@ All of these are edits to `js/data.js` unless noted. After a change, run the che
 
 **Change the helpers' share of earnings.** `WAGE_SHARE` near the bottom of `data.js` (0.05 = 5% each).
 
-**Change the overtime price.** In `js/builds.js`, `overtimeCost`: the `2 *` is the multiplier.
+**Change helper training.** `TRAINING` in `data.js`: `per` is the bonus per level, `base` and `growth` set the prices, `max` the top level.
+
+**Add a seasonal special.** Copy one of the `cat: 'seasonal'` lines in `CATALOG`, set its `season`, then add a drawing in `render.js` (see "Seasonal specials" there), a line in `drawActors` and an entry in `THUMB_BOX`.
 
 **Change which goals flash a guide.** In `js/goals.js`, each goal's `guide` says which tab and button to flash; `GUIDED` is how many goals use it. `progress` adds a progress bar to a counting goal.
 
@@ -119,7 +121,7 @@ All of these are edits to `js/data.js` unless noted. After a change, run the che
 These need Node.js (a free program for running JavaScript outside a browser). Run them from the `honeycomb-corner` folder:
 
 ```bash
-node tools/test.js            # 36 automatic checks of the rules. Should say "36 passed".
+node tools/test.js            # 39 automatic checks of the rules. Should say "39 passed".
 node tools/balance.js 4 1 5   # plays 4 hours with a bot and prints when milestones happen
 node tools/smoke.js out/      # opens the real game in a hidden browser, clicks around, saves screenshots
 python3 tools/build.py        # bundles everything into one file: dist/honeycomb-corner.html

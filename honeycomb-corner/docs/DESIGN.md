@@ -42,11 +42,14 @@ Hiring a cashier used to remove the main tension. Now:
 
 The bot showed that after about 90 minutes, 60–80% of all coins earned sat unspent. Late upgrades take 20–40 minutes each and there's one builder, so money had nowhere to go. Changes:
 - **Wages scale with success:** base wage + 5% of yesterday's earnings per helper (up to 20% with four helpers). A dusk warning appears if you can't cover the morning wages.
-- **Overtime:** any build can be finished with coins (2× the unfinished share of its price). Spare money buys time instead of piling up, and gems stay scarce.
+- **Coin sinks that don't use the builder** (playtest 4): helper training (two tracks of 10 levels per helper) and seasonal specials sold only in their season (₵25K to ₵4M). Shop Expansion adds a builder upgrade for bigger shelves.
+- **Builds are never finished with coins.** Long builds are meant to feel long; gems are the only shortcut, which is also where a gem store would earn money. (A short-lived coin "overtime" option was removed.)
 - **Fewer gems:** start 10 (was 15), roughly half the gems from goals, species, seasons, requests, drips, the critic and festivals.
 - **Steeper hive upgrades** for later hives and levels.
 
-Result: unspent money stays around 2–20% of earnings, with overall pacing about the same.
+Result: unspent money stays around 5–15% of earnings, with overall pacing about the same. (Part of the original 60–80% came from a bug in the balance bot, which stalled whenever its cheapest option needed the busy builder.)
+
+**On a paid gem store.** Playtest 4 chose gems as the way to skip long builds, which makes a gem store the likely business model. The risk to watch: the market leader's reviews complain about monetisation pressure. Keep timers generous enough that waiting stays pleasant, never sell gems-only progression, and keep earning gems through play.
 
 ## Balance targets (from `tools/balance.js`)
 

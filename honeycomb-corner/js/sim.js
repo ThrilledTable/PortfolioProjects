@@ -82,9 +82,16 @@
       return util.nice(u.base * Math.pow(u.growth, s.up[id] || 0));
     },
     storageCap: (s) => Math.floor(40 * (1 + 0.6 * s.up.storage)), // per product
-    shelfCap: () => 6, // items per shelf
+    shelfCap: (s) => 6 + 3 * (s.up.expand || 0), // items per shelf (Shop Expansion adds 3)
     boxCap: (s) => 10 + 4 * s.up.beebox, // spare-bee spaces
     carryCap: (s) => 12 + 8 * s.up.basket, // jars one person can carry per trip
+    // What one particular worker can carry: Bigger Basket for everyone, plus
+    // that helper's own "Strong arms" training.
+    carryOf: (s, w) => f.carryCap(s) + D.TRAINING.basket.per * f.trainLevel(s, w.role, 'basket'),
+    // A helper's training level on a track ('speed' or 'basket'). The
+    // shopkeeper isn't trained, so always 0.
+    trainLevel: (s, role, track) => (s.staff[role] && s.staff[role][track]) || 0,
+    trainCost: (s, role, track) => util.nice(D.TRAINING[track].base * Math.pow(D.TRAINING[track].growth, f.trainLevel(s, role, track))),
     priceMult: (s) => (1 + 0.08 * s.up.labels) * (1 + 0.1 * s.ribbons),
     // Sale price of one item right now, including all bonuses.
     price(s, goodId, mult = 1) {

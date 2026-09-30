@@ -196,6 +196,9 @@
     { id: 'cart', name: 'Honey Cart', base: 1500, growth: 3, max: 8, desc: (lv) => 'Sells storehouse overflow at ' + (lv ? 20 + lv * 5 : 20) + '% price instead of wasting it.' },
     { id: 'beebox', name: 'Bigger Bee Box', base: 400, growth: 2.8, max: 10, desc: () => '+4 spaces for spare bees.' },
     { id: 'nursery', name: 'Nursery Cradle', base: 3000, growth: 12, max: 2, desc: () => '+1 breeding slot.' },
+    // Playtest 4: a bigger shop. Each level knocks through a wall so every
+    // shelf holds 3 more items (6 → 9 → 12...), so shelves empty less often.
+    { id: 'expand', name: 'Shop Expansion', base: 2500, growth: 6, max: 6, desc: (lv) => 'Every shelf holds 3 more items (now ' + (6 + 3 * lv) + ', next ' + (9 + 3 * lv) + ').' },
   ];
 
   // Cost of building hive number 1, 2, 3... (the first one is free).
@@ -387,6 +390,13 @@
     { id: 'deco-lanterns', cat: 'gardenDecor', name: 'Garden Lanterns', cost: { coins: 1500 }, bonus: { rep: 0.05 } },
     { id: 'deco-pond', cat: 'gardenDecor', name: 'Lily Pond', cost: { coins: 8000 }, bonus: { prod: 0.05 } },
     { id: 'deco-fountain', cat: 'gardenDecor', name: 'Stone Fountain', cost: { gems: 20 }, bonus: { prod: 0.05 } },
+    // SEASONAL SPECIALS (playtest 4): big, pricey decorations that can only be
+    // BOUGHT during their season (you keep them forever once bought). They
+    // soak up spare coins in the mid and late game.
+    { id: 'deco-blossom', cat: 'seasonal', season: 'spring', name: 'Blossom Tree Planter', cost: { coins: 25000 }, bonus: { customers: 0.08 } },
+    { id: 'deco-lemonade', cat: 'seasonal', season: 'summer', name: 'Lemonade Stand', cost: { coins: 150000 }, bonus: { customers: 0.1 } },
+    { id: 'deco-pumpkins', cat: 'seasonal', season: 'autumn', name: 'Pumpkin Patch', cost: { coins: 800000 }, bonus: { prod: 0.08 } },
+    { id: 'deco-tree', cat: 'seasonal', season: 'winter', name: 'Holiday Tree', cost: { coins: 4000000 }, bonus: { rep: 0.15 } },
     // Hive styles (one at a time; changes how every hive looks)
     { id: 'hive-classic', cat: 'hiveStyle', name: 'Classic Boxes', default: true },
     { id: 'hive-painted', cat: 'hiveStyle', name: 'Painted Cottage', cost: { coins: 2000 } },
@@ -406,7 +416,20 @@
     { cat: 'wall', name: 'Wallpaper', pick: true },
     { cat: 'floor', name: 'Floors', pick: true },
     { cat: 'hiveStyle', name: 'Hive styles', pick: true },
+    { cat: 'seasonal', name: 'Seasonal specials', pick: false },
   ];
+
+  // ---------------------------------------------------------------------------
+  // HELPER TRAINING (playtest 4): spend coins to train each helper. Training
+  // is instant (it doesn't use the builder) and each helper has two tracks:
+  //   speed   walks 15% faster per level
+  //   basket  carries 6 more jars per trip per level (on top of Bigger Basket)
+  // Price of the next level = base × growth^(current level), rounded.
+  // ---------------------------------------------------------------------------
+  const TRAINING = {
+    speed: { name: 'Quick feet', per: 0.15, base: 400, growth: 3, max: 10 },
+    basket: { name: 'Strong arms', per: 6, base: 500, growth: 3, max: 10 },
+  };
 
   // ---------------------------------------------------------------------------
   // GEMS: the rare currency. You earn them from goals, requests, festivals,
@@ -485,7 +508,7 @@
 
   HC.data = {
     SEASONS, GOODS, SPECIES, RECIPES, TRAITS, UPGRADES, HIVE_COSTS, HIVE_MAX_LEVEL, CUSTOMERS,
-    HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, TIPS, MACHINE, STAFF, DUTIES, REP, EVENTS, CATALOG, STORE_SECTIONS, GEMS,
+    HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, TIPS, MACHINE, STAFF, TRAINING, DUTIES, REP, EVENTS, CATALOG, STORE_SECTIONS, GEMS,
     good: byId(GOODS),
     species: byId(SPECIES),
     upgrade: byId(UPGRADES),

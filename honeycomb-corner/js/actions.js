@@ -262,11 +262,6 @@
       const r = HC.builds.skip(S(), id);
       return r.ok ? done(r.msg, 'discover') : fail(r.msg);
     },
-    // Finish a build now with coins (see "OVERTIME" in builds.js).
-    overtime(id) {
-      const r = HC.builds.overtime(S(), id);
-      return r.ok ? done(r.msg, 'coin') : fail(r.msg);
-    },
     // -------------------------------------------------------------------------
     // STAFF
     // -------------------------------------------------------------------------
@@ -297,6 +292,17 @@
       delete s.staff[id];
       HC.workers.sync(s);
       return done(D.staff[id].name + ' has left. No more wages for them.', 'click');
+    },
+    // Train a helper on one track ('speed' or 'basket'). Instant, coins only.
+    train(id, track) {
+      const s = S();
+      const t = D.TRAINING[track];
+      if (!s.staff[id] || !t) return fail('Nobody to train.');
+      const lv = f().trainLevel(s, id, track);
+      if (lv >= t.max) return fail(D.staff[id].name + ' is fully trained in ' + t.name + '.');
+      if (!spend(f().trainCost(s, id, track))) return fail('Not enough coins.');
+      s.staff[id][track] = lv + 1;
+      return done(D.staff[id].name + ' finished ' + t.name + ' training (level ' + (lv + 1) + ').', 'discover');
     },
     // Give someone a new duty. `who` is 'keeper' or a helper's id.
     // Whatever they were doing is finished first (they won't drop a basket).
@@ -415,13 +421,15 @@
       const item = D.item[id];
       if (!item) return fail('Unknown item.');
       if (s.cos.owned[id]) return fail('You already own that.');
+      // Seasonal specials can only be bought during their season.
+      if (item.season && f().season(s).id !== item.season) return fail(item.name + ' is only sold in ' + D.SEASONS.find((x) => x.id === item.season).name + '.');
       const cost = item.cost || {};
       if (cost.coins && s.coins < cost.coins) return fail('Not enough coins.');
       if (cost.gems && s.gems < cost.gems) return fail('Not enough gems.');
       if (cost.coins) s.coins -= cost.coins;
       if (cost.gems) s.gems -= cost.gems;
       s.cos.owned[id] = true;
-      if (/Decor$/.test(item.cat)) s.stats.decor++;
+      if (/Decor$/.test(item.cat) || item.cat === 'seasonal') s.stats.decor++;
       act.useItem(id, true);
       return done(item.name + ' is yours!', 'discover');
     },

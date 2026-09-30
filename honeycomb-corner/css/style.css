@@ -717,12 +717,12 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
   animation: spot-pulse 1.4s ease-in-out infinite;
 }
 @keyframes spot-pulse {
-  0%, 100% { box-shadow: 0 0 0 3px #ffd23a, 0 0 0 100vmax rgba(12, 8, 16, 0.55); }
-  50% { box-shadow: 0 0 0 7px #ffd23a, 0 0 0 100vmax rgba(12, 8, 16, 0.55); }
+  0%, 100% { box-shadow: 0 0 0 3px #ffd23a, 0 0 0 9999px rgba(12, 8, 16, 0.55); }
+  50% { box-shadow: 0 0 0 7px #ffd23a, 0 0 0 9999px rgba(12, 8, 16, 0.55); }
 }
 body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; }
 @media (prefers-reduced-motion: reduce) {
-  .spotlight { animation: none; box-shadow: 0 0 0 5px #ffd23a, 0 0 0 100vmax rgba(12, 8, 16, 0.55); }
+  .spotlight { animation: none; box-shadow: 0 0 0 5px #ffd23a, 0 0 0 9999px rgba(12, 8, 16, 0.55); }
 }
 
 /* Goal progress bar ("412 / 1,000"). */
@@ -736,3 +736,5 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
 .hive-style-btn { display: grid; justify-items: center; gap: 2px; background: none; border: 2px dashed transparent; border-radius: 6px; padding: 2px 4px; cursor: pointer; font-size: 0.7rem; font-weight: 800; color: var(--ink-soft); }
 .hive-style-btn:hover { border-color: var(--amber); color: var(--ink); }
 .store-sec .muted { text-transform: none; letter-spacing: 0; font-weight: 600; }
+/* Helper training buttons (playtest 4). */
+.train-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }

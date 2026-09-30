@@ -738,12 +738,12 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
   animation: spot-pulse 1.4s ease-in-out infinite;
 }
 @keyframes spot-pulse {
-  0%, 100% { box-shadow: 0 0 0 3px #ffd23a, 0 0 0 100vmax rgba(12, 8, 16, 0.55); }
-  50% { box-shadow: 0 0 0 7px #ffd23a, 0 0 0 100vmax rgba(12, 8, 16, 0.55); }
+  0%, 100% { box-shadow: 0 0 0 3px #ffd23a, 0 0 0 9999px rgba(12, 8, 16, 0.55); }
+  50% { box-shadow: 0 0 0 7px #ffd23a, 0 0 0 9999px rgba(12, 8, 16, 0.55); }
 }
 body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; }
 @media (prefers-reduced-motion: reduce) {
-  .spotlight { animation: none; box-shadow: 0 0 0 5px #ffd23a, 0 0 0 100vmax rgba(12, 8, 16, 0.55); }
+  .spotlight { animation: none; box-shadow: 0 0 0 5px #ffd23a, 0 0 0 9999px rgba(12, 8, 16, 0.55); }
 }
 
 /* Goal progress bar ("412 / 1,000"). */
@@ -757,6 +757,8 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
 .hive-style-btn { display: grid; justify-items: center; gap: 2px; background: none; border: 2px dashed transparent; border-radius: 6px; padding: 2px 4px; cursor: pointer; font-size: 0.7rem; font-weight: 800; color: var(--ink-soft); }
 .hive-style-btn:hover { border-color: var(--amber); color: var(--ink); }
 .store-sec .muted { text-transform: none; letter-spacing: 0; font-weight: 600; }
+/* Helper training buttons (playtest 4). */
+.train-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 
 </style>
 <!-- Lets phones install the game to the home screen (see manifest.webmanifest and sw.js). -->
@@ -1223,6 +1225,9 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     { id: 'cart', name: 'Honey Cart', base: 1500, growth: 3, max: 8, desc: (lv) => 'Sells storehouse overflow at ' + (lv ? 20 + lv * 5 : 20) + '% price instead of wasting it.' },
     { id: 'beebox', name: 'Bigger Bee Box', base: 400, growth: 2.8, max: 10, desc: () => '+4 spaces for spare bees.' },
     { id: 'nursery', name: 'Nursery Cradle', base: 3000, growth: 12, max: 2, desc: () => '+1 breeding slot.' },
+    // Playtest 4: a bigger shop. Each level knocks through a wall so every
+    // shelf holds 3 more items (6 → 9 → 12...), so shelves empty less often.
+    { id: 'expand', name: 'Shop Expansion', base: 2500, growth: 6, max: 6, desc: (lv) => 'Every shelf holds 3 more items (now ' + (6 + 3 * lv) + ', next ' + (9 + 3 * lv) + ').' },
   ];
 
   // Cost of building hive number 1, 2, 3... (the first one is free).
@@ -1414,6 +1419,13 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     { id: 'deco-lanterns', cat: 'gardenDecor', name: 'Garden Lanterns', cost: { coins: 1500 }, bonus: { rep: 0.05 } },
     { id: 'deco-pond', cat: 'gardenDecor', name: 'Lily Pond', cost: { coins: 8000 }, bonus: { prod: 0.05 } },
     { id: 'deco-fountain', cat: 'gardenDecor', name: 'Stone Fountain', cost: { gems: 20 }, bonus: { prod: 0.05 } },
+    // SEASONAL SPECIALS (playtest 4): big, pricey decorations that can only be
+    // BOUGHT during their season (you keep them forever once bought). They
+    // soak up spare coins in the mid and late game.
+    { id: 'deco-blossom', cat: 'seasonal', season: 'spring', name: 'Blossom Tree Planter', cost: { coins: 25000 }, bonus: { customers: 0.08 } },
+    { id: 'deco-lemonade', cat: 'seasonal', season: 'summer', name: 'Lemonade Stand', cost: { coins: 150000 }, bonus: { customers: 0.1 } },
+    { id: 'deco-pumpkins', cat: 'seasonal', season: 'autumn', name: 'Pumpkin Patch', cost: { coins: 800000 }, bonus: { prod: 0.08 } },
+    { id: 'deco-tree', cat: 'seasonal', season: 'winter', name: 'Holiday Tree', cost: { coins: 4000000 }, bonus: { rep: 0.15 } },
     // Hive styles (one at a time; changes how every hive looks)
     { id: 'hive-classic', cat: 'hiveStyle', name: 'Classic Boxes', default: true },
     { id: 'hive-painted', cat: 'hiveStyle', name: 'Painted Cottage', cost: { coins: 2000 } },
@@ -1433,7 +1445,20 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     { cat: 'wall', name: 'Wallpaper', pick: true },
     { cat: 'floor', name: 'Floors', pick: true },
     { cat: 'hiveStyle', name: 'Hive styles', pick: true },
+    { cat: 'seasonal', name: 'Seasonal specials', pick: false },
   ];
+
+  // ---------------------------------------------------------------------------
+  // HELPER TRAINING (playtest 4): spend coins to train each helper. Training
+  // is instant (it doesn't use the builder) and each helper has two tracks:
+  //   speed   walks 15% faster per level
+  //   basket  carries 6 more jars per trip per level (on top of Bigger Basket)
+  // Price of the next level = base × growth^(current level), rounded.
+  // ---------------------------------------------------------------------------
+  const TRAINING = {
+    speed: { name: 'Quick feet', per: 0.15, base: 400, growth: 3, max: 10 },
+    basket: { name: 'Strong arms', per: 6, base: 500, growth: 3, max: 10 },
+  };
 
   // ---------------------------------------------------------------------------
   // GEMS: the rare currency. You earn them from goals, requests, festivals,
@@ -1512,7 +1537,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
 
   HC.data = {
     SEASONS, GOODS, SPECIES, RECIPES, TRAITS, UPGRADES, HIVE_COSTS, HIVE_MAX_LEVEL, CUSTOMERS,
-    HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, TIPS, MACHINE, STAFF, DUTIES, REP, EVENTS, CATALOG, STORE_SECTIONS, GEMS,
+    HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, TIPS, MACHINE, STAFF, TRAINING, DUTIES, REP, EVENTS, CATALOG, STORE_SECTIONS, GEMS,
     good: byId(GOODS),
     species: byId(SPECIES),
     upgrade: byId(UPGRADES),
@@ -2044,9 +2069,16 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       return util.nice(u.base * Math.pow(u.growth, s.up[id] || 0));
     },
     storageCap: (s) => Math.floor(40 * (1 + 0.6 * s.up.storage)), // per product
-    shelfCap: () => 6, // items per shelf
+    shelfCap: (s) => 6 + 3 * (s.up.expand || 0), // items per shelf (Shop Expansion adds 3)
     boxCap: (s) => 10 + 4 * s.up.beebox, // spare-bee spaces
     carryCap: (s) => 12 + 8 * s.up.basket, // jars one person can carry per trip
+    // What one particular worker can carry: Bigger Basket for everyone, plus
+    // that helper's own "Strong arms" training.
+    carryOf: (s, w) => f.carryCap(s) + D.TRAINING.basket.per * f.trainLevel(s, w.role, 'basket'),
+    // A helper's training level on a track ('speed' or 'basket'). The
+    // shopkeeper isn't trained, so always 0.
+    trainLevel: (s, role, track) => (s.staff[role] && s.staff[role][track]) || 0,
+    trainCost: (s, role, track) => util.nice(D.TRAINING[track].base * Math.pow(D.TRAINING[track].growth, f.trainLevel(s, role, track))),
     priceMult: (s) => (1 + 0.08 * s.up.labels) * (1 + 0.1 * s.ribbons),
     // Sale price of one item right now, including all bonuses.
     price(s, goodId, mult = 1) {
@@ -2893,22 +2925,9 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     return { ok: true, msg: b.label + ' finished.' };
   }
 
-  // OVERTIME (playtest 3): finish a build with COINS instead of gems. You pay
-  // the builder twice the unfinished share of what the build cost, e.g. a
-  // ₵10,000 upgrade that's half done costs ₵10,000 to finish now. It gives
-  // spare coins a use once money piles up, without handing out gems.
-  const overtimeCost = (s, b) => util.nice(2 * (b.cost || 0) * (left(s, b) / b.dur));
-  function overtime(s, id) {
-    const b = s.builds.find((x) => x.id === id);
-    if (!b) return { ok: false, msg: 'That build already finished.' };
-    const cost = overtimeCost(s, b);
-    if (s.coins < cost) return { ok: false, msg: 'Not enough coins for overtime.' };
-    s.coins -= cost;
-    finish(s, b);
-    return { ok: true, msg: 'The builder worked overtime: ' + b.label + ' finished.' };
-  }
-
-  HC.builds = { start, finish, update, skip, overtime, overtimeCost, find, left, freeBuilder };
+  // Note: finishing early costs GEMS only. (Playtest 4: coins must not
+  // shortcut builds; waiting, or spending gems, is the point.)
+  HC.builds = { start, finish, update, skip, find, left, freeBuilder };
 })();
 
 </script>
@@ -3431,7 +3450,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
         { act: (s2, w2) => {
           w2.targetHive = null;
           if (!s2.hives[i]) return { insert: [{ go: homeOf(s2, w2) }] };
-          const got = sim().takeFromHive(s2, i, f().carryCap(s2) - carried(w2));
+          const got = sim().takeFromHive(s2, i, f().carryOf(s2, w2) - carried(w2));
           let n = 0;
           for (const g in got) {
             w2.carry[g] = (w2.carry[g] || 0) + got[g];
@@ -3458,7 +3477,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
         { go: 'STORE' },
         { act: (s2, w2) => {
           const cap = f().shelfCap(s2);
-          let room = f().carryCap(s2) - carried(w2);
+          let room = f().carryOf(s2, w2) - carried(w2);
           const visits = [];
           // Emptiest shelves first.
           const order = s2.shelves.map((sh, k) => k).filter((k) => s2.shelves[k].good)
@@ -3508,7 +3527,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
         { act: (s2, w2) => {
           const m = s2.machine;
           if (!m) return { insert: [{ go: homeOf(s2, w2) }] };
-          const want = Math.min(f().carryCap(s2) - carried(w2), f().machineCap(s2) - m.wax, s2.store.wax || 0);
+          const want = Math.min(f().carryOf(s2, w2) - carried(w2), f().machineCap(s2) - m.wax, s2.store.wax || 0);
           if (want > 0) {
             s2.store.wax -= want;
             w2.carry.wax = (w2.carry.wax || 0) + want;
@@ -3528,7 +3547,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
             w2.carry.wax -= load;
             if (w2.carry.wax <= 0) delete w2.carry.wax;
           }
-          const take = Math.min(m.candles, f().carryCap(s2) - carried(w2));
+          const take = Math.min(m.candles, f().carryOf(s2, w2) - carried(w2));
           if (take > 0) {
             m.candles -= take;
             w2.carry.candle = (w2.carry.candle || 0) + take;
@@ -3622,6 +3641,8 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
           continue;
         }
         if (!w.path.length) w.path = nav.route(w.node, step.go);
+        // "Quick feet" training makes a helper walk faster.
+        w.speed = (w.role === 'keeper' ? 38 : 34) * (1 + D.TRAINING.speed.per * f().trainLevel(s, w.role, 'speed'));
         if (nav.moveAlong(w, dt)) {
           w.node = step.go;
           job.i++;
@@ -3990,11 +4011,6 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       const r = HC.builds.skip(S(), id);
       return r.ok ? done(r.msg, 'discover') : fail(r.msg);
     },
-    // Finish a build now with coins (see "OVERTIME" in builds.js).
-    overtime(id) {
-      const r = HC.builds.overtime(S(), id);
-      return r.ok ? done(r.msg, 'coin') : fail(r.msg);
-    },
     // -------------------------------------------------------------------------
     // STAFF
     // -------------------------------------------------------------------------
@@ -4025,6 +4041,17 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       delete s.staff[id];
       HC.workers.sync(s);
       return done(D.staff[id].name + ' has left. No more wages for them.', 'click');
+    },
+    // Train a helper on one track ('speed' or 'basket'). Instant, coins only.
+    train(id, track) {
+      const s = S();
+      const t = D.TRAINING[track];
+      if (!s.staff[id] || !t) return fail('Nobody to train.');
+      const lv = f().trainLevel(s, id, track);
+      if (lv >= t.max) return fail(D.staff[id].name + ' is fully trained in ' + t.name + '.');
+      if (!spend(f().trainCost(s, id, track))) return fail('Not enough coins.');
+      s.staff[id][track] = lv + 1;
+      return done(D.staff[id].name + ' finished ' + t.name + ' training (level ' + (lv + 1) + ').', 'discover');
     },
     // Give someone a new duty. `who` is 'keeper' or a helper's id.
     // Whatever they were doing is finished first (they won't drop a basket).
@@ -4143,13 +4170,15 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       const item = D.item[id];
       if (!item) return fail('Unknown item.');
       if (s.cos.owned[id]) return fail('You already own that.');
+      // Seasonal specials can only be bought during their season.
+      if (item.season && f().season(s).id !== item.season) return fail(item.name + ' is only sold in ' + D.SEASONS.find((x) => x.id === item.season).name + '.');
       const cost = item.cost || {};
       if (cost.coins && s.coins < cost.coins) return fail('Not enough coins.');
       if (cost.gems && s.gems < cost.gems) return fail('Not enough gems.');
       if (cost.coins) s.coins -= cost.coins;
       if (cost.gems) s.gems -= cost.gems;
       s.cos.owned[id] = true;
-      if (/Decor$/.test(item.cat)) s.stats.decor++;
+      if (/Decor$/.test(item.cat) || item.cat === 'seasonal') s.stats.decor++;
       act.useItem(id, true);
       return done(item.name + ' is yours!', 'discover');
     },
@@ -5473,6 +5502,12 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     if (P['deco-gnome']) actors.push({ y: 40, draw: () => drawGnome(t) });
     if (P['deco-fountain']) actors.push({ y: 106, draw: () => drawFountain(t) });
     if (P['deco-lanterns']) actors.push({ y: 70, draw: () => drawLanterns(s, t) });
+    // Seasonal specials (playtest 4). The number is where they "stand", so
+    // people walking in front of or behind them overlap correctly.
+    if (P['deco-blossom']) actors.push({ y: 150, draw: () => drawBlossom(t) });
+    if (P['deco-lemonade']) actors.push({ y: 156, draw: drawLemonade });
+    if (P['deco-pumpkins']) actors.push({ y: 144, draw: drawPumpkins });
+    if (P['deco-tree']) actors.push({ y: 84, draw: () => drawHolidayTree(t) });
     actors.push({ y: L.board.y + 3, draw: () => drawBoard(s) });
     actors.sort((a, b) => a.y - b.y);
     for (const a of actors) a.draw();
@@ -5576,6 +5611,53 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     r(228, 116, 8, 8, INK); r(229, 117, 6, 6, '#b86a32');
     r(226, 108, 4, 4, '#4a9a3c'); r(231, 104, 4, 7, '#5aae48'); r(228, 102, 3, 5, '#6cc054'); r(233, 110, 3, 3, '#4a9a3c');
   }
+  // ---- Seasonal specials ------------------------------------------------
+  // Spring: a flowering tree in a planter, outside right of the shop.
+  function drawBlossom(t) {
+    const r = (x, y, w, h, c) => rect(ctx, x, y, w, h, c);
+    r(224, 144, 14, 6, INK); r(225, 145, 12, 4, '#a86a32'); r(225, 145, 12, 1, '#c8884a'); // planter
+    r(230, 132, 2, 12, '#6a4a2a'); // trunk
+    for (const [x, y, w, h] of [[223, 124, 16, 9], [225, 121, 12, 3], [221, 127, 3, 4], [238, 127, 2, 4]]) r(x, y, w, h, '#f4a8c4');
+    for (const [x, y] of [[225, 125], [229, 123], [234, 126], [227, 129], [236, 130], [231, 128]]) r(x, y, 2, 2, '#fff0f6');
+    // a petal drifting down
+    const k = (t * 0.4) % 1;
+    r(Math.round(236 - k * 10), Math.round(130 + k * 18), 1, 1, '#f4a8c4');
+  }
+  // Summer: a striped lemonade stand on the street, left of the door.
+  function drawLemonade() {
+    // Drawn relative to (ox, oy) = its top-left corner, on the street at the
+    // bottom-left of the picture.
+    const ox = 2, oy = 134;
+    const r = (x, y, w, h, c) => rect(ctx, ox + x, oy + y, w, h, c);
+    r(3, 3, 1, 10, INK); r(25, 3, 1, 10, INK); // awning poles
+    r(0, 0, 29, 5, INK);
+    for (let k = 0; k < 7; k++) r(1 + k * 4, 1, 4, 3, k % 2 ? '#fff8e0' : '#f8d030'); // striped awning
+    r(1, 12, 27, 10, INK); r(2, 13, 25, 8, '#f8e8a0'); r(2, 16, 25, 1, '#e8c860'); // counter
+    r(12, 8, 5, 5, INK); r(13, 9, 3, 3, '#fff070'); // pitcher of lemonade
+    r(19, 10, 2, 3, '#e8f4ff'); r(6, 10, 2, 3, '#e8f4ff'); // cups
+  }
+  // Autumn: three pumpkins beside the garden path, near the street.
+  function drawPumpkins() {
+    const r = (x, y, w, h, c) => rect(ctx, x + 31, y, w, h, c); // shifted 31px right
+    for (const [x, y, w] of [[2, 137, 7], [9, 138, 6], [5, 132, 6]]) {
+      r(x, y, w, 5, INK); r(x + 1, y + 1, w - 2, 3, '#e8762a'); r(x + Math.floor(w / 2), y + 1, 1, 3, '#c85a1a');
+      r(x + Math.floor(w / 2), y - 1, 1, 2, '#4a7a2a'); // stem
+    }
+    r(13, 135, 3, 2, '#5aae48'); // a leaf
+  }
+  // Winter: a decorated tree inside the shop, beside the Candle Machine.
+  function drawHolidayTree(t) {
+    const r = (x, y, w, h, c) => rect(ctx, x, y, w, h, c);
+    r(190, 79, 6, 5, INK); r(191, 80, 4, 3, '#b8483a'); // pot
+    for (let k = 0; k < 18; k++) {
+      const w = 2 + Math.floor((k % 6) * 1.6) + Math.floor(k / 6) * 2; // three tiers, wider going down
+      r(193 - Math.floor(w / 2), 61 + k, w, 1, k % 6 === 5 ? '#2e6e2e' : '#3e8e3e');
+    }
+    r(192, 57, 3, 3, '#ffd23a'); // star on top
+    const on = Math.floor(t * 2) % 2;
+    for (const [x, y, c] of [[190, 66, '#f07898'], [195, 70, '#8ad0f0'], [189, 74, '#ffd23a'], [197, 76, '#f07898'], [193, 72, '#fff8e0']]) r(x, y, 1, 1, on ? c : '#fff8e0');
+  }
+
   function drawChalkboard() {
     const r = (x, y, w, h, c) => rect(ctx, x, y, w, h, c);
     r(125, 139, 14, 12, INK); r(126, 140, 12, 9, '#2e4a3a');
@@ -5828,6 +5910,10 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     'deco-lanterns': [36, 46, 24, 66, () => drawLanterns(HC.game, 0)],
     'deco-pond': [80, 46, 22, 16, () => drawGardenFlat({ cos: { placed: { 'deco-pond': true } } }, 0)],
     'deco-fountain': [81, 83, 20, 24, () => drawFountain(0)],
+    'deco-blossom': [220, 120, 20, 31, () => drawBlossom(0)],
+    'deco-lemonade': [1, 133, 31, 24, drawLemonade],
+    'deco-pumpkins': [32, 130, 16, 13, drawPumpkins],
+    'deco-tree': [186, 56, 14, 29, () => drawHolidayTree(0)],
   };
   function drawLightsOnly() {
     for (let x = 114; x < 158; x += 6) {
@@ -6087,8 +6173,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
   function buildingChip(b) {
     return `<span class="building">${icon('hammer', 12)}<span data-live="${L(() => util.fmtTime(HC.builds.left(S(), b)))}"></span>
       ${bar(() => 1 - HC.builds.left(S(), b) / b.dur, 'mini')}
-      <button class="btn btn-sm btn-gem" data-act="skipBuild" data-id="${b.id}" data-afford="${L(() => S().gems >= f().gemsToSkip(HC.builds.left(S(), b)))}" data-need="Not enough gems.">Finish ${gem()}<span data-live="${L(() => f().gemsToSkip(HC.builds.left(S(), b)))}"></span></button>
-      ${b.cost ? `<button class="btn btn-sm" data-act="overtime" data-id="${b.id}" title="Pay the builder overtime to finish now" data-afford="${L(() => S().coins >= HC.builds.overtimeCost(S(), b))}" data-need="Not enough coins for overtime.">Overtime ${coin()}<span data-live="${L(() => fmt(HC.builds.overtimeCost(S(), b)))}"></span></button>` : ''}</span>`;
+      <button class="btn btn-sm btn-gem" data-act="skipBuild" data-id="${b.id}" data-afford="${L(() => S().gems >= f().gemsToSkip(HC.builds.left(S(), b)))}" data-need="Not enough gems.">Finish ${gem()}<span data-live="${L(() => f().gemsToSkip(HC.builds.left(S(), b)))}"></span></button></span>`;
   }
 
   // ---------------------------------------------------------------------------
@@ -6369,6 +6454,14 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       const on = current === d.id;
       return `<button class="duty ${on ? 'on' : ''}" data-act="setDuty" data-who="${who}" data-duty="${d.id}" ${locked ? 'disabled title="Build the Candle Machine first"' : `title="${esc(d.desc)}"`} aria-pressed="${on}">${d.short}</button>`;
     }).join('')}</div>`;
+    // Training buttons under each helper: "Quick feet Lv 2 → ₵3,600" etc.
+    const trainButtons = (id) => `<div class="train-row">${Object.entries(D.TRAINING).map(([track, t]) => {
+      const lv = f().trainLevel(s, id, track);
+      if (lv >= t.max) return `<span class="chip">${t.name} max</span>`;
+      const cost = f().trainCost(s, id, track);
+      const what = track === 'speed' ? `+${Math.round(t.per * 100)}% walking speed` : `+${t.per} jars per trip`;
+      return btn(`${t.name} <span class="muted">Lv ${lv}</span> ${price(cost)}`, 'train', { id, track }, { cost, cls: 'btn-sm btn-ghost', need: 'Not enough coins.' }).replace('<button ', `<button title="${what}" `);
+    }).join('')}</div>`;
     const workerNow = (role) => `<p class="small">Now: <span data-live="${L(() => { const x = HC.workers.list.find((y) => y.role === role); return x ? HC.workers.statusOf(S(), x) : ''; })}"></span></p>`;
     const keeperDuty = HC.workers.dutyOf(s, 'keeper');
     let staff = `<div class="row-item staff-row">
@@ -6387,6 +6480,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
         <div class="grow"><b>${st.name}</b> <span class="chip">${D.duty[duty].name}</span> <span class="muted small">₵${st.wage}/day + ${Math.round(D.WAGE_SHARE * 100)}% of sales</span>
           ${workerNow(st.id)}
           ${dutyButtons(st.id, duty)}
+          ${trainButtons(st.id)}
         </div>
         ${btn('Let go', 'fire', { id: st.id }, { cls: 'btn-sm btn-ghost' })}
       </div>`;
@@ -6460,7 +6554,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     return `
       <section class="win" id="staff">
         <div class="win-head"><h2>Staff</h2><span class="muted">${wages ? `Tomorrow's wages about ₵<b data-live="${L(() => fmt(f().wagesDue(S())))}"></b>` : 'No helpers yet'}</span></div>
-        <p class="muted small">Give everyone a duty and they get on with it by themselves, even while you're away. Two people on the Register ring customers up faster. Each helper is paid a base wage every morning <b>plus ${Math.round(D.WAGE_SHARE * 100)}% of what the shop earned the day before</b>, so keep enough coins aside: if you can't pay, someone quits.</p>
+        <p class="muted small">Train helpers with coins to make them faster or let them carry more (instant, no builder needed). Give everyone a duty and they get on with it by themselves, even while you're away. Two people on the Register ring customers up faster. Each helper is paid a base wage every morning <b>plus ${Math.round(D.WAGE_SHARE * 100)}% of what the shop earned the day before</b>, so keep enough coins aside: if you can't pay, someone quits.</p>
         <div class="pills">${cover}</div>
         ${noRegister ? '<p class="warn small">Nobody is on the Register: customers will wait in line and may walk out.</p>' : ''}
         <div class="list">${staff}</div>
@@ -6572,7 +6666,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     const look = spr.keeperLook(s);
     const sections = D.STORE_SECTIONS.map((sec) => {
       const items = D.CATALOG.filter((it) => it.cat === sec.cat).map((it) => storeCard(s, it, sec)).join('');
-      const note = sec.cat === 'hiveStyle' ? ' <span class="muted small">(“Use” restyles every hive; to style one hive, tap Style on it in the Apiary tab)</span>' : sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>';
+      const note = sec.cat === 'seasonal' ? ` <span class="muted small">(each is only sold in its own season, and you keep it forever: ${esc(f().season(s).name)} now)</span>` : sec.cat === 'hiveStyle' ? ' <span class="muted small">(“Use” restyles every hive; to style one hive, tap Style on it in the Apiary tab)</span>' : sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>';
       return `<h3 class="store-sec">${sec.name}${note}</h3><div class="store-cards">${items}</div>`;
     }).join('');
     return `
@@ -6600,7 +6694,11 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     const owned = !!s.cos.owned[it.id];
     const inUse = sec.pick ? s.cos.equip[it.cat] === it.id : !!s.cos.placed[it.id];
     let action;
-    if (!owned) {
+    const offSeason = it.season && f().season(s).id !== it.season;
+    if (!owned && offSeason) {
+      // Seasonal specials can only be bought in their own season.
+      action = `<span class="chip">Only in ${D.SEASONS.find((x) => x.id === it.season).name}</span>`;
+    } else if (!owned) {
       const c = it.cost || {};
       action = c.gems ? btn(`Buy ${gemPrice(c.gems)}`, 'buyItem', { id: it.id }, { gems: c.gems, cls: 'btn-sm btn-gem', need: 'Not enough gems.' })
         : btn(`Buy ${price(c.coins || 0)}`, 'buyItem', { id: it.id }, { cost: c.coins || 0, cls: 'btn-sm' });
@@ -7180,8 +7278,8 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       case 'upgradeMachine': r = HC.act.upgradeMachine(); break;
       case 'tendMachine': r = HC.act.tendMachine(); break;
       case 'skipBuild': r = HC.act.skipBuild(ds.id); break;
-      case 'overtime': r = HC.act.overtime(ds.id); break;
       case 'setDuty': r = HC.act.setDuty(ds.who, ds.duty); break;
+      case 'train': r = HC.act.train(ds.id, ds.track); break;
       case 'rep': return repModal();
       case 'collect': r = HC.act.collect(Number(ds.i)); break;
       case 'collectAll': r = HC.act.collectAll(); break;

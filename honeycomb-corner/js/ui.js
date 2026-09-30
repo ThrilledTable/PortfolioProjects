@@ -84,8 +84,7 @@
   function buildingChip(b) {
     return `<span class="building">${icon('hammer', 12)}<span data-live="${L(() => util.fmtTime(HC.builds.left(S(), b)))}"></span>
       ${bar(() => 1 - HC.builds.left(S(), b) / b.dur, 'mini')}
-      <button class="btn btn-sm btn-gem" data-act="skipBuild" data-id="${b.id}" data-afford="${L(() => S().gems >= f().gemsToSkip(HC.builds.left(S(), b)))}" data-need="Not enough gems.">Finish ${gem()}<span data-live="${L(() => f().gemsToSkip(HC.builds.left(S(), b)))}"></span></button>
-      ${b.cost ? `<button class="btn btn-sm" data-act="overtime" data-id="${b.id}" title="Pay the builder overtime to finish now" data-afford="${L(() => S().coins >= HC.builds.overtimeCost(S(), b))}" data-need="Not enough coins for overtime.">Overtime ${coin()}<span data-live="${L(() => fmt(HC.builds.overtimeCost(S(), b)))}"></span></button>` : ''}</span>`;
+      <button class="btn btn-sm btn-gem" data-act="skipBuild" data-id="${b.id}" data-afford="${L(() => S().gems >= f().gemsToSkip(HC.builds.left(S(), b)))}" data-need="Not enough gems.">Finish ${gem()}<span data-live="${L(() => f().gemsToSkip(HC.builds.left(S(), b)))}"></span></button></span>`;
   }
 
   // ---------------------------------------------------------------------------
@@ -366,6 +365,14 @@
       const on = current === d.id;
       return `<button class="duty ${on ? 'on' : ''}" data-act="setDuty" data-who="${who}" data-duty="${d.id}" ${locked ? 'disabled title="Build the Candle Machine first"' : `title="${esc(d.desc)}"`} aria-pressed="${on}">${d.short}</button>`;
     }).join('')}</div>`;
+    // Training buttons under each helper: "Quick feet Lv 2 → ₵3,600" etc.
+    const trainButtons = (id) => `<div class="train-row">${Object.entries(D.TRAINING).map(([track, t]) => {
+      const lv = f().trainLevel(s, id, track);
+      if (lv >= t.max) return `<span class="chip">${t.name} max</span>`;
+      const cost = f().trainCost(s, id, track);
+      const what = track === 'speed' ? `+${Math.round(t.per * 100)}% walking speed` : `+${t.per} jars per trip`;
+      return btn(`${t.name} <span class="muted">Lv ${lv}</span> ${price(cost)}`, 'train', { id, track }, { cost, cls: 'btn-sm btn-ghost', need: 'Not enough coins.' }).replace('<button ', `<button title="${what}" `);
+    }).join('')}</div>`;
     const workerNow = (role) => `<p class="small">Now: <span data-live="${L(() => { const x = HC.workers.list.find((y) => y.role === role); return x ? HC.workers.statusOf(S(), x) : ''; })}"></span></p>`;
     const keeperDuty = HC.workers.dutyOf(s, 'keeper');
     let staff = `<div class="row-item staff-row">
@@ -384,6 +391,7 @@
         <div class="grow"><b>${st.name}</b> <span class="chip">${D.duty[duty].name}</span> <span class="muted small">₵${st.wage}/day + ${Math.round(D.WAGE_SHARE * 100)}% of sales</span>
           ${workerNow(st.id)}
           ${dutyButtons(st.id, duty)}
+          ${trainButtons(st.id)}
         </div>
         ${btn('Let go', 'fire', { id: st.id }, { cls: 'btn-sm btn-ghost' })}
       </div>`;
@@ -457,7 +465,7 @@
     return `
       <section class="win" id="staff">
         <div class="win-head"><h2>Staff</h2><span class="muted">${wages ? `Tomorrow's wages about ₵<b data-live="${L(() => fmt(f().wagesDue(S())))}"></b>` : 'No helpers yet'}</span></div>
-        <p class="muted small">Give everyone a duty and they get on with it by themselves, even while you're away. Two people on the Register ring customers up faster. Each helper is paid a base wage every morning <b>plus ${Math.round(D.WAGE_SHARE * 100)}% of what the shop earned the day before</b>, so keep enough coins aside: if you can't pay, someone quits.</p>
+        <p class="muted small">Train helpers with coins to make them faster or let them carry more (instant, no builder needed). Give everyone a duty and they get on with it by themselves, even while you're away. Two people on the Register ring customers up faster. Each helper is paid a base wage every morning <b>plus ${Math.round(D.WAGE_SHARE * 100)}% of what the shop earned the day before</b>, so keep enough coins aside: if you can't pay, someone quits.</p>
         <div class="pills">${cover}</div>
         ${noRegister ? '<p class="warn small">Nobody is on the Register: customers will wait in line and may walk out.</p>' : ''}
         <div class="list">${staff}</div>
@@ -569,7 +577,7 @@
     const look = spr.keeperLook(s);
     const sections = D.STORE_SECTIONS.map((sec) => {
       const items = D.CATALOG.filter((it) => it.cat === sec.cat).map((it) => storeCard(s, it, sec)).join('');
-      const note = sec.cat === 'hiveStyle' ? ' <span class="muted small">(“Use” restyles every hive; to style one hive, tap Style on it in the Apiary tab)</span>' : sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>';
+      const note = sec.cat === 'seasonal' ? ` <span class="muted small">(each is only sold in its own season, and you keep it forever: ${esc(f().season(s).name)} now)</span>` : sec.cat === 'hiveStyle' ? ' <span class="muted small">(“Use” restyles every hive; to style one hive, tap Style on it in the Apiary tab)</span>' : sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>';
       return `<h3 class="store-sec">${sec.name}${note}</h3><div class="store-cards">${items}</div>`;
     }).join('');
     return `
@@ -597,7 +605,11 @@
     const owned = !!s.cos.owned[it.id];
     const inUse = sec.pick ? s.cos.equip[it.cat] === it.id : !!s.cos.placed[it.id];
     let action;
-    if (!owned) {
+    const offSeason = it.season && f().season(s).id !== it.season;
+    if (!owned && offSeason) {
+      // Seasonal specials can only be bought in their own season.
+      action = `<span class="chip">Only in ${D.SEASONS.find((x) => x.id === it.season).name}</span>`;
+    } else if (!owned) {
       const c = it.cost || {};
       action = c.gems ? btn(`Buy ${gemPrice(c.gems)}`, 'buyItem', { id: it.id }, { gems: c.gems, cls: 'btn-sm btn-gem', need: 'Not enough gems.' })
         : btn(`Buy ${price(c.coins || 0)}`, 'buyItem', { id: it.id }, { cost: c.coins || 0, cls: 'btn-sm' });
@@ -1177,8 +1189,8 @@
       case 'upgradeMachine': r = HC.act.upgradeMachine(); break;
       case 'tendMachine': r = HC.act.tendMachine(); break;
       case 'skipBuild': r = HC.act.skipBuild(ds.id); break;
-      case 'overtime': r = HC.act.overtime(ds.id); break;
       case 'setDuty': r = HC.act.setDuty(ds.who, ds.duty); break;
+      case 'train': r = HC.act.train(ds.id, ds.track); break;
       case 'rep': return repModal();
       case 'collect': r = HC.act.collect(Number(ds.i)); break;
       case 'collectAll': r = HC.act.collectAll(); break;

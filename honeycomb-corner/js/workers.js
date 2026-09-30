@@ -142,7 +142,7 @@
         { act: (s2, w2) => {
           w2.targetHive = null;
           if (!s2.hives[i]) return { insert: [{ go: homeOf(s2, w2) }] };
-          const got = sim().takeFromHive(s2, i, f().carryCap(s2) - carried(w2));
+          const got = sim().takeFromHive(s2, i, f().carryOf(s2, w2) - carried(w2));
           let n = 0;
           for (const g in got) {
             w2.carry[g] = (w2.carry[g] || 0) + got[g];
@@ -169,7 +169,7 @@
         { go: 'STORE' },
         { act: (s2, w2) => {
           const cap = f().shelfCap(s2);
-          let room = f().carryCap(s2) - carried(w2);
+          let room = f().carryOf(s2, w2) - carried(w2);
           const visits = [];
           // Emptiest shelves first.
           const order = s2.shelves.map((sh, k) => k).filter((k) => s2.shelves[k].good)
@@ -219,7 +219,7 @@
         { act: (s2, w2) => {
           const m = s2.machine;
           if (!m) return { insert: [{ go: homeOf(s2, w2) }] };
-          const want = Math.min(f().carryCap(s2) - carried(w2), f().machineCap(s2) - m.wax, s2.store.wax || 0);
+          const want = Math.min(f().carryOf(s2, w2) - carried(w2), f().machineCap(s2) - m.wax, s2.store.wax || 0);
           if (want > 0) {
             s2.store.wax -= want;
             w2.carry.wax = (w2.carry.wax || 0) + want;
@@ -239,7 +239,7 @@
             w2.carry.wax -= load;
             if (w2.carry.wax <= 0) delete w2.carry.wax;
           }
-          const take = Math.min(m.candles, f().carryCap(s2) - carried(w2));
+          const take = Math.min(m.candles, f().carryOf(s2, w2) - carried(w2));
           if (take > 0) {
             m.candles -= take;
             w2.carry.candle = (w2.carry.candle || 0) + take;
@@ -333,6 +333,8 @@
           continue;
         }
         if (!w.path.length) w.path = nav.route(w.node, step.go);
+        // "Quick feet" training makes a helper walk faster.
+        w.speed = (w.role === 'keeper' ? 38 : 34) * (1 + D.TRAINING.speed.per * f().trainLevel(s, w.role, 'speed'));
         if (nav.moveAlong(w, dt)) {
           w.node = step.go;
           job.i++;

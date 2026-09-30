@@ -88,25 +88,30 @@ function run(hours) {
       if (s.staff[id] && s.staff[id].duty !== duty && (duty !== 'candles' || s.machine)) act.setDuty(id, duty);
     });
     if (s.discovered.waxwing && !s.machine) act.buildMachine();
-    // Pay overtime when coins are piling up (more than 3x the overtime price
-    // on top of the wage reserve).
-    for (const b of s.builds) if (s.coins - f.wagesDue(s) * 1.2 > HC.builds.overtimeCost(s, b) * 3) act.overtime(b.id);
     // Use gems only on nearly-finished builds (a thrifty player).
     for (const b of s.builds) if (f.gemsToSkip(HC.builds.left(s, b)) <= 2 && s.gems > 20) act.skipBuild(b.id);
     // Spend: the cheapest useful thing.
     const options = [];
-    if (s.hives.length < 6) options.push([f.hiveCost(s) * 0.8, () => act.buildHive()]);
-    s.hives.forEach((h, i) => h.level < 5 && options.push([f.hiveUpgradeCost(s, i), () => act.upgradeHive(i)]));
-    for (const u of D.UPGRADES) {
+    // Builder jobs only when the builder is free (otherwise they'd fail and
+    // block the bot from buying anything else).
+    const canBuild = HC.builds.freeBuilder(s);
+    if (canBuild && s.hives.length < 6) options.push([f.hiveCost(s) * 0.8, () => act.buildHive()]);
+    if (canBuild) s.hives.forEach((h, i) => h.level < 5 && options.push([f.hiveUpgradeCost(s, i), () => act.upgradeHive(i)]));
+    for (const u of canBuild ? D.UPGRADES : []) {
       if (s.up[u.id] >= u.max) continue;
       if (u.id === 'nursery' && s.up.nursery >= 1 && !s.discovered.royal) continue;
       options.push([f.upgradeCost(s, u.id) * (u.id === 'shelf' ? 0.6 : 1), () => act.buyUpgrade(u.id)]);
     }
-    if (s.machine && s.machine.level < 5) options.push([f.machineUpgradeCost(s) * 1.5, () => act.upgradeMachine()]);
+    if (canBuild && s.machine && s.machine.level < 5) options.push([f.machineUpgradeCost(s) * 1.5, () => act.upgradeMachine()]);
     if (s.hives.some((h) => h.bees.length < f.hiveCap(h))) {
       if (f.marketUnlocked(s, 'clover')) options.push([f.marketPrice(s, 'clover') * 0.7, () => act.buyBee('clover')]);
       options.push([f.marketPrice(s, 'meadow') * (f.marketUnlocked(s, 'clover') ? 4 : 1), () => act.buyBee('meadow')]);
     }
+    // Coin sinks added in playtest 4: helper training and seasonal decor.
+    for (const id in s.staff) for (const track of ['speed', 'basket']) {
+      if (f.trainLevel(s, id, track) < D.TRAINING[track].max) options.push([f.trainCost(s, id, track) * 1.5, () => act.train(id, track)]);
+    }
+    for (const it of D.CATALOG) if (it.season && !s.cos.owned[it.id] && f.season(s).id === it.season) options.push([it.cost.coins * 1.2, () => act.buyItem(it.id)]);
     options.sort((a, b) => a[0] - b[0]);
     // Keep tomorrow's wages aside, like a sensible player.
     const reserve = f.wagesDue(s) * 1.2;

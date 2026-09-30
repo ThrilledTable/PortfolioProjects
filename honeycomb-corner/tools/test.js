@@ -493,6 +493,36 @@ test('a hive can have its own style', (HC) => {
   assert(!s.hives[0].style, 'Store "Use" restyles every hive');
 });
 
+test('helpers can be trained with coins: faster and carrying more', (HC) => {
+  const s = HC.game;
+  s.coins = 1e5;
+  HC.act.hire('rosa');
+  advance(HC, 1);
+  const w = HC.workers.list.find((x) => x.role === 'rosa');
+  const carry = HC.sim.f.carryOf(s, w);
+  assert(HC.act.train('rosa', 'basket').ok);
+  assert.strictEqual(HC.sim.f.carryOf(s, w), carry + HC.data.TRAINING.basket.per);
+  assert(HC.act.train('rosa', 'speed').ok);
+  assert.strictEqual(s.builds.length, 0, 'training does not use the builder');
+  assert(!HC.act.train('keeper', 'speed').ok, 'only helpers train');
+});
+
+test('seasonal specials are only sold in their season; Shop Expansion grows shelves', (HC) => {
+  const s = HC.game;
+  s.coins = 1e7;
+  assert.strictEqual(HC.sim.f.season(s).id, 'spring');
+  assert(!HC.act.buyItem('deco-tree').ok, 'Holiday Tree is winter only');
+  assert(HC.act.buyItem('deco-blossom').ok);
+  assert(s.cos.placed['deco-blossom']);
+  const cap = HC.sim.f.shelfCap(s);
+  s.up.expand = 1;
+  assert.strictEqual(HC.sim.f.shelfCap(s), cap + 3);
+});
+
+test('builds cannot be finished with coins', (HC) => {
+  assert(!HC.act.overtime && !HC.builds.overtime);
+});
+
 test('there is one builder: a second build waits', (HC) => {
   const s = HC.game;
   s.coins = 1e5;

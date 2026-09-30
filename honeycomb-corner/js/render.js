@@ -554,6 +554,12 @@
     if (P['deco-gnome']) actors.push({ y: 40, draw: () => drawGnome(t) });
     if (P['deco-fountain']) actors.push({ y: 106, draw: () => drawFountain(t) });
     if (P['deco-lanterns']) actors.push({ y: 70, draw: () => drawLanterns(s, t) });
+    // Seasonal specials (playtest 4). The number is where they "stand", so
+    // people walking in front of or behind them overlap correctly.
+    if (P['deco-blossom']) actors.push({ y: 150, draw: () => drawBlossom(t) });
+    if (P['deco-lemonade']) actors.push({ y: 156, draw: drawLemonade });
+    if (P['deco-pumpkins']) actors.push({ y: 144, draw: drawPumpkins });
+    if (P['deco-tree']) actors.push({ y: 84, draw: () => drawHolidayTree(t) });
     actors.push({ y: L.board.y + 3, draw: () => drawBoard(s) });
     actors.sort((a, b) => a.y - b.y);
     for (const a of actors) a.draw();
@@ -657,6 +663,53 @@
     r(228, 116, 8, 8, INK); r(229, 117, 6, 6, '#b86a32');
     r(226, 108, 4, 4, '#4a9a3c'); r(231, 104, 4, 7, '#5aae48'); r(228, 102, 3, 5, '#6cc054'); r(233, 110, 3, 3, '#4a9a3c');
   }
+  // ---- Seasonal specials ------------------------------------------------
+  // Spring: a flowering tree in a planter, outside right of the shop.
+  function drawBlossom(t) {
+    const r = (x, y, w, h, c) => rect(ctx, x, y, w, h, c);
+    r(224, 144, 14, 6, INK); r(225, 145, 12, 4, '#a86a32'); r(225, 145, 12, 1, '#c8884a'); // planter
+    r(230, 132, 2, 12, '#6a4a2a'); // trunk
+    for (const [x, y, w, h] of [[223, 124, 16, 9], [225, 121, 12, 3], [221, 127, 3, 4], [238, 127, 2, 4]]) r(x, y, w, h, '#f4a8c4');
+    for (const [x, y] of [[225, 125], [229, 123], [234, 126], [227, 129], [236, 130], [231, 128]]) r(x, y, 2, 2, '#fff0f6');
+    // a petal drifting down
+    const k = (t * 0.4) % 1;
+    r(Math.round(236 - k * 10), Math.round(130 + k * 18), 1, 1, '#f4a8c4');
+  }
+  // Summer: a striped lemonade stand on the street, left of the door.
+  function drawLemonade() {
+    // Drawn relative to (ox, oy) = its top-left corner, on the street at the
+    // bottom-left of the picture.
+    const ox = 2, oy = 134;
+    const r = (x, y, w, h, c) => rect(ctx, ox + x, oy + y, w, h, c);
+    r(3, 3, 1, 10, INK); r(25, 3, 1, 10, INK); // awning poles
+    r(0, 0, 29, 5, INK);
+    for (let k = 0; k < 7; k++) r(1 + k * 4, 1, 4, 3, k % 2 ? '#fff8e0' : '#f8d030'); // striped awning
+    r(1, 12, 27, 10, INK); r(2, 13, 25, 8, '#f8e8a0'); r(2, 16, 25, 1, '#e8c860'); // counter
+    r(12, 8, 5, 5, INK); r(13, 9, 3, 3, '#fff070'); // pitcher of lemonade
+    r(19, 10, 2, 3, '#e8f4ff'); r(6, 10, 2, 3, '#e8f4ff'); // cups
+  }
+  // Autumn: three pumpkins beside the garden path, near the street.
+  function drawPumpkins() {
+    const r = (x, y, w, h, c) => rect(ctx, x + 31, y, w, h, c); // shifted 31px right
+    for (const [x, y, w] of [[2, 137, 7], [9, 138, 6], [5, 132, 6]]) {
+      r(x, y, w, 5, INK); r(x + 1, y + 1, w - 2, 3, '#e8762a'); r(x + Math.floor(w / 2), y + 1, 1, 3, '#c85a1a');
+      r(x + Math.floor(w / 2), y - 1, 1, 2, '#4a7a2a'); // stem
+    }
+    r(13, 135, 3, 2, '#5aae48'); // a leaf
+  }
+  // Winter: a decorated tree inside the shop, beside the Candle Machine.
+  function drawHolidayTree(t) {
+    const r = (x, y, w, h, c) => rect(ctx, x, y, w, h, c);
+    r(190, 79, 6, 5, INK); r(191, 80, 4, 3, '#b8483a'); // pot
+    for (let k = 0; k < 18; k++) {
+      const w = 2 + Math.floor((k % 6) * 1.6) + Math.floor(k / 6) * 2; // three tiers, wider going down
+      r(193 - Math.floor(w / 2), 61 + k, w, 1, k % 6 === 5 ? '#2e6e2e' : '#3e8e3e');
+    }
+    r(192, 57, 3, 3, '#ffd23a'); // star on top
+    const on = Math.floor(t * 2) % 2;
+    for (const [x, y, c] of [[190, 66, '#f07898'], [195, 70, '#8ad0f0'], [189, 74, '#ffd23a'], [197, 76, '#f07898'], [193, 72, '#fff8e0']]) r(x, y, 1, 1, on ? c : '#fff8e0');
+  }
+
   function drawChalkboard() {
     const r = (x, y, w, h, c) => rect(ctx, x, y, w, h, c);
     r(125, 139, 14, 12, INK); r(126, 140, 12, 9, '#2e4a3a');
@@ -909,6 +962,10 @@
     'deco-lanterns': [36, 46, 24, 66, () => drawLanterns(HC.game, 0)],
     'deco-pond': [80, 46, 22, 16, () => drawGardenFlat({ cos: { placed: { 'deco-pond': true } } }, 0)],
     'deco-fountain': [81, 83, 20, 24, () => drawFountain(0)],
+    'deco-blossom': [220, 120, 20, 31, () => drawBlossom(0)],
+    'deco-lemonade': [1, 133, 31, 24, drawLemonade],
+    'deco-pumpkins': [32, 130, 16, 13, drawPumpkins],
+    'deco-tree': [186, 56, 14, 29, () => drawHolidayTree(0)],
   };
   function drawLightsOnly() {
     for (let x = 114; x < 158; x += 6) {
