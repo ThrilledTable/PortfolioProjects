@@ -125,11 +125,12 @@ test('customers wait while nobody is at the register, then walk out', (HC) => {
   assert(s.stats.walkouts > 0 || s.stats.customers < 5, 'expected lost customers while unattended');
 });
 
-test('a cashier lets customers pay while the keeper is out', (HC) => {
+test('a helper on the Register lets customers pay while the keeper is out', (HC) => {
   const s = HC.game;
   setDay(HC, 0.05);
   s.coins = 1000;
-  assert(HC.act.hire('cashier').ok);
+  assert(HC.act.hire('rosa').ok);
+  assert.strictEqual(s.staff.rosa.duty, 'register');
   advance(HC, 10); // cashier walks in
   s.store = { wildflower: 40 };
   const before = s.stats.customers;
@@ -205,8 +206,8 @@ test('the candle machine turns wax into candles, and tending brings them in', (H
 test('wages are paid each morning; staff quit if you cannot pay', (HC) => {
   const s = HC.game;
   s.coins = 2000;
-  HC.act.hire('cashier');
-  HC.act.hire('stocker');
+  HC.act.hire('rosa');
+  HC.act.hire('theo');
   const after = s.coins;
   s.time = (s.lastDay + 1) * HC.data.DAY_LENGTH + 1; // next morning
   advance(HC, 0.1);
@@ -214,14 +215,23 @@ test('wages are paid each morning; staff quit if you cannot pay', (HC) => {
   s.coins = 40;
   s.time = (s.lastDay + 1) * HC.data.DAY_LENGTH + 1;
   advance(HC, 0.1);
-  assert(!s.staff.stocker, 'the stocker quit');
-  assert(s.staff.cashier, 'the cashier stayed and was paid');
+  assert(!s.staff.theo, 'Theo (the pricier helper) quit');
+  assert(s.staff.rosa, 'Rosa stayed and was paid');
 });
 
-test('a collector brings in honey on their own', (HC) => {
+test('helpers are hired in order', (HC) => {
+  const s = HC.game;
+  s.coins = 1e5;
+  assert(!HC.act.hire('theo').ok, 'Rosa comes first');
+  assert(HC.act.hire('rosa').ok);
+  assert(HC.act.hire('theo').ok);
+});
+
+test('a helper assigned to Collect honey brings it in on their own', (HC) => {
   const s = HC.game;
   s.coins = 2000;
-  HC.act.hire('collector');
+  HC.act.hire('rosa');
+  assert(HC.act.setDuty('rosa', 'collect').ok);
   s.hives[0].stock = { wildflower: 14 };
   s.store = {};
   s.shelves[0].good = null;
@@ -280,6 +290,18 @@ test('save round-trips and old saves are upgraded', (HC) => {
   assert.strictEqual(m.cos.equip.hat, 'hat-bandana');
   assert.strictEqual(m.shelves[0].good, null, 'raw goods removed from shelves');
   assert.strictEqual(m.goal, 0, 'goal chain restarts for old saves');
+  // Version 2: fixed staff roles become helpers with duties; gem-bought
+  // builders are refunded.
+  const v2 = JSON.parse(HC.state.serialize(s));
+  v2.v = 2;
+  v2.staff = { cashier: true, collector: true };
+  v2.builders = 3;
+  v2.gems = 0;
+  const m2 = HC.state.deserialize(JSON.stringify(v2));
+  assert.strictEqual(m2.staff.rosa.duty, 'register');
+  assert.strictEqual(m2.staff.mabel.duty, 'collect');
+  assert.strictEqual(m2.builders, 1);
+  assert.strictEqual(m2.gems, 80 + 160, 'builder gems refunded');
 });
 
 test('festival keeps cosmetics, gems, ribbons and the keepsake', (HC) => {
@@ -336,10 +358,11 @@ test('nobody gets stuck over a long run with a full staff', (HC) => {
   const s = HC.game;
   s.coins = 1e6;
   s.discovered.waxwing = true;
-  for (const id of ['cashier', 'stocker', 'collector']) HC.act.hire(id);
+  for (const id of ['rosa', 'theo', 'mabel']) HC.act.hire(id);
   HC.act.buildMachine();
   advance(HC, s.builds[0].dur + 1);
-  HC.act.hire('candler');
+  HC.act.hire('otis');
+  assert.strictEqual(s.staff.otis.duty, 'candles');
   s.store.wax = 40;
   let maxAge = 0;
   const born = new Map();
@@ -354,6 +377,105 @@ test('nobody gets stuck over a long run with a full staff', (HC) => {
   }
   assert(maxAge < 150, 'a customer lingered ' + maxAge.toFixed(0) + 's');
   assert(HC.sim.rt.queue.every((c) => HC.sim.rt.customers.includes(c)), 'queue holds departed customers');
+});
+
+// ---- Added after playtest 2 ------------------------------------------------------
+test('most bees sleep at night; Moonmoths and Night Owls keep working', (HC) => {
+  const s = HC.game;
+  setDay(HC, 0.75);
+  const moth = HC.state.makeBee(s, 'moonmoth');
+  s.hives[0].bees.push(moth.id);
+  s.hives[0].stock = {};
+  for (const id of s.hives[0].bees) s.bees[id].prog = 0;
+  HC.sim.produce(s, 60);
+  assert(!s.hives[0].stock.wildflower, 'meadow bees slept');
+  assert(s.hives[0].stock.moon > 0, 'the moonmoth worked');
+});
+
+test('the shopkeeper can be given a duty and does it without taps', (HC) => {
+  const s = HC.game;
+  setDay(HC, 0.05);
+  s.store = {};
+  s.shelves[0].good = null;
+  s.hives[0].stock = { wildflower: 14 };
+  assert(HC.act.setDuty('keeper', 'collect').ok);
+  advance(HC, 60);
+  assert((s.store.wildflower || 0) > 0, 'keeper collected on their own');
+});
+
+test('two people on the Register ring up faster', (HC) => {
+  const s = HC.game;
+  s.coins = 1000;
+  const alone = HC.sim.f.checkoutTime(s);
+  HC.act.hire('rosa'); // Rosa at the register, the keeper steps beside it to bag
+  advance(HC, 15);
+  assert(HC.workers.baggerPresent(s), 'keeper is bagging');
+  assert(HC.sim.f.checkoutTime(s) < alone * 0.6);
+});
+
+test('at night, whoever is on the Register restocks the shelves', (HC) => {
+  const s = HC.game;
+  setDay(HC, 0.72);
+  s.store = { wildflower: 30 };
+  s.shelves[0] = { good: 'wildflower', qty: 2 };
+  advance(HC, 30);
+  assert.strictEqual(s.shelves[0].qty, HC.sim.f.shelfCap(s), 'shelf filled overnight');
+});
+
+test('the lunch rush brings customers faster', (HC) => {
+  const s = HC.game;
+  setDay(HC, 0.1);
+  const normal = HC.sim.f.spawnInterval(s);
+  setDay(HC, 0.25);
+  assert(HC.sim.f.isRush(s));
+  assert(HC.sim.f.spawnInterval(s) < normal * 0.5);
+});
+
+test("today's special sells for more", (HC) => {
+  const s = HC.game;
+  advance(HC, 0.1);
+  assert(!s.special.good, 'no special with only one product');
+  s.unlockedGoods.clover = true;
+  advance(HC, 0.1);
+  const g = s.special.good;
+  assert(g === 'wildflower' || g === 'clover');
+  assert.strictEqual(HC.sim.f.price(s, g), Math.round(HC.data.good[g].price * HC.data.EVENTS.special.priceMult));
+});
+
+test('the food critic judges the shop', (HC) => {
+  const s = HC.game;
+  setDay(HC, 0.3);
+  s.store = { wildflower: 40 };
+  s.shelves[0].qty = 6;
+  s.critic = { day: HC.sim.f.day(s), at: 0.3, done: false };
+  HC.sim.rt.spawnT = 1e9; // no other shoppers, so nobody empties the shelf first
+  const rep = s.rep;
+  const gems = s.gems;
+  let verdict = null;
+  HC.bus.on('critic', (e) => (verdict = e));
+  advance(HC, 40);
+  assert(verdict, 'the critic visited');
+  assert(verdict.good, 'stocked shop + short wait = good review: ' + JSON.stringify(verdict));
+  assert(s.rep > rep + 0.3 && s.gems >= gems + HC.data.EVENTS.critic.reward);
+});
+
+test('reputation changes are logged by reason', (HC) => {
+  const s = HC.game;
+  HC.sim.changeRep(s, 'walkout');
+  HC.sim.changeRep(s, 'walkout');
+  HC.sim.changeRep(s, 'order');
+  const items = s.repLog.items;
+  assert.strictEqual(items.walkout.n, 2);
+  assert(Math.abs(items.walkout.amt + 0.12) < 1e-9);
+  assert(Math.abs(items.order.amt - 0.15) < 1e-9);
+});
+
+test('there is one builder: a second build waits', (HC) => {
+  const s = HC.game;
+  s.coins = 1e5;
+  assert(HC.act.buyUpgrade('sign').ok);
+  assert(!HC.act.buyUpgrade('storage').ok, 'builder busy');
+  assert(!HC.act.buyBuilder, 'no gem builders');
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ', some FAILED' : ''}`);

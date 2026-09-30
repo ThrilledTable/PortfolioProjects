@@ -27,19 +27,28 @@ Ranked by fit with a cozy audience:
 3. **Cosmetics**: shop wallpaper, hive roof colours, keeper outfits. The renderer already swaps palettes, so this is cheap to add.
 4. **Opt-in rewarded ads only**, e.g. "watch to double this golden drip". Never forced interstitials.
 
-**Gems today** are earned in-game only: from goals, requests, species discoveries, seasons, festivals and drips. They are spent on timer skips (1 gem per 2 minutes left), extra builders and premium cosmetics. That economy is already shaped so a gem store could be added later without redesigning anything. The honest recommendation stays options 1 or 2: a paid gem store would push the design toward long timers, which is exactly what makes the incumbent frustrating.
+**Gems today** are earned in-game only: from goals, requests, species discoveries, seasons, festivals and drips. They are spent on timer skips (1 gem per 2 minutes left) and premium cosmetics. Golden drips are a free bonus and are **not** gated behind ads; if ads were ever added, the only fitting form is an optional "watch to double this drip" button. That economy is already shaped so a gem store could be added later without redesigning anything. The honest recommendation stays options 1 or 2: a paid gem store would push the design toward long timers, which is exactly what makes the incumbent frustrating.
+
+**Builders.** The game has one builder, deliberately: choosing what to build next is a real decision. A second builder is the natural paid unlock (a one-off purchase, not a gem sink), so the prototype shows it locked.
+
+## Keeping it engaging after automation (playtest 2)
+
+Hiring a cashier used to remove the main tension. Now:
+- **Limited hands, assignable duties.** Four duties, a keeper and up to four helpers who cost wages. Early on you choose what to cover; later you rebalance as the shop grows (e.g. two on the Register for the rush).
+- **A daily rhythm.** Morning: today's special (rearrange shelves). Midday: lunch rush (have shelves full, double up the Register). Some days: a food critic (keep everything stocked). Night: bees sleep and the shop restocks.
+- **Readable reputation.** Every change is logged with its reason, so players know what to fix.
 
 ## Balance targets (from `tools/balance.js`)
 
-After the first playtest the loop was deliberately slowed. Honey has to be collected by hand, the register needs a person, upgrades are timed, and the shop closes at night. An attentive bot now reaches:
+After the first playtest the loop was deliberately slowed. Honey has to be collected by hand, the register needs a person, upgrades are timed, and the shop closes at night. After the second, most bees also sleep at night, which slowed the early game by roughly a third. An attentive bot now reaches:
 
 | Milestone | Bot time |
 |---|---|
-| First Clover Bee | about 10–17 min |
-| First five goals | about 16–25 min |
-| Candle Machine | about 22–26 min |
-| Collector hired (hands-off collection) | about 27–31 min |
-| Starlight (last species) | about 3.6–4.1 h |
+| First Clover Bee | about 15–25 min |
+| First five goals | about 25–34 min |
+| Candle Machine | about 29–50 min |
+| Third helper (hands-off collection) | about 30–53 min |
+| Starlight (last species) | about 3.8–4.0 h |
 | First festival available (₵10M) | about 3 h |
 
 The intended arc is **hands-on early, automated later**. For roughly the first half hour you walk out to the hives yourself and watch the register. Staff then take the chores over, and the game shifts to breeding, building and decorating. Timer lengths are tuned "medium": about 40 seconds early on, minutes by mid-game, up to 4 hours for the priciest upgrades.

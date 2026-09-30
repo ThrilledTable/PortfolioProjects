@@ -37,8 +37,14 @@
   --gem: #7ad8f8;         /* gems: the rare speed-up currency */
   --focus: #7ad0f0;
 
-  --font-display: 'Silkscreen', ui-monospace, 'Courier New', monospace;
-  --font-body: 'Pixelify Sans', ui-monospace, 'Courier New', monospace;
+  /* FONTS (changed after playtest 2: the all-caps pixel font was hard to read).
+     Display: Pixelify Sans, a pixel font that stays readable, used only for
+       big things (the logo and window titles) to keep the retro feel.
+     Body and labels: Nunito, a rounded, very legible font for everything you
+       actually read. Labels use its extra-bold weight. */
+  --font-display: 'Pixelify Sans', ui-monospace, 'Courier New', monospace;
+  --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-label: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   --step--1: 0.8125rem;
   --step-0: 1rem;
@@ -63,8 +69,7 @@ body {
   color: var(--cream-text);
   font-family: var(--font-body);
   font-size: var(--step-0);
-  line-height: 1.4;
-  -webkit-font-smoothing: none;
+  line-height: 1.45;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -104,7 +109,7 @@ button { font: inherit; color: inherit; }
   clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
   box-shadow: inset 0 -6px 0 var(--amber);
 }
-.tagline { margin: 0; font-family: var(--font-display); font-size: var(--step--1); color: #b89c86; letter-spacing: 0.06em; text-transform: uppercase; }
+.tagline { margin: 0; font-family: var(--font-label); font-size: var(--step--1); color: #b89c86; letter-spacing: 0.06em; text-transform: uppercase; }
 
 /* ---- Stage: bezel, screen, HUD, tabs ------------------------------------ */
 .stage { display: grid; gap: 10px; align-content: start; min-width: 0; }
@@ -135,20 +140,28 @@ button { font: inherit; color: inherit; }
   touch-action: manipulation;
 }
 
+/* The tutorial / tip text box. After playtest 2 it no longer covers the
+   picture: it sits in its own strip BELOW the screen, with the shopkeeper's
+   portrait, so the whole shop stays visible. Tap it to continue. */
 .textbox {
-  position: absolute;
-  left: 3%; right: 3%; bottom: 4%;
+  position: relative;
+  margin-top: 10px;
+  display: flex; align-items: center; gap: 10px;
   background: var(--parch);
   color: var(--ink);
   border: 3px solid var(--ink);
   border-radius: 6px;
   box-shadow: inset 0 0 0 2px var(--honey), inset 0 0 0 4px var(--parch);
-  padding: 10px 28px 10px 14px;
-  line-height: 1.35;
-  font-size: clamp(0.8rem, 2.4vw, 1.05rem);
+  padding: 8px 30px 8px 10px;
+  line-height: 1.4;
+  font-size: clamp(0.88rem, 2.6vw, 1rem);
+  font-weight: 600;
   min-height: 3.4em;
   cursor: pointer;
+  animation: slide-in 0.18s ease-out;
 }
+@keyframes slide-in { from { transform: translateY(-6px); opacity: 0; } }
+.textbox .speaker { width: 32px; height: 40px; flex: none; }
 .textbox p { margin: 0; }
 .textbox .more {
   position: absolute; right: 12px; bottom: 9px;
@@ -162,7 +175,7 @@ button { font: inherit; color: inherit; }
 .hud {
   display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
   padding: 8px 4px 0;
-  font-family: var(--font-display);
+  font-family: var(--font-label);
   font-size: var(--step--1);
   color: var(--cream-text);
   font-variant-numeric: tabular-nums;
@@ -178,7 +191,7 @@ button { font: inherit; color: inherit; }
 .hud-gear:hover { border-color: var(--honey); color: var(--honey); }
 .hud-coins .ico { width: 20px; height: 20px; }
 .hud-item { display: flex; align-items: center; gap: 5px; }
-.hud .lbl { color: #b89c86; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.7rem; }
+.hud .lbl { color: #c8ae96; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.74rem; }
 .stars { display: inline-flex; gap: 1px; }
 .season-chip { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; }
 .season-chip:hover b { text-decoration: underline; }
@@ -197,7 +210,7 @@ button { font: inherit; color: inherit; }
   padding: 6px 8px 6px 10px;
   min-height: 40px;
 }
-.goal-label { font-family: var(--font-display); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--honey); white-space: nowrap; }
+.goal-label { font-family: var(--font-label); font-size: 0.74rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--honey); white-space: nowrap; }
 .goal-text { flex: 1; min-width: 10em; font-size: var(--step--1); background: none; border: 0; padding: 0; text-align: left; color: inherit; cursor: help; }
 .goal-text:hover { text-decoration: underline dotted; }
 .goal-reward { display: inline-flex; align-items: center; gap: 4px; font-size: var(--step--1); color: #b89c86; font-variant-numeric: tabular-nums; }
@@ -214,8 +227,8 @@ button { font: inherit; color: inherit; }
   border: 2px solid var(--ink);
   border-radius: 6px 6px 3px 3px;
   padding: 8px 2px;
-  font-family: var(--font-display);
-  font-size: clamp(0.62rem, 2.2vw, 0.8rem);
+  font-family: var(--font-label);
+  font-size: clamp(0.74rem, 2.8vw, 0.92rem);
   color: #d8c4ae;
   cursor: pointer;
   box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.3);
@@ -318,8 +331,8 @@ h3 { font-size: var(--step-0); margin: 0; font-weight: 600; }
 
 .chip {
   display: inline-block;
-  font-family: var(--font-display);
-  font-size: 0.66rem;
+  font-family: var(--font-label);
+  font-size: 0.72rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 1px 6px;
@@ -377,7 +390,7 @@ h3 { font-size: var(--step-0); margin: 0; font-weight: 600; }
 .sel-badge {
   position: absolute; top: -8px; left: -6px;
   background: var(--amber); color: var(--ink);
-  font-family: var(--font-display); font-size: 0.7rem;
+  font-family: var(--font-label); font-size: 0.7rem;
   border: 2px solid var(--ink); border-radius: 3px; padding: 0 5px;
 }
 .mystery { filter: brightness(0) opacity(0.45); }
@@ -402,7 +415,7 @@ h3 { font-size: var(--step-0); margin: 0; font-weight: 600; }
 }
 .shelf-tile:hover { background: #fbe9c0; }
 .shelf-tile img { width: 28px; height: 28px; }
-.shelf-num { font-family: var(--font-display); font-size: var(--step--1); color: var(--ink-soft); width: 1.2em; }
+.shelf-num { font-family: var(--font-label); font-size: var(--step--1); color: var(--ink-soft); width: 1.2em; }
 .shelf-empty { width: 28px; font-size: 0.7rem; color: var(--ink-soft); text-align: center; }
 .shelf-info { display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
 .shelf-info .muted { font-size: var(--step--1); }
@@ -447,7 +460,7 @@ h3 { font-size: var(--step-0); margin: 0; font-weight: 600; }
 }
 .guide-cell.unknown { background: #e6d6b0; }
 .guide-cell .bee-img { width: 56px; height: 56px; }
-.guide-no { position: absolute; top: 4px; left: 6px; font-family: var(--font-display); font-size: 0.62rem; color: var(--ink-soft); }
+.guide-no { position: absolute; top: 4px; left: 6px; font-family: var(--font-label); font-size: 0.7rem; color: var(--ink-soft); }
 .sparkle-dot { position: absolute; top: 3px; right: 6px; color: #d0508a; }
 .stats { display: grid; gap: 0; }
 .stat-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px; border-bottom: 2px dotted rgba(43, 29, 20, 0.2); font-variant-numeric: tabular-nums; }
@@ -497,7 +510,7 @@ textarea {
 @keyframes pop { from { transform: scale(0.94); } }
 #modalBody > * + * { margin-top: 12px; }
 #modalBody p { margin: 0; }
-.modal h3.sub { font-family: var(--font-display); font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
+.modal h3.sub { font-family: var(--font-label); font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
 .eyebrow { font-family: var(--font-display); font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.08em; color: var(--amber); }
 .bee-hero { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .bee-hero .bee-img { width: 96px; height: 96px; background: var(--parch-2); border: 2px solid var(--ink); border-radius: 8px; }
@@ -591,8 +604,8 @@ textarea {
 .work-text { flex: 1; min-width: 8em; }
 .work-queue { color: var(--honey); font-variant-numeric: tabular-nums; }
 .work-row .link { color: #b89c86; }
-.work-open .open { color: #8cd06a; font-family: var(--font-display); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; }
-.work-open .closed { color: #f09080; font-family: var(--font-display); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.work-open .open { color: #8cd06a; font-family: var(--font-label); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.work-open .closed { color: #f09080; font-family: var(--font-label); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; }
 
 /* A thing under construction: hammer, time left, a bar and a gem skip. */
 .building { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; font-size: var(--step--1); flex-wrap: wrap; }
@@ -605,7 +618,7 @@ textarea {
 .card-head .hive-ico { width: 27px; height: 48px; }
 .honey-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-variant-numeric: tabular-nums; font-size: var(--step--1); }
 .honey-row .bar { flex: 1; min-width: 80px; }
-.honey-row .lbl { font-family: var(--font-display); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
+.honey-row .lbl { font-family: var(--font-label); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
 .bar.honey i { background: #f8c838; }
 .full-flag { color: #c8601e; font-weight: 600; }
 .full-flag:empty { display: none; }
@@ -613,7 +626,7 @@ textarea {
 .rest-badge {
   position: absolute; top: -8px; right: -4px;
   background: #f8d0dc; border: 2px solid var(--ink); border-radius: 3px;
-  font-family: var(--font-display); font-size: 0.56rem; padding: 0 4px; text-transform: uppercase;
+  font-family: var(--font-label); font-size: 0.64rem; padding: 0 4px; text-transform: uppercase;
 }
 
 /* ---- Staff and machine ------------------------------------------------ */
@@ -625,7 +638,7 @@ textarea {
 /* ---- Store ------------------------------------------------------------ */
 .store-top { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
 .keeper-preview { width: 64px; height: 80px; background: var(--parch-2); border: 2px solid var(--ink); border-radius: 8px; padding: 4px; }
-.store-sec { font-family: var(--font-display); font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 14px; }
+.store-sec { font-family: var(--font-label); font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 14px; }
 .store-sec:first-child { margin-top: 0; }
 .store-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
 .store-card {
@@ -639,3 +652,54 @@ textarea {
 .store-thumb img { image-rendering: pixelated; }
 .swatch { display: block; width: 44px; height: 30px; border: 2px solid var(--ink); border-radius: 4px; }
 .chip-on { background: #b8e0a0; }
+
+
+/* ==== Added after playtest 2 =========================================== */
+
+/* Labels use the extra-bold weight of the body font (see --font-label). */
+.tagline, .hud, .goal-label, .tabs button, .chip, .sel-badge, .shelf-num, .guide-no,
+.modal h3.sub, .work-open span, .honey-row .lbl, .rest-badge, .store-sec { font-weight: 800; }
+
+/* Reputation button in the status bar: stars plus the number. */
+.hud-rep { background: none; border: 0; padding: 2px 4px; margin: -2px -4px; border-radius: 4px; cursor: pointer; color: inherit; font: inherit; }
+.hud-rep:hover { background: rgba(255, 255, 255, 0.08); }
+.hud-rep b { color: var(--honey); }
+.up { color: #3a8a2a; }
+.down { color: #b83a2a; }
+
+/* "Today" row: today's special and the food critic. */
+.today-row:empty { display: none; }
+.today-item { display: inline-flex; align-items: center; gap: 4px; }
+.critic-note { color: #f0c8ff; font-weight: 700; }
+.work-open .rush { color: #ffd23a; font-family: var(--font-label); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; animation: blink 0.8s steps(2) infinite; }
+
+/* Sleeping hives at night. */
+.zzz { color: #6a6ab0; font-style: italic; }
+
+/* Staff duty buttons: a row of small toggles, the current duty highlighted. */
+.duty-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.duty {
+  font-family: var(--font-label); font-weight: 800; font-size: 0.78rem;
+  padding: 4px 9px; border: 2px solid var(--ink); border-radius: 999px;
+  background: var(--parch-2); color: var(--ink); cursor: pointer;
+}
+.duty:hover { background: #fff4c8; }
+.duty.on { background: var(--honey); box-shadow: inset 0 -2px 0 var(--amber); }
+.duty:disabled { opacity: 0.4; cursor: not-allowed; }
+.hire-row { border-style: dashed; }
+.warn { color: #b83a2a; font-weight: 700; }
+
+/* Dragging bees: the picked-up bee follows the finger; drop targets glow. */
+.bee-tile { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.bee-tile.dragging { opacity: 0.35; }
+.drag-ghost {
+  position: fixed; left: 0; top: 0; z-index: 60; pointer-events: none;
+  display: grid; justify-items: center; gap: 2px;
+  background: var(--parch); color: var(--ink); border: 3px solid var(--ink); border-radius: 8px;
+  padding: 4px 8px; font-weight: 800; font-size: 0.8rem;
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.35);
+}
+.drag-ghost img { width: 40px; height: 40px; image-rendering: pixelated; }
+body.is-dragging { cursor: grabbing; -webkit-user-select: none; user-select: none; }
+body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2px dashed var(--amber); outline-offset: 2px; }
+.drop-over { outline: 3px solid var(--leaf) !important; outline-offset: 2px; background: #e6f6d8 !important; }

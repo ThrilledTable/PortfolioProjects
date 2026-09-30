@@ -25,7 +25,7 @@ The rules never touch the screen directly. When something happens they post a no
 | `js/nav.js` | The map: named spots in the scene (register, storeroom, each hive, each shelf) joined by walkable paths, and the route-finder. |
 | `js/sim.js` | The rules and formulas, and the `update` that moves time forward 20 times a second: bees make honey, the machine makes candles, eggs hatch, wages are paid, and so on. Also the fast-forward for time you spent away. |
 | `js/customers.js` | Shoppers (walk in → browse → queue → pay → leave, or storm out if nobody's at the register) and the townsfolk who pin requests on the board. |
-| `js/workers.js` | The shopkeeper and staff. Each works through a to-do list of steps like "walk to Hive 2", "scoop honey", "walk to storeroom". |
+| `js/workers.js` | The shopkeeper and helpers. Each has a **duty** (Register, Shelves, Hives, Candles) and works through to-do lists of steps like "walk to Hive 2", "scoop honey", "walk to storeroom". |
 | `js/builds.js` | Upgrade timers: pay now, wait, then the upgrade applies. Gems finish a timer early. |
 | `js/actions.js` | Everything a button can do: buy a bee, hire staff, start an upgrade, deliver a request, buy a hat... |
 | `js/goals.js` | The goal chain shown under the picture. |
@@ -81,7 +81,11 @@ All of these are edits to `js/data.js` unless noted. After a change, run the che
 
 **Change how much honey a hive holds.** In `js/sim.js`: `honeyCap: (h) => 16 + 12 * h.level`. That's 16 jars at level 1, plus 12 per level.
 
-**Change staff wages or hiring fees.** In `STAFF`: `hire` and `wage`.
+**Change staff wages or hiring fees.** In `STAFF`: `hire` and `wage`. Duties are in `DUTIES` just below.
+
+**Change reputation rules.** `REP` lists every reason reputation changes and by how much. The Reputation window reads it directly, so the explanation always matches.
+
+**Change the lunch rush, today's special or the food critic.** `EVENTS`: times are fractions of a day (0 = 6am, 0.25 = noon). `spawnMult` 0.35 means customers arrive in 35% of the usual time; `priceMult` 1.3 means +30%.
 
 **Change gem rewards.** The `GEMS` block: starting gems, gems per new species, per season, per festival, the chance a request pays gems, and how many seconds one gem skips (`secsPerGem`). Goal gem rewards are in `js/goals.js`.
 
@@ -98,7 +102,7 @@ All of these are edits to `js/data.js` unless noted. After a change, run the che
 
 **Add a goal.** In `js/goals.js`, add a line to `GOALS` with `text`, a `check` (for example `(s) => s.hives.length >= 3`), `reward` and `gems`.
 
-**Change the length of a day.** `DAY_LENGTH` (seconds). Night is the last quarter of each day, set in `sim.js → isNight`.
+**Change the length of a day.** `DAY_LENGTH` (seconds). Night is the last quarter of each day, set in `sim.js → isNight`. Which bees stay awake at night is `nightWorker` just below it.
 
 **Change the shopkeeper's tips.** `TIPS`. **Change tutorial messages:** `HINTS` in `ui.js`.
 
@@ -107,7 +111,7 @@ All of these are edits to `js/data.js` unless noted. After a change, run the che
 These need Node.js (a free program for running JavaScript outside a browser). Run them from the `honeycomb-corner` folder:
 
 ```bash
-node tools/test.js            # 24 automatic checks of the rules. Should say "24 passed".
+node tools/test.js            # 34 automatic checks of the rules. Should say "34 passed".
 node tools/balance.js 4 1 5   # plays 4 hours with a bot and prints when milestones happen
 node tools/smoke.js out/      # opens the real game in a hidden browser, clicks around, saves screenshots
 python3 tools/build.py        # bundles everything into one file: dist/honeycomb-corner.html

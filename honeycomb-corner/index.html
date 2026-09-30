@@ -12,10 +12,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Honeycomb Corner</title>
 <meta name="description" content="A cozy pixel-art idle game: keep bees, breed new species, and run a honey shop.">
-<!-- The two pixel fonts, from Google Fonts: Silkscreen for headings, Pixelify Sans for text. -->
+<!-- Fonts from Google Fonts: Pixelify Sans (pixel style) for the logo and
+     window titles, Nunito (rounded and easy to read) for everything else. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&amp;family=Silkscreen:wght@400;700&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=Pixelify+Sans:wght@500;600;700&amp;display=swap">
 <!-- All the colours, sizes and layout rules. -->
 <link rel="stylesheet" href="css/style.css">
 <!-- Lets phones install the game to the home screen (see manifest.webmanifest and sw.js). -->
@@ -41,11 +42,13 @@
       <div class="screen">
         <!-- The game picture. It's drawn at 240×160 pixels and stretched up. -->
         <canvas id="scene" width="240" height="160" aria-label="Pixel-art view of your bee garden and honey shop. Tap a hive to collect honey; tap shelves, the Candle Machine, the request board or the merchant."></canvas>
-        <!-- The tutorial text box that types messages over the picture. -->
-        <div id="textbox" class="textbox" hidden role="status">
-          <p id="textboxText"></p>
-          <span class="more" aria-hidden="true"></span>
-        </div>
+      </div>
+      <!-- The tutorial text box. It sits just below the picture (not on top of
+           it) so the whole shop stays visible. Tap it to see the next line. -->
+      <div id="textbox" class="textbox" hidden role="status">
+        <img id="textboxFace" class="px speaker" alt="" width="32" height="40">
+        <p id="textboxText"></p>
+        <span class="more" aria-hidden="true"></span>
       </div>
       <!-- Coins, gems, time of day... (filled in by js/ui.js) -->
       <div id="hud" class="hud"></div>

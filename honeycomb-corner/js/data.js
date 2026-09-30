@@ -215,33 +215,84 @@
   };
 
   // ---------------------------------------------------------------------------
-  // STAFF you can hire. `hire` is a one-off fee; `wage` is paid every morning.
-  // If you can't pay the morning wages, that employee quits.
-  // `needs` means the job only exists once you own that thing.
-  // `look` is how they're drawn in the scene.
+  // STAFF: helpers you can hire, one after another in this order.
+  // Helpers aren't tied to one job: each one is ASSIGNED A DUTY (see DUTIES
+  // below) that you can change at any time in the Shop tab. You can even give
+  // the shopkeeper a duty.
+  //   hire  one-off fee to take them on
+  //   wage  paid every morning. If you can't pay, the priciest helper quits.
+  //   duty  the duty they start on when hired (you can change it)
+  //   look  how they're drawn in the scene
   // ---------------------------------------------------------------------------
   const STAFF = [
     {
-      id: 'cashier', name: 'Cashier', hire: 250, wage: 30,
-      desc: 'Runs the register, so customers can pay while you are out collecting honey.',
+      id: 'rosa', name: 'Rosa', hire: 250, wage: 30, duty: 'register',
       look: { hair: ['#2a2222', '#161010'], skin: ['#e0a878', '#b87c50'], shirt: ['#c84a4a', '#8e2e2e'], hat: null, apron: '#f4ecd8' },
     },
     {
-      id: 'stocker', name: 'Shelf Stocker', hire: 500, wage: 50,
-      desc: 'Carries goods from the storehouse to the shelves whenever they run low.',
+      id: 'theo', name: 'Theo', hire: 600, wage: 50, duty: 'stock',
       look: { hair: ['#e8c060', '#b89040'], skin: ['#f4d4b8', '#d8ac88'], shirt: ['#3a8ab0', '#266080'], hat: 'cap', apron: null },
     },
     {
-      id: 'collector', name: 'Honey Collector', hire: 900, wage: 80,
-      desc: 'Walks the garden and brings honey in from any hive that is filling up.',
+      id: 'mabel', name: 'Mabel', hire: 1200, wage: 80, duty: 'collect',
       look: { hair: ['#c0502a', '#8a3418'], skin: ['#f8c898', '#d89868'], shirt: ['#7a9a4a', '#56702e'], hat: 'straw', apron: null },
     },
     {
-      id: 'candler', name: 'Candle Maker', hire: 3000, wage: 150, needs: 'machine',
-      desc: 'Keeps the Candle Machine loaded with wax and carries finished candles to the storehouse.',
+      id: 'otis', name: 'Otis', hire: 3000, wage: 150, duty: 'candles',
       look: { hair: ['#8a5a8a', '#5e3a5e'], skin: ['#b07850', '#86563a'], shirt: ['#e08a3a', '#a85e22'], hat: null, apron: '#6a4a2a' },
     },
   ];
+
+  // ---------------------------------------------------------------------------
+  // DUTIES: the jobs anyone (helpers or the shopkeeper) can be assigned to.
+  //   home   where they wait when there's nothing to do (a spot in nav.js)
+  //   needs  the duty only works once you own that thing
+  //   face   which way they face while waiting
+  // Several people can share a duty. Two people on the Register ring
+  // customers up faster (one scans, one bags), which helps in the lunch rush.
+  // At night the shop is closed, so anyone on the Register restocks the
+  // shelves instead.
+  // ---------------------------------------------------------------------------
+  const DUTIES = [
+    { id: 'register', name: 'Register', short: 'Register', home: 'DESK', face: 'down', desc: 'Stays at the register so customers can pay. At night, restocks the shelves.' },
+    { id: 'stock', name: 'Stock shelves', short: 'Shelves', home: 'STORE', face: 'left', desc: 'Carries goods from the storehouse to any shelf running low.' },
+    { id: 'collect', name: 'Collect honey', short: 'Hives', home: 'LANE3', face: 'right', desc: 'Walks the garden and brings honey in from hives that are filling up.' },
+    { id: 'candles', name: 'Candle Machine', short: 'Candles', home: 'MACH', face: 'up', needs: 'machine', desc: 'Loads wax into the Candle Machine and carries candles to the storehouse.' },
+  ];
+
+  // ---------------------------------------------------------------------------
+  // REPUTATION: every way it goes up or down, in one place. The Reputation
+  // window (tap the stars) lists these, and a log of today's changes.
+  //   amt   how much it changes (on a 0-5 star scale)
+  //   text  the explanation shown to the player
+  // "served" is smaller the closer you are to 5 stars, and decorations with a
+  // reputation bonus make it bigger.
+  // ---------------------------------------------------------------------------
+  const REP = {
+    served: { amt: 0.02, text: 'A customer paid and left happy', good: true },
+    order: { amt: 0.15, text: 'You delivered a request from the board', good: true },
+    criticGood: { amt: 0.35, text: 'A food critic loved the shop', good: true },
+    special: { amt: 0.01, text: "Extra for selling today's special", good: true },
+    empty: { amt: -0.04, text: 'A customer found nothing they could buy (empty shelves, or nothing in their price range)' },
+    walkout: { amt: -0.06, text: 'A customer gave up waiting in line and walked out' },
+    criticBad: { amt: -0.25, text: 'A food critic was unimpressed' },
+    away: { amt: -0.01, text: 'While you were away, a customer found empty shelves' },
+  };
+
+  // ---------------------------------------------------------------------------
+  // DAILY EVENTS (all in fractions of a day; 0 = 6am, 0.25 = noon, 0.7 = dusk)
+  //   RUSH     the lunch rush: customers arrive much faster for a while
+  //   SPECIAL  each morning one product becomes "today's special": it sells
+  //            for 30% more and customers look for it first. Starts once you
+  //            sell at least two different products.
+  //   CRITIC   a food critic visits on some days. They judge how well stocked
+  //            the shelves are and how long they wait in line.
+  // ---------------------------------------------------------------------------
+  const EVENTS = {
+    rush: { from: 0.2, to: 0.3, spawnMult: 0.35 },
+    special: { priceMult: 1.3, pickWeight: 4, minGoods: 2 }, // only once you sell 2+ products
+    critic: { chance: 0.6, earliest: 0.08, latest: 0.6, reward: 5 },
+  };
 
   // ---------------------------------------------------------------------------
   // CUSTOMERS. `weight` is how common they are (bigger = more common).
@@ -256,6 +307,8 @@
     { id: 'chef', name: 'Chef', weight: 12, offset: 1, units: [1, 3], hat: 'chef', shirt: ['#f4f0e8', '#c8c0b0'] },
     { id: 'noble', name: 'Noble', weight: 5, repWeight: 3, offset: 0, units: [1, 2], hat: 'tophat', shirt: ['#6a3a8a', '#44245e'] },
     { id: 'collector', name: 'Collector', weight: 1, repWeight: 1.5, offset: 0, units: [1, 1], mult: 1.5, hat: 'beret', shirt: ['#2a6a6a', '#1a4444'] },
+    // The food critic never turns up at random: sim.js sends one on some days.
+    { id: 'critic', name: 'Food Critic', weight: 0, offset: 0, units: [1, 1], mult: 2, hat: 'tophat', shirt: ['#2a2a3a', '#16161e'] },
   ];
 
   // Colour pairs [main, shadow] used to dress random customers.
@@ -364,7 +417,8 @@
     orderChance: 0.3, orderMin: 1, orderMax: 3,
     dripChance: 0.15,
     secsPerGem: 120, // skipping a timer costs 1 gem per 2 minutes left
-    builderSlot: 80, // price of a second builder
+    // Extra builders are NOT sold for gems: you get one builder. A second
+    // builder is planned as a paid unlock in the full version (see DESIGN.md).
   };
 
   const BEE_NAMES = [
@@ -388,10 +442,14 @@
   // Random tips the shopkeeper says when you tap them.
   const TIPS = [
     'Hives stop making honey when they are full. Tap a hive to send me out to collect it.',
-    'Customers can only pay when someone is at the register. A Cashier helps a lot.',
+    'Customers can only pay when someone is at the register. Hire a helper and put them on the Register duty.',
     'Richer customers show up as your reputation grows.',
     'Bees raising an egg in the Nursery take a break from making honey.',
-    'The shop closes at night. The bees keep working, so check the hives in the morning.',
+    'At night the shop closes and most bees sleep. It is the perfect time to restock the shelves.',
+    'The lunch rush starts around 11am. Fill the shelves before it hits.',
+    'Tap the stars in the status bar to see exactly what raises and lowers your reputation.',
+    'Long-press a bee in the Apiary tab and drag it onto another hive to move it.',
+    'Moonmoth Bees and Night Owls keep working after dark while everyone else sleeps.',
     'Breeding two bees of the same species can raise vigor.',
     'Nurse Bees boost every bee in their hive.',
     'Waxwing Beeswax needs the Candle Machine before it can be sold as candles.',
@@ -421,12 +479,13 @@
 
   HC.data = {
     SEASONS, GOODS, SPECIES, RECIPES, TRAITS, UPGRADES, HIVE_COSTS, HIVE_MAX_LEVEL, CUSTOMERS,
-    HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, TIPS, MACHINE, STAFF, CATALOG, STORE_SECTIONS, GEMS,
+    HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, TIPS, MACHINE, STAFF, DUTIES, REP, EVENTS, CATALOG, STORE_SECTIONS, GEMS,
     good: byId(GOODS),
     species: byId(SPECIES),
     upgrade: byId(UPGRADES),
     customer: byId(CUSTOMERS),
     staff: byId(STAFF),
+    duty: byId(DUTIES),
     item: byId(CATALOG),
     DAY_LENGTH: 480, // real seconds in one in-game day (8 minutes)
     SEASON_DAYS: 4,

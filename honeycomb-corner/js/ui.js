@@ -53,7 +53,7 @@
   const coin = () => icon('coin');
   const gem = () => icon('gem');
   const goodImg = (g, size = 16) => `<img class="px ico" src="${spr.goodURL(g)}" alt="" width="${size}" height="${size}">`;
-  const beeImg = (sp, sparkle, size = 32, cls = '') => `<img class="px bee-img ${cls}" src="${spr.beeURL(sp, sparkle)}" alt="" width="${size}" height="${size}">`;
+  const beeImg = (sp, sparkle, size = 32, cls = '') => `<img class="px bee-img ${cls}" src="${spr.beeURL(sp, sparkle)}" alt="" draggable="false" width="${size}" height="${size}">`;
   const price = (n) => `${coin()}<span>${fmt(n)}</span>`;
   const gemPrice = (n) => `${gem()}<span>${n}</span>`;
   const rarityChip = (r) => `<span class="chip chip-${r.toLowerCase()}">${r}</span>`;
@@ -78,7 +78,7 @@
     const s = S();
     const b = HC.builds.find(s, kind, key);
     if (b) return buildingChip(b);
-    const busy = HC.builds.freeBuilder(s) ? '' : 'Your builder is busy. Wait for the current build, finish it with gems, or buy a second builder in the Store.';
+    const busy = HC.builds.freeBuilder(s) ? '' : 'Your builder is busy. Wait for the current build, or finish it now with gems.';
     return btn(`${label} ${price(cost)} <span class="time">${util.fmtTime(f().buildTime(cost))}</span>`, act, args, { cost, build: true, need: busy || 'Not enough coins.', cls: 'btn-sm' });
   }
   function buildingChip(b) {
@@ -138,6 +138,9 @@
     }
     el.textbox.hidden = false;
     el.textbox.classList.remove('done');
+    // The shopkeeper's portrait (wearing whatever you've dressed them in).
+    const face = $('#textboxFace');
+    if (face) face.src = spr.personURL(spr.keeperLook(S()));
     el.textboxText.textContent = '';
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduce) {
@@ -170,7 +173,7 @@
       <div class="hud-coins" title="Coins">${coin()}<b data-live="${L(() => fmt(S().coins))}"></b></div>
       <div class="hud-gems" title="Gems: finish timers early, buy special items">${gem()}<b data-live="${L(() => fmt(S().gems))}"></b></div>
       <div class="hud-item" title="Income over the last minute"><span class="lbl">per min</span><b data-live="${L(() => fmt(HC.sim.incomePerMin()))}"></b></div>
-      <div class="hud-item" title="Reputation"><span class="lbl">rep</span><span class="stars" data-html="${L(starsHtml)}"></span></div>
+      <button class="hud-item hud-rep" data-act="rep" title="Reputation: tap to see what raises and lowers it"><span class="stars" data-html="${L(starsHtml)}"></span><b data-live="${L(() => S().rep.toFixed(1))}"></b></button>
       <div class="hud-item hud-time" title="Time of day"><span data-html="${L(timeHtml)}"></span></div>
       <button class="hud-item season-chip" data-act="season" data-html="${L(seasonHtml)}"></button>
       ${s.ribbons ? `<div class="hud-item" title="Festival ribbons: +${s.ribbons * 10}% sale prices">${icon('ribbon')}<b>${s.ribbons}</b></div>` : ''}
@@ -184,8 +187,9 @@
         <span class="work-text" data-live="${L(() => (keeper ? HC.workers.statusOf(S(), keeper) : ''))}"></span>
         <span class="work-queue" data-live="${L(() => (HC.workers.keeperJobs.length ? '+' + HC.workers.keeperJobs.length + ' errand' + (HC.workers.keeperJobs.length > 1 ? 's' : '') : ''))}"></span>
         ${HC.workers.keeperJobs.length ? '<button class="link" data-act="cancelErrands">clear</button>' : ''}
-        <span class="work-open" data-html="${L(() => (f().isOpen(S()) ? '<span class="open">Open</span>' : '<span class="closed">Closed for the night</span>'))}"></span>
+        <span class="work-open" data-html="${L(openHtml)}"></span>
       </div>
+      <div class="work-row today-row" data-html="${L(todayHtml)}"></div>
       ${s.builds.map((b) => `<div class="build-row"><span class="goal-label">Building</span><span class="work-text">${esc(b.label)}</span>${buildingChip(b)}</div>`).join('')}
     `;
   }
@@ -197,6 +201,25 @@
     const reward = price(g.reward) + (g.gems ? ' ' + gemPrice(g.gems) : '');
     return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span><button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
       (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${reward}</button>` : `<span class="goal-reward">${reward}</span>`);
+  }
+  // "Open", "Lunch rush!" or "Closed for the night".
+  function openHtml() {
+    const s = S();
+    if (!f().isOpen(s)) return '<span class="closed">Closed · bees asleep</span>';
+    return f().isRush(s) ? '<span class="rush">Lunch rush!</span>' : '<span class="open">Open</span>';
+  }
+  // Today's special and whether the food critic is still expected.
+  function todayHtml() {
+    const s = S();
+    const bits = [];
+    if (s.special && f().isSpecial(s, s.special.good)) {
+      const g = D.good[s.special.good];
+      bits.push(`<span class="goal-label">Today</span><span class="today-item">${goodImg(g.id, 14)} <b>${g.name}</b> is the special · +${Math.round((D.EVENTS.special.priceMult - 1) * 100)}% price</span>`);
+    }
+    const cr = s.critic;
+    if (cr && cr.day === f().day(s) && !cr.done) bits.push('<span class="today-item critic-note">A food critic is expected today</span>');
+    else if (HC.sim.rt.customers.some((c) => c.critic && !c.done)) bits.push('<span class="today-item critic-note">The food critic is in the shop!</span>');
+    return bits.join('');
   }
   function seasonHtml() {
     const s = S();
@@ -251,7 +274,7 @@
       const upgrade = h.level < D.HIVE_MAX_LEVEL
         ? buildBtn('Upgrade', 'upgradeHive', { i }, f().hiveUpgradeCost(s, i), 'hiveUp', i)
         : '<span class="chip">Max level</span>';
-      return `<article class="card hive-card" id="hive-${i}">
+      return `<article class="card hive-card" id="hive-${i}" data-drop-hive="${i}">
         <header class="card-head">
           <img class="px hive-ico" src="${spr.hiveURL(h.level, style)}" alt="" width="27" height="48">
           <div class="grow"><h3>Hive ${i + 1}</h3><p class="muted">Level ${h.level + 1} · ${h.bees.length}/${cap} bees · ${util.pct(f().hiveMult(s, h))} output</p></div>
@@ -261,7 +284,7 @@
           <span class="lbl">Honey</span>
           ${bar(() => f().honeyIn(S().hives[i]) / f().honeyCap(S().hives[i]), 'honey')}
           <b data-live="${L(() => f().honeyIn(S().hives[i]) + '/' + f().honeyCap(S().hives[i]))}"></b>
-          <span class="full-flag" data-html="${L(() => (f().hiveFull(S().hives[i]) ? 'Full! Bees are waiting' : ''))}"></span>
+          <span class="full-flag" data-html="${L(() => (f().hiveFull(S().hives[i]) ? 'Full! Bees are waiting' : f().isNight(S()) ? '<span class=\"zzz\">Zzz · asleep</span>' : ''))}"></span>
           ${btn('Collect', 'collect', { i }, { cls: 'btn-sm' })}
         </div>
         <div class="bee-grid">${slots.join('')}</div>
@@ -294,11 +317,11 @@
     return `
       <section class="win">
         <div class="win-head"><h2>Apiary</h2>${btn('Collect all', 'collectAll', {}, { cls: 'btn-sm' })}</div>
-        <p class="muted small">${f().beeCount(s)} bees · ${s.hives.length}/6 hives. Bees fill their hive with honey; when it's full they stop until someone collects it. Tap a hive in the garden to send the shopkeeper.</p>
+        <p class="muted small">${f().beeCount(s)} bees · ${s.hives.length}/6 hives. Bees fill their hive with honey; when it's full they stop until someone collects it. Tap a hive in the garden to send the shopkeeper. <b>Long-press a bee and drag it</b> onto another hive (or onto a bee to swap them).</p>
         <div class="pills">${prod || '<span class="muted">Nothing in production.</span>'}</div>
         <div class="stack">${hiveCards}${nextHive}</div>
       </section>
-      <section class="win">
+      <section class="win" data-drop-box="1">
         <div class="win-head"><h2>Bee box</h2><span class="muted">${s.box.length}/${f().boxCap(s)} spaces</span>
           ${s.box.length >= 4 ? btn('Sell extras', 'sellExtras', {}, { cls: 'btn-sm btn-ghost' }) : ''}</div>
         <div class="bee-grid">${boxBees}</div>
@@ -330,20 +353,47 @@
     const s = S();
     const cap = f().shelfCap(s);
 
-    // Staff
-    const staff = D.STAFF.map((st) => {
-      const hired = !!s.staff[st.id];
-      const locked = st.needs === 'machine' && !s.machine;
-      const w = HC.workers.list.find((x) => x.role === st.id);
-      return `<div class="row-item staff-row ${locked ? 'locked' : ''}">
-        <img class="px person" src="${spr.personURL(st.look)}" alt="" width="32" height="40">
-        <div class="grow"><b>${st.name}</b> <span class="chip">${hired ? 'Hired' : '₵' + st.wage + '/day'}</span>
-          <p class="muted">${st.desc}</p>
-          ${hired && w ? `<p class="small">Now: <span data-live="${L(() => { const x = HC.workers.list.find((y) => y.role === st.id); return x ? HC.workers.statusOf(S(), x) : ''; })}"></span></p>` : ''}
+    // Staff: the shopkeeper and each hired helper, with a row of duty
+    // buttons to reassign them, then a card to hire the next helper.
+    const dutyButtons = (who, current) => `<div class="duty-row" role="group" aria-label="Duty">${D.DUTIES.map((d) => {
+      const locked = d.needs === 'machine' && !s.machine;
+      const on = current === d.id;
+      return `<button class="duty ${on ? 'on' : ''}" data-act="setDuty" data-who="${who}" data-duty="${d.id}" ${locked ? 'disabled title="Build the Candle Machine first"' : `title="${esc(d.desc)}"`} aria-pressed="${on}">${d.short}</button>`;
+    }).join('')}</div>`;
+    const workerNow = (role) => `<p class="small">Now: <span data-live="${L(() => { const x = HC.workers.list.find((y) => y.role === role); return x ? HC.workers.statusOf(S(), x) : ''; })}"></span></p>`;
+    const keeperDuty = HC.workers.dutyOf(s, 'keeper');
+    let staff = `<div class="row-item staff-row">
+        <img class="px person" src="${spr.personURL(spr.keeperLook(s))}" alt="" width="32" height="40">
+        <div class="grow"><b>You (shopkeeper)</b> <span class="chip">${D.duty[keeperDuty].name}</span>
+          <p class="muted">Runs your errands first (tapping a hive, the machine, Restock now), then does their duty.</p>
+          ${workerNow('keeper')}
+          ${dutyButtons('keeper', keeperDuty)}
         </div>
-        ${hired ? btn('Let go', 'fire', { id: st.id }, { cls: 'btn-sm btn-ghost' }) : locked ? '<span class="chip">Needs machine</span>' : btn(`Hire ${price(st.hire)}`, 'hire', { id: st.id }, { cost: st.hire, cls: 'btn-sm' })}
       </div>`;
-    }).join('');
+    for (const st of D.STAFF) {
+      if (!s.staff[st.id]) continue;
+      const duty = HC.workers.dutyOf(s, st.id);
+      staff += `<div class="row-item staff-row">
+        <img class="px person" src="${spr.personURL(st.look)}" alt="" width="32" height="40">
+        <div class="grow"><b>${st.name}</b> <span class="chip">${D.duty[duty].name}</span> <span class="muted small">₵${st.wage}/day</span>
+          ${workerNow(st.id)}
+          ${dutyButtons(st.id, duty)}
+        </div>
+        ${btn('Let go', 'fire', { id: st.id }, { cls: 'btn-sm btn-ghost' })}
+      </div>`;
+    }
+    const nextHire = D.STAFF.find((x) => !s.staff[x.id]);
+    if (nextHire) {
+      staff += `<div class="row-item staff-row hire-row">
+        <img class="px person" src="${spr.personURL(nextHire.look)}" alt="" width="32" height="40">
+        <div class="grow"><b>${nextHire.name}</b> <span class="chip">looking for work</span>
+          <p class="muted">Wage ₵${nextHire.wage} each morning. Starts on ${D.duty[nextHire.duty].name}; you can reassign them any time.</p></div>
+        ${btn(`Hire ${price(nextHire.hire)}`, 'hire', { id: nextHire.id }, { cost: nextHire.hire, cls: 'btn-sm' })}
+      </div>`;
+    }
+    // Who's on each duty right now, and a warning if the register is empty.
+    const cover = D.DUTIES.map((d) => `<span class="pill">${d.short} <b>${HC.workers.onDuty(s, d.id)}</b></span>`).join('');
+    const noRegister = !HC.workers.onDuty(s, 'register');
     const wages = f().wagesPerDay(s);
 
     // Candle Machine
@@ -400,8 +450,10 @@
 
     return `
       <section class="win" id="staff">
-        <div class="win-head"><h2>Staff</h2><span class="muted">${wages ? 'Wages ₵' + fmt(wages) + ' each morning' : 'Nobody hired yet'}</span></div>
-        <p class="muted small">Staff work on their own and keep working while you're away. If you can't pay the morning wages, someone quits.</p>
+        <div class="win-head"><h2>Staff</h2><span class="muted">${wages ? 'Wages ₵' + fmt(wages) + ' each morning' : 'No helpers yet'}</span></div>
+        <p class="muted small">Give everyone a duty and they get on with it by themselves, even while you're away. Two people on the Register ring customers up faster. If you can't pay the morning wages, someone quits.</p>
+        <div class="pills">${cover}</div>
+        ${noRegister ? '<p class="warn small">Nobody is on the Register: customers will wait in line and may walk out.</p>' : ''}
         <div class="list">${staff}</div>
       </section>
       <section class="win" id="machine">
@@ -419,8 +471,8 @@
         <div class="store-grid">${store}</div>
       </section>
       <section class="win">
-        <div class="win-head"><h2>Upgrades</h2><span class="muted">${s.builders} builder${s.builders > 1 ? 's' : ''}</span></div>
-        <p class="muted small">Upgrades take time to build. Your builder works on one at a time; gems finish a build instantly.</p>
+        <div class="win-head"><h2>Upgrades</h2><span class="muted">1 builder</span></div>
+        <p class="muted small">Upgrades take time to build. Your builder works on one thing at a time, so choose what to build next carefully. Gems finish a build instantly.</p>
         <div class="list">${ups}</div>
       </section>`;
   };
@@ -513,7 +565,6 @@
       const items = D.CATALOG.filter((it) => it.cat === sec.cat).map((it) => storeCard(s, it, sec)).join('');
       return `<h3 class="store-sec">${sec.name}${sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>'}</h3><div class="store-cards">${items}</div>`;
     }).join('');
-    const nextBuilder = D.GEMS.builderSlot * s.builders;
     return `
       <section class="win">
         <div class="win-head"><h2>Store</h2><span class="muted">${gem()} ${fmt(s.gems)} gems</span></div>
@@ -524,9 +575,11 @@
             <p class="muted small">Gems come from goals, requests, new species, festivals, season changes and golden drips.</p>
           </div>
         </div>
-        <div class="row-item">
-          <div class="grow"><b>Extra builder</b><p class="muted">Build ${s.builders + 1} things at the same time. You have ${s.builders}.</p></div>
-          ${s.builders < 3 ? btn(`Hire ${gemPrice(nextBuilder)}`, 'buyBuilder', {}, { gems: nextBuilder, cls: 'btn-sm btn-gem', need: 'Not enough gems.' }) : '<span class="chip">Max</span>'}
+        <!-- A second builder is planned as a paid unlock in the full game, so
+             here it's shown locked rather than sold for gems. -->
+        <div class="row-item locked">
+          <div class="grow"><b>Second builder</b><p class="muted">Build two things at once. Coming as an optional purchase in the full version of the game.</p></div>
+          <span class="chip">🔒 Full version</span>
         </div>
       </section>
       <section class="win store">${sections}</section>`;
@@ -938,8 +991,36 @@
         </div>
         ${made ? `<p class="muted">Storehouse changes:</p><div class="pills">${made}</div>` : ''}
         ${notes}
-        <p class="muted small">While you're gone the shopkeeper minds the register and shelves, but only a Honey Collector brings honey in from the hives. Customers stay home at night.</p>
+        <p class="muted small">While you're gone the shopkeeper minds the register and shelves, but honey only comes in from the hives if someone is on the Collect honey duty. Customers stay home at night, and most bees sleep.</p>
         <div class="btn-row end">${btn('Open the shop', 'closeModal', {}, { cls: 'btn-go' })}</div>`,
+    });
+  }
+
+  // The Reputation window: what reputation does, every rule that changes it
+  // (from REP in data.js), and today's and yesterday's changes by reason.
+  function repModal() {
+    openModal({
+      render: () => {
+        const s = S();
+        const fmtAmt = (a) => (a >= 0 ? '+' : '−') + Math.abs(a).toFixed(2);
+        const logRows = (log) => {
+          if (!log || !Object.keys(log.items).length) return '<p class="muted small">No changes yet.</p>';
+          return '<div class="stats">' + Object.entries(log.items).sort((a, b) => Math.abs(b[1].amt) - Math.abs(a[1].amt)).map(([k, v]) =>
+            `<div class="stat-row"><span>${esc(D.REP[k] ? D.REP[k].text : k)} <span class="muted">×${v.n}</span></span><b class="${v.amt >= 0 ? 'up' : 'down'}">${fmtAmt(v.amt)}</b></div>`).join('') + '</div>';
+        };
+        const rules = Object.entries(D.REP).filter(([k]) => k !== 'away').map(([k, r]) =>
+          `<div class="stat-row"><span>${esc(r.text)}</span><b class="${r.good ? 'up' : 'down'}">${fmtAmt(r.amt)}${k === 'served' ? '*' : ''}</b></div>`).join('');
+        const decor = f().decorBonus(s, 'rep');
+        return `<h2>Reputation ${starsHtml()} ${s.rep.toFixed(2)}/5</h2>
+          <p><b>What it does:</b> more reputation means customers come more often (right now one every <b>${f().spawnInterval(s).toFixed(1)}s</b> while open), and more rich Nobles and Collectors, who buy your priciest goods.</p>
+          <h3 class="sub">Today (day ${f().day(s)})</h3>
+          ${logRows(s.repLog && s.repLog.day === f().day(s) ? s.repLog : null)}
+          ${s.repPrev ? `<h3 class="sub">Day ${s.repPrev.day}</h3>${logRows(s.repPrev)}` : ''}
+          <h3 class="sub">How it changes</h3>
+          <div class="stats">${rules}</div>
+          <p class="muted small">* A happy customer counts for less the closer you are to 5 stars${decor ? `, and your decorations add +${Math.round(decor * 100)}%` : '. Decorations like String Lights make it count for more'}. Watch the scene: a red star floats up whenever reputation drops.</p>
+          <div class="btn-row end">${btn('Close', 'closeModal', {}, { cls: 'btn-go' })}</div>`;
+      },
     });
   }
 
@@ -1063,14 +1144,15 @@
       case 'upgradeMachine': r = HC.act.upgradeMachine(); break;
       case 'tendMachine': r = HC.act.tendMachine(); break;
       case 'skipBuild': r = HC.act.skipBuild(ds.id); break;
-      case 'buyBuilder': r = HC.act.buyBuilder(); break;
+      case 'setDuty': r = HC.act.setDuty(ds.who, ds.duty); break;
+      case 'rep': return repModal();
       case 'collect': r = HC.act.collect(Number(ds.i)); break;
       case 'collectAll': r = HC.act.collectAll(); break;
       case 'restockNow': r = HC.act.restockNow(); break;
       case 'cancelErrands': r = HC.act.cancelErrands(); break;
       case 'hire': r = HC.act.hire(ds.id); break;
       case 'fire':
-        return confirmModal('Let your ' + D.staff[ds.id].name + ' go?', 'They leave right away and the hiring fee is not refunded.', 'Let them go', () => {
+        return confirmModal('Let ' + D.staff[ds.id].name + ' go?', 'They leave right away and the hiring fee is not refunded.', 'Let them go', () => {
           const res = HC.act.fire(ds.id);
           if (res.ok) toast(res.msg);
         }, true);
@@ -1153,6 +1235,12 @@
 
   // One click listener for the whole page.
   function onClick(e) {
+    if (drag.suppressClick) {
+      // This click is the end of a bee drag, not a tap.
+      drag.suppressClick = false;
+      e.preventDefault();
+      return;
+    }
     const t = e.target.closest('[data-act]');
     if (!t || t.disabled) return;
     if (t.type === 'checkbox') return; // handled by onChange
@@ -1184,15 +1272,10 @@
     const rect = el.canvas.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * HC.layout.W;
     const y = ((e.clientY - rect.top) / rect.height) * HC.layout.H;
-    if (!el.textbox.hidden && y > HC.layout.H * 0.62) {
-      nextLine();
-      return;
-    }
+    // (The tutorial text box now sits below the picture, so taps on the
+    // picture always go to the scene.)
     const hit = HC.render.hitTest(S(), x, y);
-    if (!hit) {
-      if (!el.textbox.hidden) nextLine();
-      return;
-    }
+    if (!hit) return;
     const s = S();
     if (hit.kind === 'drip') {
       const amt = HC.sim.claimDrip(s);
@@ -1240,8 +1323,125 @@
     else if (hit.kind === 'worker') {
       const w = HC.workers.list.find((x) => x.role === hit.role);
       if (hit.role === 'keeper') say([util.pick(D.TIPS)]);
-      else if (w) toast(D.staff[hit.role].name + ': ' + HC.workers.statusOf(s, w));
+      else if (w) toast(D.staff[hit.role].name + ' (' + D.duty[HC.workers.dutyOf(s, w)].name + '): ' + HC.workers.statusOf(s, w));
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // MOVING BEES BY DRAGGING (Apiary tab)
+  // Press and hold a bee for about a third of a second: it lifts up and
+  // follows your finger (or mouse). Let go over:
+  //   - another hive's card  → the bee moves into that hive (if there's room)
+  //   - another bee          → the two bees swap places
+  //   - the Bee box section  → the bee goes into the box
+  // Moving your finger straight away (before the hold) scrolls as normal, and
+  // a quick tap still opens the bee's details.
+  // ---------------------------------------------------------------------------
+  const HOLD_MS = 350;
+  const drag = { timer: null, active: false, id: null, tile: null, start: null, ghost: null, over: null, suppressClick: false };
+
+  function onBeeDown(e) {
+    if (tab !== 'apiary' || modal || (e.button != null && e.button !== 0)) return;
+    const tile = e.target.closest('.bee-tile[data-act="bee"]');
+    if (!tile || !el.panel.contains(tile)) return;
+    drag.id = tile.dataset.id;
+    drag.tile = tile;
+    drag.start = { x: e.clientX, y: e.clientY };
+    drag.timer = setTimeout(() => liftBee(drag.start.x, drag.start.y), HOLD_MS);
+  }
+
+  // The hold time passed: pick the bee up.
+  function liftBee(x, y) {
+    drag.timer = null;
+    const bee = S().bees[drag.id];
+    if (!bee) return endDrag();
+    drag.active = true;
+    drag.ghost = document.createElement('div');
+    drag.ghost.className = 'drag-ghost';
+    drag.ghost.innerHTML = beeImg(bee.sp, bee.sparkle, 40) + `<span>${esc(bee.name)}</span>`;
+    document.body.appendChild(drag.ghost);
+    drag.tile.classList.add('dragging');
+    document.body.classList.add('is-dragging');
+    moveGhost(x, y);
+    if (navigator.vibrate) navigator.vibrate(12); // a little buzz on phones that support it
+    HC.audio.play('click');
+  }
+
+  function moveGhost(x, y) {
+    drag.ghost.style.transform = `translate(${Math.round(x - 24)}px, ${Math.round(y - 30)}px)`;
+    // Highlight whatever is under the finger.
+    const t = dropTargetAt(x, y);
+    const node = t && (t.tile || t.card);
+    if (drag.over !== node) {
+      if (drag.over) drag.over.classList.remove('drop-over');
+      if (node) node.classList.add('drop-over');
+      drag.over = node;
+    }
+    // Near the top or bottom of the screen: scroll so far-away hives are reachable.
+    const edge = 70;
+    const dy = y < edge ? -10 : y > window.innerHeight - edge ? 10 : 0;
+    if (dy) {
+      window.scrollBy(0, dy);
+      el.panel.scrollBy(0, dy);
+    }
+  }
+
+  // What's under the point (x, y): another bee, a hive card, or the bee box.
+  function dropTargetAt(x, y) {
+    const node = document.elementFromPoint(x, y); // the ghost ignores pointers, so this sees through it
+    if (!node) return null;
+    const tile = node.closest('.bee-tile[data-id]');
+    if (tile && tile.dataset.id !== drag.id && el.panel.contains(tile)) return { tile, beeId: tile.dataset.id };
+    const hive = node.closest('[data-drop-hive]');
+    if (hive) return { card: hive, hive: Number(hive.dataset.dropHive) };
+    const box = node.closest('[data-drop-box]');
+    if (box) return { card: box, box: true };
+    return null;
+  }
+
+  function onBeeMove(e) {
+    if (drag.timer) {
+      // Moved before the hold finished: that's a scroll, not a drag.
+      if (Math.hypot(e.clientX - drag.start.x, e.clientY - drag.start.y) > 8) endDrag();
+      return;
+    }
+    if (!drag.active) return;
+    e.preventDefault();
+    moveGhost(e.clientX, e.clientY);
+  }
+
+  function onBeeUp(e) {
+    if (drag.timer) return endDrag(); // a normal quick tap: the click opens the bee
+    if (!drag.active) return;
+    const t = dropTargetAt(e.clientX, e.clientY);
+    const id = drag.id;
+    drag.suppressClick = true; // don't also open the bee's details
+    setTimeout(() => (drag.suppressClick = false), 400);
+    endDrag();
+    if (!t) return;
+    const s = S();
+    let r;
+    if (t.beeId) r = HC.act.swapBees(id, t.beeId);
+    else if (t.box) r = HC.act.moveBee(id, 'box');
+    else if (f().hiveOf(s, id) === t.hive) return; // dropped back where it was
+    else {
+      const h = s.hives[t.hive];
+      r = h.bees.length >= f().hiveCap(h) ? { ok: false, msg: 'Hive ' + (t.hive + 1) + ' is full. Drop onto one of its bees to swap them.' } : HC.act.moveBee(id, t.hive);
+    }
+    if (r && r.ok) toast(r.msg);
+    else if (r) bus.emit('fail', r.msg);
+    dirty = true;
+  }
+
+  function endDrag() {
+    clearTimeout(drag.timer);
+    drag.timer = null;
+    drag.active = false;
+    if (drag.ghost) drag.ghost.remove();
+    if (drag.tile) drag.tile.classList.remove('dragging');
+    if (drag.over) drag.over.classList.remove('drop-over');
+    document.body.classList.remove('is-dragging');
+    drag.ghost = drag.tile = drag.over = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -1250,9 +1450,13 @@
   const HINTS = [
     { id: 'welcome', when: () => true, lines: ['Welcome to Honeycomb Corner!', 'Your bees fill their hive with honey out in the garden. When a hive is full, they stop and wait.', 'Tap a hive to walk out and collect it. Then customers can buy it from the shelves, as long as someone is at the register.'] },
     { id: 'collect', when: (s) => s.stats.collected === 0 && f().honeyIn(s.hives[0]) >= 4, lines: ['Hive 1 has honey waiting. Tap it in the garden to send the shopkeeper out.'] },
-    { id: 'line', when: (s) => HC.sim.rt.queue.length >= 2 && !HC.workers.cashierPresent(s), lines: ["Customers are waiting at the register, but nobody's there! They'll leave if they wait too long. A Cashier (Shop tab) can cover for you."] },
+    { id: 'line', when: (s) => HC.sim.rt.queue.length >= 2 && !HC.workers.cashierPresent(s), lines: ["Customers are waiting at the register, but nobody's there! They'll leave if they wait too long. Hire a helper in the Shop tab to cover the Register."] },
+    { id: 'duties', when: (s) => Object.keys(s.staff).length >= 1, lines: ['You have a helper! In Shop → Staff, tap the duty buttons (Register, Shelves, Hives, Candles) to choose what each person does. No more tapping for chores they cover.'] },
     { id: 'full', when: (s) => s.hives.some((h) => f().hiveFull(h)), lines: ['A hive is full, so those bees have stopped working. Collect it to get them going again.'] },
-    { id: 'night', when: (s) => f().isNight(s), lines: ["The shop is closed for the night. Bees keep working, so it's a good time to collect honey and restock for the morning."] },
+    { id: 'night', when: (s) => f().isNight(s), lines: ['Night has fallen. The shop is closed and most bees are asleep in their hives.', 'Nobody needs the register now, so whoever is on Register duty fills the shelves for the morning. Collect any leftover honey too.'] },
+    { id: 'rush', when: (s) => f().isRush(s), lines: ["It's the lunch rush! Customers pour in for a while. Full shelves and a second person on the Register keep the line moving."] },
+    { id: 'critic', when: () => HC.sim.rt.customers.some((c) => c.critic), lines: ['A food critic (the one in the dark suit and top hat) just walked in. Keep most shelves stocked and the line short for a glowing review.'] },
+    { id: 'drag', when: (s) => s.hives.length >= 2, lines: ['Tip: in the Apiary tab, press and hold a bee, then drag it onto another hive to move it.'] },
     { id: 'clover', when: (s) => f().marketUnlocked(s, 'clover') && !s.discovered.clover, lines: ['Word is getting around! The Bee Market now sells Clover Bees.'] },
     { id: 'build', when: (s) => s.builds.length > 0, lines: ['Upgrades take time to build. You can keep playing, or tap Finish to use gems.'] },
     { id: 'nursery', when: (s) => s.discovered.clover && !s.discovered.waxwing, lines: ['Try the Nursery: pair a Meadow Bee with a Clover Bee. The parents rest while they raise the egg.'] },
@@ -1306,6 +1510,15 @@
       if (modal && modal.onSubmit) modal.onSubmit(e.target);
     });
     el.canvas.addEventListener('pointerdown', onCanvasTap);
+    // Bee dragging (see "MOVING BEES BY DRAGGING" above).
+    document.addEventListener('pointerdown', onBeeDown);
+    document.addEventListener('pointermove', onBeeMove, { passive: false });
+    document.addEventListener('pointerup', onBeeUp);
+    document.addEventListener('pointercancel', endDrag);
+    // Stop the page scrolling under a bee being dragged, and stop phones
+    // opening the "save image" menu on a long press.
+    document.addEventListener('touchmove', (e) => { if (drag.active) e.preventDefault(); }, { passive: false });
+    document.addEventListener('contextmenu', (e) => { if (e.target.closest('.bee-tile')) e.preventDefault(); });
     el.textbox.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       nextLine();
@@ -1359,7 +1572,24 @@
     bus.on('buildStart', () => (dirty = true));
     bus.on('hiveFull', (i) => toastOnce('full' + i, 60, 'Hive ' + (i + 1) + ' is full. Tap it to collect.'));
     bus.on('walkout', () => toastOnce('walkout', 20, 'A customer got tired of waiting and walked out.', 'bad'));
-    bus.on('staffQuit', (st) => toast('Your ' + st.name + " quit: you couldn't pay the morning wages.", 'bad'));
+    bus.on('staffQuit', (st) => toast(st.name + " quit: you couldn't pay the morning wages.", 'bad'));
+    // Daily events (see sim.js updateDay / updateAnnouncements).
+    bus.on('rush', () => {
+      toast('Lunch rush! Customers are pouring in.', 'good');
+      HC.audio.play('bell');
+    });
+    bus.on('nightfall', () => toast('Night falls. The shop closes and the bees go to sleep.'));
+    bus.on('morning', () => toast('Good morning! The shop is open.', 'good'));
+    bus.on('special', (g) => toast("Today's special: " + g.name + ' sells for ' + Math.round((D.EVENTS.special.priceMult - 1) * 100) + '% more.', 'good'));
+    bus.on('criticArrived', () => {
+      toast('A food critic just walked in!', 'good');
+      HC.audio.play('bell');
+    });
+    bus.on('critic', (e) => {
+      if (e.good) toast('The critic loved it! Reputation up, +' + D.EVENTS.critic.reward + ' gems.', 'good');
+      else toast(!e.bought ? 'The critic left without buying anything. Bad review.' : e.full / Math.max(1, e.of) < 0.75 ? 'The critic found too many empty shelves. Bad review.' : 'The critic waited too long in line. Bad review.', 'bad');
+      HC.audio.play(e.good ? 'discover' : 'fail');
+    });
     bus.on('wagesPaid', (n) => toastOnce('wages', 5, 'Paid ₵' + fmt(n) + ' in wages this morning.'));
     bus.on('season', (se) => {
       toast(se.name + ' has arrived. ' + se.desc, 'good');
@@ -1376,6 +1606,7 @@
     };
     // Four times a second: full redraw if needed, otherwise just live values.
     setInterval(() => {
+      if (drag.active) return; // don't rebuild the page under a bee being dragged
       if (dirty && !typingNow()) render();
       else {
         refreshLive();

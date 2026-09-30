@@ -21,7 +21,7 @@
   // ---------------------------------------------------------------------------
   function newGame() {
     const s = {
-      v: 2, // save format version
+      v: 3, // save format version
       created: Date.now(),
       lastSeen: Date.now(), // when you last had the game open (for the away report)
       coins: 20,
@@ -53,10 +53,19 @@
       nextOrderAt: 90, // seconds until the next request is pinned
       merchant: null,
       nextMerchantAt: 420,
-      staff: {}, // hired employees, e.g. {cashier: true}
+      // Hired helpers and the duty each is assigned to, e.g.
+      // { rosa: { duty: 'register' }, theo: { duty: 'stock' } }
+      staff: {},
+      keeperDuty: 'register', // the shopkeeper's own duty (they still run your errands first)
+      special: null, // today's special product: { day, good }
+      critic: null, // today's food critic visit: { day, at } (at = time of day they arrive)
+      // Reputation changes, added up by reason, for today and yesterday
+      // (shown in the Reputation window): { day, items: { served: {n, amt} } }
+      repLog: { day: 0, items: {} },
+      repPrev: null,
       machine: null, // the Candle Machine once built: {level, wax, candles, prog}
       builds: [], // upgrades under construction (see builds.js)
-      builders: 1, // how many things can be built at the same time
+      builders: 1, // how many things can be built at once (always 1 for now; see DESIGN.md)
       // Cosmetics: what you own, what you're wearing/using, what's placed.
       cos: { owned: {}, equip: {}, placed: {} },
       stats: {
@@ -156,7 +165,21 @@
       // met can be claimed straight away, a small welcome-back bonus.
       s.goal = 0;
     }
-    s.v = 2;
+    // Version 2 saves: staff were fixed roles ({cashier: true, ...}) and extra
+    // builders could be bought with gems. Now helpers are people with duties,
+    // and there's one builder: refund any gems spent on extra builders.
+    if ((loaded.v || 1) < 3) {
+      const roles = { cashier: 'rosa', stocker: 'theo', collector: 'mabel', candler: 'otis' };
+      const old = loaded.staff || {};
+      s.staff = {};
+      for (const role in roles) {
+        if (old[role] === true) s.staff[roles[role]] = { duty: data.staff[roles[role]].duty };
+      }
+      for (let b = 1; b < (loaded.builders || 1); b++) s.gems += 80 * b; // what each extra builder cost
+    }
+    s.builders = 1;
+    s.repLog = s.repLog || { day: 0, items: {} };
+    s.v = 3;
     // Drop references to bees that no longer exist.
     s.hives.forEach((h) => (h.bees = h.bees.filter((id) => s.bees[id])));
     s.box = s.box.filter((id) => s.bees[id]);

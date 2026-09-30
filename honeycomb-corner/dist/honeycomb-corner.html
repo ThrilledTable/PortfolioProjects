@@ -12,10 +12,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Honeycomb Corner</title>
 <meta name="description" content="A cozy pixel-art idle game: keep bees, breed new species, and run a honey shop.">
-<!-- The two pixel fonts, from Google Fonts: Silkscreen for headings, Pixelify Sans for text. -->
+<!-- Fonts from Google Fonts: Pixelify Sans (pixel style) for the logo and
+     window titles, Nunito (rounded and easy to read) for everything else. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&amp;family=Silkscreen:wght@400;700&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=Pixelify+Sans:wght@500;600;700&amp;display=swap">
 <!-- All the colours, sizes and layout rules. -->
 <style>
 /* ============================================================================
@@ -57,8 +58,14 @@
   --gem: #7ad8f8;         /* gems: the rare speed-up currency */
   --focus: #7ad0f0;
 
-  --font-display: 'Silkscreen', ui-monospace, 'Courier New', monospace;
-  --font-body: 'Pixelify Sans', ui-monospace, 'Courier New', monospace;
+  /* FONTS (changed after playtest 2: the all-caps pixel font was hard to read).
+     Display: Pixelify Sans, a pixel font that stays readable, used only for
+       big things (the logo and window titles) to keep the retro feel.
+     Body and labels: Nunito, a rounded, very legible font for everything you
+       actually read. Labels use its extra-bold weight. */
+  --font-display: 'Pixelify Sans', ui-monospace, 'Courier New', monospace;
+  --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-label: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   --step--1: 0.8125rem;
   --step-0: 1rem;
@@ -83,8 +90,7 @@ body {
   color: var(--cream-text);
   font-family: var(--font-body);
   font-size: var(--step-0);
-  line-height: 1.4;
-  -webkit-font-smoothing: none;
+  line-height: 1.45;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -124,7 +130,7 @@ button { font: inherit; color: inherit; }
   clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
   box-shadow: inset 0 -6px 0 var(--amber);
 }
-.tagline { margin: 0; font-family: var(--font-display); font-size: var(--step--1); color: #b89c86; letter-spacing: 0.06em; text-transform: uppercase; }
+.tagline { margin: 0; font-family: var(--font-label); font-size: var(--step--1); color: #b89c86; letter-spacing: 0.06em; text-transform: uppercase; }
 
 /* ---- Stage: bezel, screen, HUD, tabs ------------------------------------ */
 .stage { display: grid; gap: 10px; align-content: start; min-width: 0; }
@@ -155,20 +161,28 @@ button { font: inherit; color: inherit; }
   touch-action: manipulation;
 }
 
+/* The tutorial / tip text box. After playtest 2 it no longer covers the
+   picture: it sits in its own strip BELOW the screen, with the shopkeeper's
+   portrait, so the whole shop stays visible. Tap it to continue. */
 .textbox {
-  position: absolute;
-  left: 3%; right: 3%; bottom: 4%;
+  position: relative;
+  margin-top: 10px;
+  display: flex; align-items: center; gap: 10px;
   background: var(--parch);
   color: var(--ink);
   border: 3px solid var(--ink);
   border-radius: 6px;
   box-shadow: inset 0 0 0 2px var(--honey), inset 0 0 0 4px var(--parch);
-  padding: 10px 28px 10px 14px;
-  line-height: 1.35;
-  font-size: clamp(0.8rem, 2.4vw, 1.05rem);
+  padding: 8px 30px 8px 10px;
+  line-height: 1.4;
+  font-size: clamp(0.88rem, 2.6vw, 1rem);
+  font-weight: 600;
   min-height: 3.4em;
   cursor: pointer;
+  animation: slide-in 0.18s ease-out;
 }
+@keyframes slide-in { from { transform: translateY(-6px); opacity: 0; } }
+.textbox .speaker { width: 32px; height: 40px; flex: none; }
 .textbox p { margin: 0; }
 .textbox .more {
   position: absolute; right: 12px; bottom: 9px;
@@ -182,7 +196,7 @@ button { font: inherit; color: inherit; }
 .hud {
   display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
   padding: 8px 4px 0;
-  font-family: var(--font-display);
+  font-family: var(--font-label);
   font-size: var(--step--1);
   color: var(--cream-text);
   font-variant-numeric: tabular-nums;
@@ -198,7 +212,7 @@ button { font: inherit; color: inherit; }
 .hud-gear:hover { border-color: var(--honey); color: var(--honey); }
 .hud-coins .ico { width: 20px; height: 20px; }
 .hud-item { display: flex; align-items: center; gap: 5px; }
-.hud .lbl { color: #b89c86; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.7rem; }
+.hud .lbl { color: #c8ae96; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.74rem; }
 .stars { display: inline-flex; gap: 1px; }
 .season-chip { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; }
 .season-chip:hover b { text-decoration: underline; }
@@ -217,7 +231,7 @@ button { font: inherit; color: inherit; }
   padding: 6px 8px 6px 10px;
   min-height: 40px;
 }
-.goal-label { font-family: var(--font-display); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--honey); white-space: nowrap; }
+.goal-label { font-family: var(--font-label); font-size: 0.74rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--honey); white-space: nowrap; }
 .goal-text { flex: 1; min-width: 10em; font-size: var(--step--1); background: none; border: 0; padding: 0; text-align: left; color: inherit; cursor: help; }
 .goal-text:hover { text-decoration: underline dotted; }
 .goal-reward { display: inline-flex; align-items: center; gap: 4px; font-size: var(--step--1); color: #b89c86; font-variant-numeric: tabular-nums; }
@@ -234,8 +248,8 @@ button { font: inherit; color: inherit; }
   border: 2px solid var(--ink);
   border-radius: 6px 6px 3px 3px;
   padding: 8px 2px;
-  font-family: var(--font-display);
-  font-size: clamp(0.62rem, 2.2vw, 0.8rem);
+  font-family: var(--font-label);
+  font-size: clamp(0.74rem, 2.8vw, 0.92rem);
   color: #d8c4ae;
   cursor: pointer;
   box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.3);
@@ -338,8 +352,8 @@ h3 { font-size: var(--step-0); margin: 0; font-weight: 600; }
 
 .chip {
   display: inline-block;
-  font-family: var(--font-display);
-  font-size: 0.66rem;
+  font-family: var(--font-label);
+  font-size: 0.72rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 1px 6px;
@@ -397,7 +411,7 @@ h3 { font-size: var(--step-0); margin: 0; font-weight: 600; }
 .sel-badge {
   position: absolute; top: -8px; left: -6px;
   background: var(--amber); color: var(--ink);
-  font-family: var(--font-display); font-size: 0.7rem;
+  font-family: var(--font-label); font-size: 0.7rem;
   border: 2px solid var(--ink); border-radius: 3px; padding: 0 5px;
 }
 .mystery { filter: brightness(0) opacity(0.45); }
@@ -422,7 +436,7 @@ h3 { font-size: var(--step-0); margin: 0; font-weight: 600; }
 }
 .shelf-tile:hover { background: #fbe9c0; }
 .shelf-tile img { width: 28px; height: 28px; }
-.shelf-num { font-family: var(--font-display); font-size: var(--step--1); color: var(--ink-soft); width: 1.2em; }
+.shelf-num { font-family: var(--font-label); font-size: var(--step--1); color: var(--ink-soft); width: 1.2em; }
 .shelf-empty { width: 28px; font-size: 0.7rem; color: var(--ink-soft); text-align: center; }
 .shelf-info { display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
 .shelf-info .muted { font-size: var(--step--1); }
@@ -467,7 +481,7 @@ h3 { font-size: var(--step-0); margin: 0; font-weight: 600; }
 }
 .guide-cell.unknown { background: #e6d6b0; }
 .guide-cell .bee-img { width: 56px; height: 56px; }
-.guide-no { position: absolute; top: 4px; left: 6px; font-family: var(--font-display); font-size: 0.62rem; color: var(--ink-soft); }
+.guide-no { position: absolute; top: 4px; left: 6px; font-family: var(--font-label); font-size: 0.7rem; color: var(--ink-soft); }
 .sparkle-dot { position: absolute; top: 3px; right: 6px; color: #d0508a; }
 .stats { display: grid; gap: 0; }
 .stat-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px; border-bottom: 2px dotted rgba(43, 29, 20, 0.2); font-variant-numeric: tabular-nums; }
@@ -517,7 +531,7 @@ textarea {
 @keyframes pop { from { transform: scale(0.94); } }
 #modalBody > * + * { margin-top: 12px; }
 #modalBody p { margin: 0; }
-.modal h3.sub { font-family: var(--font-display); font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
+.modal h3.sub { font-family: var(--font-label); font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
 .eyebrow { font-family: var(--font-display); font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.08em; color: var(--amber); }
 .bee-hero { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .bee-hero .bee-img { width: 96px; height: 96px; background: var(--parch-2); border: 2px solid var(--ink); border-radius: 8px; }
@@ -611,8 +625,8 @@ textarea {
 .work-text { flex: 1; min-width: 8em; }
 .work-queue { color: var(--honey); font-variant-numeric: tabular-nums; }
 .work-row .link { color: #b89c86; }
-.work-open .open { color: #8cd06a; font-family: var(--font-display); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; }
-.work-open .closed { color: #f09080; font-family: var(--font-display); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.work-open .open { color: #8cd06a; font-family: var(--font-label); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.work-open .closed { color: #f09080; font-family: var(--font-label); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; }
 
 /* A thing under construction: hammer, time left, a bar and a gem skip. */
 .building { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; font-size: var(--step--1); flex-wrap: wrap; }
@@ -625,7 +639,7 @@ textarea {
 .card-head .hive-ico { width: 27px; height: 48px; }
 .honey-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-variant-numeric: tabular-nums; font-size: var(--step--1); }
 .honey-row .bar { flex: 1; min-width: 80px; }
-.honey-row .lbl { font-family: var(--font-display); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
+.honey-row .lbl { font-family: var(--font-label); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
 .bar.honey i { background: #f8c838; }
 .full-flag { color: #c8601e; font-weight: 600; }
 .full-flag:empty { display: none; }
@@ -633,7 +647,7 @@ textarea {
 .rest-badge {
   position: absolute; top: -8px; right: -4px;
   background: #f8d0dc; border: 2px solid var(--ink); border-radius: 3px;
-  font-family: var(--font-display); font-size: 0.56rem; padding: 0 4px; text-transform: uppercase;
+  font-family: var(--font-label); font-size: 0.64rem; padding: 0 4px; text-transform: uppercase;
 }
 
 /* ---- Staff and machine ------------------------------------------------ */
@@ -645,7 +659,7 @@ textarea {
 /* ---- Store ------------------------------------------------------------ */
 .store-top { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
 .keeper-preview { width: 64px; height: 80px; background: var(--parch-2); border: 2px solid var(--ink); border-radius: 8px; padding: 4px; }
-.store-sec { font-family: var(--font-display); font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 14px; }
+.store-sec { font-family: var(--font-label); font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 14px; }
 .store-sec:first-child { margin-top: 0; }
 .store-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
 .store-card {
@@ -659,6 +673,57 @@ textarea {
 .store-thumb img { image-rendering: pixelated; }
 .swatch { display: block; width: 44px; height: 30px; border: 2px solid var(--ink); border-radius: 4px; }
 .chip-on { background: #b8e0a0; }
+
+
+/* ==== Added after playtest 2 =========================================== */
+
+/* Labels use the extra-bold weight of the body font (see --font-label). */
+.tagline, .hud, .goal-label, .tabs button, .chip, .sel-badge, .shelf-num, .guide-no,
+.modal h3.sub, .work-open span, .honey-row .lbl, .rest-badge, .store-sec { font-weight: 800; }
+
+/* Reputation button in the status bar: stars plus the number. */
+.hud-rep { background: none; border: 0; padding: 2px 4px; margin: -2px -4px; border-radius: 4px; cursor: pointer; color: inherit; font: inherit; }
+.hud-rep:hover { background: rgba(255, 255, 255, 0.08); }
+.hud-rep b { color: var(--honey); }
+.up { color: #3a8a2a; }
+.down { color: #b83a2a; }
+
+/* "Today" row: today's special and the food critic. */
+.today-row:empty { display: none; }
+.today-item { display: inline-flex; align-items: center; gap: 4px; }
+.critic-note { color: #f0c8ff; font-weight: 700; }
+.work-open .rush { color: #ffd23a; font-family: var(--font-label); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; animation: blink 0.8s steps(2) infinite; }
+
+/* Sleeping hives at night. */
+.zzz { color: #6a6ab0; font-style: italic; }
+
+/* Staff duty buttons: a row of small toggles, the current duty highlighted. */
+.duty-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.duty {
+  font-family: var(--font-label); font-weight: 800; font-size: 0.78rem;
+  padding: 4px 9px; border: 2px solid var(--ink); border-radius: 999px;
+  background: var(--parch-2); color: var(--ink); cursor: pointer;
+}
+.duty:hover { background: #fff4c8; }
+.duty.on { background: var(--honey); box-shadow: inset 0 -2px 0 var(--amber); }
+.duty:disabled { opacity: 0.4; cursor: not-allowed; }
+.hire-row { border-style: dashed; }
+.warn { color: #b83a2a; font-weight: 700; }
+
+/* Dragging bees: the picked-up bee follows the finger; drop targets glow. */
+.bee-tile { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.bee-tile.dragging { opacity: 0.35; }
+.drag-ghost {
+  position: fixed; left: 0; top: 0; z-index: 60; pointer-events: none;
+  display: grid; justify-items: center; gap: 2px;
+  background: var(--parch); color: var(--ink); border: 3px solid var(--ink); border-radius: 8px;
+  padding: 4px 8px; font-weight: 800; font-size: 0.8rem;
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.35);
+}
+.drag-ghost img { width: 40px; height: 40px; image-rendering: pixelated; }
+body.is-dragging { cursor: grabbing; -webkit-user-select: none; user-select: none; }
+body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2px dashed var(--amber); outline-offset: 2px; }
+.drop-over { outline: 3px solid var(--leaf) !important; outline-offset: 2px; background: #e6f6d8 !important; }
 
 </style>
 <!-- Lets phones install the game to the home screen (see manifest.webmanifest and sw.js). -->
@@ -681,11 +746,13 @@ textarea {
       <div class="screen">
         <!-- The game picture. It's drawn at 240×160 pixels and stretched up. -->
         <canvas id="scene" width="240" height="160" aria-label="Pixel-art view of your bee garden and honey shop. Tap a hive to collect honey; tap shelves, the Candle Machine, the request board or the merchant."></canvas>
-        <!-- The tutorial text box that types messages over the picture. -->
-        <div id="textbox" class="textbox" hidden role="status">
-          <p id="textboxText"></p>
-          <span class="more" aria-hidden="true"></span>
-        </div>
+      </div>
+      <!-- The tutorial text box. It sits just below the picture (not on top of
+           it) so the whole shop stays visible. Tap it to see the next line. -->
+      <div id="textbox" class="textbox" hidden role="status">
+        <img id="textboxFace" class="px speaker" alt="" width="32" height="40">
+        <p id="textboxText"></p>
+        <span class="more" aria-hidden="true"></span>
       </div>
       <!-- Coins, gems, time of day... (filled in by js/ui.js) -->
       <div id="hud" class="hud"></div>
@@ -1133,33 +1200,84 @@ textarea {
   };
 
   // ---------------------------------------------------------------------------
-  // STAFF you can hire. `hire` is a one-off fee; `wage` is paid every morning.
-  // If you can't pay the morning wages, that employee quits.
-  // `needs` means the job only exists once you own that thing.
-  // `look` is how they're drawn in the scene.
+  // STAFF: helpers you can hire, one after another in this order.
+  // Helpers aren't tied to one job: each one is ASSIGNED A DUTY (see DUTIES
+  // below) that you can change at any time in the Shop tab. You can even give
+  // the shopkeeper a duty.
+  //   hire  one-off fee to take them on
+  //   wage  paid every morning. If you can't pay, the priciest helper quits.
+  //   duty  the duty they start on when hired (you can change it)
+  //   look  how they're drawn in the scene
   // ---------------------------------------------------------------------------
   const STAFF = [
     {
-      id: 'cashier', name: 'Cashier', hire: 250, wage: 30,
-      desc: 'Runs the register, so customers can pay while you are out collecting honey.',
+      id: 'rosa', name: 'Rosa', hire: 250, wage: 30, duty: 'register',
       look: { hair: ['#2a2222', '#161010'], skin: ['#e0a878', '#b87c50'], shirt: ['#c84a4a', '#8e2e2e'], hat: null, apron: '#f4ecd8' },
     },
     {
-      id: 'stocker', name: 'Shelf Stocker', hire: 500, wage: 50,
-      desc: 'Carries goods from the storehouse to the shelves whenever they run low.',
+      id: 'theo', name: 'Theo', hire: 600, wage: 50, duty: 'stock',
       look: { hair: ['#e8c060', '#b89040'], skin: ['#f4d4b8', '#d8ac88'], shirt: ['#3a8ab0', '#266080'], hat: 'cap', apron: null },
     },
     {
-      id: 'collector', name: 'Honey Collector', hire: 900, wage: 80,
-      desc: 'Walks the garden and brings honey in from any hive that is filling up.',
+      id: 'mabel', name: 'Mabel', hire: 1200, wage: 80, duty: 'collect',
       look: { hair: ['#c0502a', '#8a3418'], skin: ['#f8c898', '#d89868'], shirt: ['#7a9a4a', '#56702e'], hat: 'straw', apron: null },
     },
     {
-      id: 'candler', name: 'Candle Maker', hire: 3000, wage: 150, needs: 'machine',
-      desc: 'Keeps the Candle Machine loaded with wax and carries finished candles to the storehouse.',
+      id: 'otis', name: 'Otis', hire: 3000, wage: 150, duty: 'candles',
       look: { hair: ['#8a5a8a', '#5e3a5e'], skin: ['#b07850', '#86563a'], shirt: ['#e08a3a', '#a85e22'], hat: null, apron: '#6a4a2a' },
     },
   ];
+
+  // ---------------------------------------------------------------------------
+  // DUTIES: the jobs anyone (helpers or the shopkeeper) can be assigned to.
+  //   home   where they wait when there's nothing to do (a spot in nav.js)
+  //   needs  the duty only works once you own that thing
+  //   face   which way they face while waiting
+  // Several people can share a duty. Two people on the Register ring
+  // customers up faster (one scans, one bags), which helps in the lunch rush.
+  // At night the shop is closed, so anyone on the Register restocks the
+  // shelves instead.
+  // ---------------------------------------------------------------------------
+  const DUTIES = [
+    { id: 'register', name: 'Register', short: 'Register', home: 'DESK', face: 'down', desc: 'Stays at the register so customers can pay. At night, restocks the shelves.' },
+    { id: 'stock', name: 'Stock shelves', short: 'Shelves', home: 'STORE', face: 'left', desc: 'Carries goods from the storehouse to any shelf running low.' },
+    { id: 'collect', name: 'Collect honey', short: 'Hives', home: 'LANE3', face: 'right', desc: 'Walks the garden and brings honey in from hives that are filling up.' },
+    { id: 'candles', name: 'Candle Machine', short: 'Candles', home: 'MACH', face: 'up', needs: 'machine', desc: 'Loads wax into the Candle Machine and carries candles to the storehouse.' },
+  ];
+
+  // ---------------------------------------------------------------------------
+  // REPUTATION: every way it goes up or down, in one place. The Reputation
+  // window (tap the stars) lists these, and a log of today's changes.
+  //   amt   how much it changes (on a 0-5 star scale)
+  //   text  the explanation shown to the player
+  // "served" is smaller the closer you are to 5 stars, and decorations with a
+  // reputation bonus make it bigger.
+  // ---------------------------------------------------------------------------
+  const REP = {
+    served: { amt: 0.02, text: 'A customer paid and left happy', good: true },
+    order: { amt: 0.15, text: 'You delivered a request from the board', good: true },
+    criticGood: { amt: 0.35, text: 'A food critic loved the shop', good: true },
+    special: { amt: 0.01, text: "Extra for selling today's special", good: true },
+    empty: { amt: -0.04, text: 'A customer found nothing they could buy (empty shelves, or nothing in their price range)' },
+    walkout: { amt: -0.06, text: 'A customer gave up waiting in line and walked out' },
+    criticBad: { amt: -0.25, text: 'A food critic was unimpressed' },
+    away: { amt: -0.01, text: 'While you were away, a customer found empty shelves' },
+  };
+
+  // ---------------------------------------------------------------------------
+  // DAILY EVENTS (all in fractions of a day; 0 = 6am, 0.25 = noon, 0.7 = dusk)
+  //   RUSH     the lunch rush: customers arrive much faster for a while
+  //   SPECIAL  each morning one product becomes "today's special": it sells
+  //            for 30% more and customers look for it first. Starts once you
+  //            sell at least two different products.
+  //   CRITIC   a food critic visits on some days. They judge how well stocked
+  //            the shelves are and how long they wait in line.
+  // ---------------------------------------------------------------------------
+  const EVENTS = {
+    rush: { from: 0.2, to: 0.3, spawnMult: 0.35 },
+    special: { priceMult: 1.3, pickWeight: 4, minGoods: 2 }, // only once you sell 2+ products
+    critic: { chance: 0.6, earliest: 0.08, latest: 0.6, reward: 5 },
+  };
 
   // ---------------------------------------------------------------------------
   // CUSTOMERS. `weight` is how common they are (bigger = more common).
@@ -1174,6 +1292,8 @@ textarea {
     { id: 'chef', name: 'Chef', weight: 12, offset: 1, units: [1, 3], hat: 'chef', shirt: ['#f4f0e8', '#c8c0b0'] },
     { id: 'noble', name: 'Noble', weight: 5, repWeight: 3, offset: 0, units: [1, 2], hat: 'tophat', shirt: ['#6a3a8a', '#44245e'] },
     { id: 'collector', name: 'Collector', weight: 1, repWeight: 1.5, offset: 0, units: [1, 1], mult: 1.5, hat: 'beret', shirt: ['#2a6a6a', '#1a4444'] },
+    // The food critic never turns up at random: sim.js sends one on some days.
+    { id: 'critic', name: 'Food Critic', weight: 0, offset: 0, units: [1, 1], mult: 2, hat: 'tophat', shirt: ['#2a2a3a', '#16161e'] },
   ];
 
   // Colour pairs [main, shadow] used to dress random customers.
@@ -1282,7 +1402,8 @@ textarea {
     orderChance: 0.3, orderMin: 1, orderMax: 3,
     dripChance: 0.15,
     secsPerGem: 120, // skipping a timer costs 1 gem per 2 minutes left
-    builderSlot: 80, // price of a second builder
+    // Extra builders are NOT sold for gems: you get one builder. A second
+    // builder is planned as a paid unlock in the full version (see DESIGN.md).
   };
 
   const BEE_NAMES = [
@@ -1306,10 +1427,14 @@ textarea {
   // Random tips the shopkeeper says when you tap them.
   const TIPS = [
     'Hives stop making honey when they are full. Tap a hive to send me out to collect it.',
-    'Customers can only pay when someone is at the register. A Cashier helps a lot.',
+    'Customers can only pay when someone is at the register. Hire a helper and put them on the Register duty.',
     'Richer customers show up as your reputation grows.',
     'Bees raising an egg in the Nursery take a break from making honey.',
-    'The shop closes at night. The bees keep working, so check the hives in the morning.',
+    'At night the shop closes and most bees sleep. It is the perfect time to restock the shelves.',
+    'The lunch rush starts around 11am. Fill the shelves before it hits.',
+    'Tap the stars in the status bar to see exactly what raises and lowers your reputation.',
+    'Long-press a bee in the Apiary tab and drag it onto another hive to move it.',
+    'Moonmoth Bees and Night Owls keep working after dark while everyone else sleeps.',
     'Breeding two bees of the same species can raise vigor.',
     'Nurse Bees boost every bee in their hive.',
     'Waxwing Beeswax needs the Candle Machine before it can be sold as candles.',
@@ -1339,12 +1464,13 @@ textarea {
 
   HC.data = {
     SEASONS, GOODS, SPECIES, RECIPES, TRAITS, UPGRADES, HIVE_COSTS, HIVE_MAX_LEVEL, CUSTOMERS,
-    HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, TIPS, MACHINE, STAFF, CATALOG, STORE_SECTIONS, GEMS,
+    HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, TIPS, MACHINE, STAFF, DUTIES, REP, EVENTS, CATALOG, STORE_SECTIONS, GEMS,
     good: byId(GOODS),
     species: byId(SPECIES),
     upgrade: byId(UPGRADES),
     customer: byId(CUSTOMERS),
     staff: byId(STAFF),
+    duty: byId(DUTIES),
     item: byId(CATALOG),
     DAY_LENGTH: 480, // real seconds in one in-game day (8 minutes)
     SEASON_DAYS: 4,
@@ -1384,7 +1510,7 @@ textarea {
   // ---------------------------------------------------------------------------
   function newGame() {
     const s = {
-      v: 2, // save format version
+      v: 3, // save format version
       created: Date.now(),
       lastSeen: Date.now(), // when you last had the game open (for the away report)
       coins: 20,
@@ -1416,10 +1542,19 @@ textarea {
       nextOrderAt: 90, // seconds until the next request is pinned
       merchant: null,
       nextMerchantAt: 420,
-      staff: {}, // hired employees, e.g. {cashier: true}
+      // Hired helpers and the duty each is assigned to, e.g.
+      // { rosa: { duty: 'register' }, theo: { duty: 'stock' } }
+      staff: {},
+      keeperDuty: 'register', // the shopkeeper's own duty (they still run your errands first)
+      special: null, // today's special product: { day, good }
+      critic: null, // today's food critic visit: { day, at } (at = time of day they arrive)
+      // Reputation changes, added up by reason, for today and yesterday
+      // (shown in the Reputation window): { day, items: { served: {n, amt} } }
+      repLog: { day: 0, items: {} },
+      repPrev: null,
       machine: null, // the Candle Machine once built: {level, wax, candles, prog}
       builds: [], // upgrades under construction (see builds.js)
-      builders: 1, // how many things can be built at the same time
+      builders: 1, // how many things can be built at once (always 1 for now; see DESIGN.md)
       // Cosmetics: what you own, what you're wearing/using, what's placed.
       cos: { owned: {}, equip: {}, placed: {} },
       stats: {
@@ -1519,7 +1654,21 @@ textarea {
       // met can be claimed straight away, a small welcome-back bonus.
       s.goal = 0;
     }
-    s.v = 2;
+    // Version 2 saves: staff were fixed roles ({cashier: true, ...}) and extra
+    // builders could be bought with gems. Now helpers are people with duties,
+    // and there's one builder: refund any gems spent on extra builders.
+    if ((loaded.v || 1) < 3) {
+      const roles = { cashier: 'rosa', stocker: 'theo', collector: 'mabel', candler: 'otis' };
+      const old = loaded.staff || {};
+      s.staff = {};
+      for (const role in roles) {
+        if (old[role] === true) s.staff[roles[role]] = { duty: data.staff[roles[role]].duty };
+      }
+      for (let b = 1; b < (loaded.builders || 1); b++) s.gems += 80 * b; // what each extra builder cost
+    }
+    s.builders = 1;
+    s.repLog = s.repLog || { day: 0, items: {} };
+    s.v = 3;
     // Drop references to bees that no longer exist.
     s.hives.forEach((h) => (h.bees = h.bees.filter((id) => s.bees[id])));
     s.box = s.box.filter((id) => s.bees[id]);
@@ -1773,7 +1922,8 @@ textarea {
 //   5. eggs in the Nursery get closer to hatching
 //   6. the town pins requests, the merchant comes and goes
 //   7. timers for upgrades tick down (builds.js)
-//   8. each morning, staff wages are paid
+//   8. each morning: wages are paid, a "today's special" is picked, and
+//      maybe a food critic is booked for later in the day
 //
 // It never touches the screen directly. When something noteworthy happens it
 // announces it on HC.bus (see util.js) and the UI/sound react.
@@ -1802,6 +1952,17 @@ textarea {
     },
     // The shop only serves customers while it isn't night.
     isOpen: (s) => !f.isNight(s),
+    // The lunch rush: for a while around midday customers pour in.
+    isRush(s) {
+      const p = f.dayPhase(s);
+      return f.isOpen(s) && p >= D.EVENTS.rush.from && p < D.EVENTS.rush.to;
+    },
+    // Bees sleep at night, except night-lovers: species with a night bonus
+    // (Moonmoth) and bees with the Night Owl trait keep working.
+    nightWorker(bee) {
+      return !!(D.species[bee.sp].nightBonus || bee.trait === 'nightowl');
+    },
+    asleep: (s, bee) => f.isNight(s) && !f.nightWorker(bee),
     season(s) {
       const len = D.DAY_LENGTH * D.SEASON_DAYS;
       return D.SEASONS[Math.floor(s.time / len) % 4];
@@ -1839,12 +2000,17 @@ textarea {
       const se = f.season(s);
       let m = mult * (1 + (se.price || 0));
       if (goodId === 'candle' && se.candle) m *= 1 + se.candle;
+      if (f.isSpecial(s, goodId)) m *= D.EVENTS.special.priceMult; // today's special
       return Math.max(1, Math.round(D.good[goodId].price * f.priceMult(s) * m));
     },
+    // Is this product today's special?
+    isSpecial: (s, goodId) => !!(s.special && s.special.good === goodId && s.special.day === f.day(s)),
     // The Honey Cart sells storehouse overflow at this fraction of the price.
     cartRate: (s) => (s.up.cart ? 0.2 + 0.05 * (s.up.cart - 1) : 0),
     // Seconds for the person at the register to ring up one customer.
-    checkoutTime: (s) => 1.6 * Math.pow(0.88, s.up.register),
+    // A second person on the Register duty, bagging beside the till, makes
+    // it almost twice as fast.
+    checkoutTime: (s) => 1.6 * Math.pow(0.88, s.up.register) * (HC.workers && HC.workers.baggerPresent(s) ? 0.55 : 1),
 
     // -- Decorations --------------------------------------------------------------
     // Adds up one kind of bonus ('customers', 'prod' or 'rep') from every
@@ -1891,15 +2057,18 @@ textarea {
       for (const n of s.nursery) if (n) busy.add(n.a).add(n.b);
       return busy;
     },
-    // Units per second of each product across all hives (resting bees excluded).
-    goodRates(s) {
-      const night = f.isNight(s);
+    // Units per second of each product across all hives (resting bees
+    // excluded). `asDay` pretends it's daytime (used to size requests, so
+    // they aren't tiny just because the bees are asleep).
+    goodRates(s, asDay) {
+      const night = !asDay && f.isNight(s);
       const busy = f.busyBees(s);
       const out = {};
       for (const h of s.hives) {
         for (const id of h.bees) {
           if (busy.has(id)) continue;
           const bee = s.bees[id];
+          if (night && !f.nightWorker(bee)) continue; // asleep
           const g = D.species[bee.sp].good;
           out[g] = (out[g] || 0) + f.beeRate(s, bee, h, night);
         }
@@ -1922,7 +2091,8 @@ textarea {
       return b;
     },
     // Average seconds between customers arriving (smaller = busier shop).
-    spawnInterval: (s) => Math.max(0.8, 9 / (1 + 0.2 * s.rep) / (1 + f.customerBoost(s))),
+    // During the lunch rush it's about three times busier.
+    spawnInterval: (s) => Math.max(0.8, 9 / (1 + 0.2 * s.rep) / (1 + f.customerBoost(s))) * (f.isRush(s) ? D.EVENTS.rush.spawnMult : 1),
 
     // -- Buying bees ------------------------------------------------------------
     marketUnlocked(s, sp) {
@@ -1957,7 +2127,7 @@ textarea {
     // -- Staff --------------------------------------------------------------------
     wagesPerDay(s) {
       let w = 0;
-      for (const id in s.staff) if (s.staff[id]) w += D.staff[id].wage;
+      for (const id in s.staff) if (s.staff[id] && D.staff[id]) w += D.staff[id].wage;
       return w;
     },
 
@@ -2008,6 +2178,36 @@ textarea {
     if (n <= 0) return;
     s.gems += n;
     if (!rt.silent) bus.emit('gems', { n, why });
+  }
+
+  // ---------------------------------------------------------------------------
+  // REPUTATION. Every change goes through here so it can be explained: the
+  // amount comes from data.js (REP), and it's added to today's log, which the
+  // Reputation window shows. `key` is the reason ('served', 'walkout'...).
+  // `scale` multiplies the amount. x/y float a little star in the scene.
+  // ---------------------------------------------------------------------------
+  function changeRep(s, key, scale = 1, x, y) {
+    const rule = D.REP[key];
+    let amt = rule.amt * scale;
+    // Happy customers count for less near 5 stars, more with decorations.
+    if (key === 'served' || key === 'special') amt *= (1 + f.decorBonus(s, 'rep')) * (1 - s.rep / 5.5);
+    const before = s.rep;
+    s.rep = util.clamp(s.rep + amt, 0, 5);
+    const real = s.rep - before;
+    const day = f.day(s);
+    if (!s.repLog || s.repLog.day !== day) rollRepLog(s, day);
+    const item = s.repLog.items[key] || (s.repLog.items[key] = { n: 0, amt: 0 });
+    item.n++;
+    item.amt += real;
+    if (x != null && !rt.silent) {
+      rt.fx.push({ kind: 'text', x, y, text: (real >= 0 ? '+' : '-') + '*', t: 0, life: 1.4, color: real >= 0 ? '#fff08a' : '#ff7a6a' });
+    }
+    return real;
+  }
+  // Start a fresh log for a new day, keeping the last one as "yesterday".
+  function rollRepLog(s, day) {
+    if (s.repLog && Object.keys(s.repLog.items).length) s.repPrev = s.repLog;
+    s.repLog = { day, items: {} };
   }
 
   // Coins earned in the last minute (shown as "per min" in the status bar).
@@ -2073,7 +2273,8 @@ textarea {
   // 1. BEES MAKE HONEY
   // Each bee fills a progress bar at its own speed. When the bar fills, one
   // unit goes into its hive. A full hive stops everyone in it until someone
-  // collects. Bees raising an egg in the Nursery rest.
+  // collects. Bees raising an egg in the Nursery rest, and at night most bees
+  // sleep (only Moonmoths and Night Owls keep working).
   // ---------------------------------------------------------------------------
   function produce(s, dt) {
     const night = f.isNight(s);
@@ -2084,6 +2285,7 @@ textarea {
       for (const id of h.bees) {
         if (busy.has(id)) continue;
         const bee = s.bees[id];
+        if (night && !f.nightWorker(bee)) continue; // asleep for the night
         if (total >= cap) {
           bee.prog = Math.min(bee.prog, 0.999); // waiting for space
           continue;
@@ -2179,7 +2381,7 @@ textarea {
   // Create a request for something you actually make, sized to roughly two
   // or three minutes of your production of it.
   function makeOrder(s) {
-    const rates = f.goodRates(s);
+    const rates = f.goodRates(s, true);
     const goods = D.GOODS.filter((g) => s.unlockedGoods[g.id] && !g.raw);
     if (!goods.length) return null;
     const g = util.weighted(goods, (x) => (rates[x.id] || x.id === 'candle' ? 3 + x.tier : 0.5));
@@ -2296,18 +2498,46 @@ textarea {
   }
 
   // ---------------------------------------------------------------------------
-  // 8. WAGES: paid once each new in-game day. If you can't afford everyone,
-  // the most expensive employees quit until the rest can be paid.
+  // 8. A NEW DAY. Once each morning:
+  //   - wages are paid. If you can't afford everyone, the most expensive
+  //     helpers quit until the rest can be paid.
+  //   - a "today's special" product is picked (sells for 50% more)
+  //   - on some days a food critic is booked to visit later
+  //   - the reputation log starts a new page
   // ---------------------------------------------------------------------------
-  function updateWages(s) {
+  function updateDay(s) {
     const day = Math.floor(s.time / D.DAY_LENGTH);
+    // The very first day also needs a special.
+    if (!s.special || s.special.day !== day + 1 || (!s.special.good && D.GOODS.filter((g) => s.unlockedGoods[g.id] && !g.raw).length >= D.EVENTS.special.minGoods)) pickSpecial(s, day + 1);
     if (day <= s.lastDay) return;
     s.lastDay = day;
-    const hired = Object.keys(s.staff).filter((id) => s.staff[id]).sort((a, b) => D.staff[b].wage - D.staff[a].wage);
+    payWages(s);
+    rollRepLog(s, day + 1);
+    const c = D.EVENTS.critic;
+    s.critic = Math.random() < c.chance ? { day: day + 1, at: util.rand(c.earliest, c.latest), done: false } : null;
+  }
+
+  // Pick today's special among the products you can actually sell,
+  // preferring ones you have in stock. (With only one product there's no
+  // special: it would just be a permanent price rise.)
+  function pickSpecial(s, day) {
+    const goods = D.GOODS.filter((g) => s.unlockedGoods[g.id] && !g.raw);
+    if (goods.length < D.EVENTS.special.minGoods) {
+      s.special = { day, good: null }; // no special until there's a choice
+      return;
+    }
+    const g = util.weighted(goods, (x) => 1 + (s.store[x.id] || 0) + x.tier);
+    s.special = { day, good: g.id };
+    if (!rt.silent && day > 1) bus.emit('special', g);
+    bus.emit('dirty');
+  }
+
+  function payWages(s) {
+    const hired = Object.keys(s.staff).filter((id) => s.staff[id] && D.staff[id]).sort((a, b) => D.staff[b].wage - D.staff[a].wage);
     let owed = hired.reduce((t, id) => t + D.staff[id].wage, 0);
     for (const id of hired) {
       if (s.coins >= owed) break;
-      s.staff[id] = false;
+      delete s.staff[id];
       owed -= D.staff[id].wage;
       if (HC.workers) HC.workers.sync(s);
       if (!rt.silent) bus.emit('staffQuit', D.staff[id]);
@@ -2317,6 +2547,18 @@ textarea {
       s.coins -= owed;
       if (!rt.silent) bus.emit('wagesPaid', owed);
     }
+  }
+
+  // Announce the lunch rush, nightfall and morning, once each as they start.
+  function updateAnnouncements(s) {
+    const rush = f.isRush(s), open = f.isOpen(s);
+    if (rush && !rt.wasRush && !rt.silent) bus.emit('rush');
+    if (open !== rt.wasOpen && rt.wasOpen != null) {
+      if (!rt.silent) bus.emit(open ? 'morning' : 'nightfall');
+      bus.emit('dirty');
+    }
+    rt.wasRush = rush;
+    rt.wasOpen = open;
   }
 
   function updateFx(dt) {
@@ -2340,7 +2582,8 @@ textarea {
     updateTown(s, dt);
     updateDrip(s, dt);
     updateSeason(s);
-    updateWages(s);
+    updateDay(s);
+    updateAnnouncements(s);
     if (HC.builds) HC.builds.update(s);
     updateFx(dt);
   }
@@ -2349,10 +2592,11 @@ textarea {
   // FAST-FORWARD for time spent away (tab closed, phone locked).
   // Walking every step would be slow, so this uses shortcuts:
   //   - bees fill their hives as normal (so hives cap out if nobody collects)
-  //   - a hired Honey Collector moves honey at about one basket per 30s
+  //   - bees sleep at night, as usual
+  //   - each person on the Collect duty moves about one basket per 30s
   //   - the shopkeeper keeps the shelves stocked from the storehouse
   //   - while the shop is open, customers buy at 60% of the live rate
-  //   - a hired Candle Maker keeps the machine running
+  //   - anyone on the Candle Machine duty keeps it running
   //   - timers, eggs, requests and wages all progress
   // Production and sales stop after OFFLINE_CAP (8 hours); timers keep going.
   // Returns a summary for the "While you were away" report.
@@ -2374,21 +2618,24 @@ textarea {
       s.clock += dt;
       produce(s, dt);
       updateMachine(s, dt);
-      if (s.staff.collector) offlineCollect(s, dt);
-      if (s.staff.candler && s.machine) offlineTend(s);
+      // Anyone on the Collect duty brings honey in; the Candle Machine duty
+      // keeps the machine going. (See workers.js for duties.)
+      const collectors = HC.workers ? HC.workers.onDuty(s, 'collect') : 0;
+      if (collectors) offlineCollect(s, dt, collectors);
+      if (s.machine && HC.workers && HC.workers.onDuty(s, 'candles')) offlineTend(s);
       restockInstant(s);
       if (f.isOpen(s)) instantCustomers(s, dt, 0.6);
       updateNursery(s, dt);
       updateTown(s, dt);
       updateSeason(s);
-      updateWages(s);
+      updateDay(s);
       if (HC.builds) HC.builds.update(s);
     }
     // Any time beyond the 8-hour cap still counts for timers.
     if (seconds > active) {
       s.time += seconds - active;
       s.clock += seconds - active;
-      updateWages(s);
+      updateDay(s);
       if (HC.builds) HC.builds.update(s);
     }
     rt.silent = false;
@@ -2412,10 +2659,10 @@ textarea {
     };
   }
 
-  // While away: the collector moves roughly one basket every 30 seconds,
+  // While away: each collector moves roughly one basket every 30 seconds,
   // always from the fullest hive.
-  function offlineCollect(s, dt) {
-    rt.offlineCarry = (rt.offlineCarry || 0) + (f.carryCap(s) / 30) * dt;
+  function offlineCollect(s, dt, people) {
+    rt.offlineCarry = (rt.offlineCarry || 0) + (f.carryCap(s) / 30) * dt * people;
     while (rt.offlineCarry >= 1) {
       const i = s.hives.reduce((bi, h, k) => (f.honeyIn(h) > f.honeyIn(s.hives[bi]) ? k : bi), 0);
       if (f.honeyIn(s.hives[i]) <= 0) {
@@ -2476,7 +2723,7 @@ textarea {
   }
 
   HC.sim = {
-    f, rt, update, catchUp, resetRuntime, earn, gainGems, addToStore, takeFromHive, restockInstant,
+    f, rt, update, catchUp, resetRuntime, earn, gainGems, changeRep, addToStore, takeFromHive, restockInstant,
     decideEgg, makeOrder, makeMerchantOffer, pinOrder, incomePerMin, claimDrip, produce,
   };
 })();
@@ -2600,7 +2847,17 @@ textarea {
 //   pay      the person at the register rings them up and coins are earned
 //   exit / leave   walk out and disappear
 //
-// Nobody new arrives while the shop is closed at night.
+// Nobody new arrives while the shop is closed at night. Around midday the
+// lunch rush brings customers in much faster.
+//
+// THE FOOD CRITIC: on some days a critic visits (sim.js books the time).
+// They buy one item and judge the shop when they pay: if most shelves are
+// stocked and they didn't wait long, reputation jumps and they leave gems.
+// Otherwise reputation drops. If they leave without buying, that counts as
+// a bad review too.
+//
+// Every reputation change goes through HC.sim.changeRep, which records the
+// reason so the Reputation window can explain it.
 //
 // "Requesters" are townsfolk who walk up to the request board outside,
 // pin a note (which becomes a request in the Town tab) and walk away.
@@ -2634,8 +2891,11 @@ textarea {
     });
     if (!idx.length) return -1;
     const pick = util.weighted(idx, (i) => {
-      const p = D.good[s.shelves[i].good].price;
-      return ctype.id === 'collector' ? Math.pow(p, 1.5) : Math.sqrt(p);
+      const g = s.shelves[i].good;
+      const p = D.good[g].price;
+      // Today's special is what everyone's talking about.
+      const special = f().isSpecial(s, g) ? D.EVENTS.special.pickWeight : 1;
+      return (ctype.id === 'collector' ? Math.pow(p, 1.5) : Math.sqrt(p)) * special;
     });
     return pick == null ? -1 : pick;
   }
@@ -2645,17 +2905,6 @@ textarea {
     let n = util.randInt(ctype.units[0], ctype.units[1]);
     for (let i = 0; i < s.up.samples; i++) if (Math.random() < 0.1) n++;
     return n;
-  }
-
-  // Reputation goes up a little with each happy customer (more slowly the
-  // closer you are to 5 stars; String Lights and Lanterns speed it up)...
-  function repGain(s, scale = 1) {
-    const boost = 1 + f().decorBonus(s, 'rep');
-    s.rep = Math.min(5, s.rep + 0.02 * scale * boost * (1 - s.rep / 5.5));
-  }
-  // ...and down with each unhappy one.
-  function repLoss(s, amt = 0.04) {
-    s.rep = Math.max(0, s.rep - amt);
   }
 
   // A random appearance for a new customer.
@@ -2677,8 +2926,9 @@ textarea {
   // ---------------------------------------------------------------------------
   // Creating people
   // ---------------------------------------------------------------------------
-  function spawnCustomer(s) {
-    const ctype = rollCustomerType(s);
+  // `forced` is a customer type to use instead of a random one (the critic).
+  function spawnCustomer(s, forced) {
+    const ctype = forced || rollCustomerType(s);
     const fromLeft = Math.random() < 0.5;
     rt().customers.push({
       id: util.uid(),
@@ -2703,6 +2953,7 @@ textarea {
       timer: 0,
       wait: 0, // seconds spent waiting in line
       patience: util.rand(40, 70), // how long they'll wait before walking out
+      critic: ctype.id === 'critic',
     });
   }
 
@@ -2735,7 +2986,8 @@ textarea {
     c.bubble = { kind: 'dots', t: 0 };
     c.state = 'leave';
     c.path = exitPath(c.y);
-    repLoss(s);
+    if (c.critic) criticVerdict(s, c, false);
+    else sim().changeRep(s, 'empty', 1, c.x, c.y - 26);
     s.stats.disappointed++;
     bus.emit('disappointed', c);
   }
@@ -2750,9 +3002,21 @@ textarea {
     c.bubble = { kind: 'angry', t: 0 };
     c.state = 'leave';
     c.path = exitPath(c.y);
-    repLoss(s, 0.06);
+    if (c.critic) criticVerdict(s, c, false);
+    else sim().changeRep(s, 'walkout', 1, c.x, c.y - 26);
     s.stats.walkouts++;
     if (!rt().silent) bus.emit('walkout', c);
+  }
+
+  // The critic's review. `bought` is false if they left without buying.
+  // A good review needs 3 of every 4 shelves stocked and a short wait.
+  function criticVerdict(s, c, bought) {
+    const stocked = s.shelves.filter((sh) => sh.good);
+    const full = stocked.filter((sh) => sh.qty > 0).length;
+    const good = bought && stocked.length > 0 && full / stocked.length >= 0.75 && c.wait < 25;
+    sim().changeRep(s, good ? 'criticGood' : 'criticBad', 1, c.x, c.y - 26);
+    if (good) sim().gainGems(s, D.EVENTS.critic.reward, 'the food critic');
+    if (!rt().silent) bus.emit('critic', { good, wait: c.wait, full, of: stocked.length, bought });
   }
 
   function goToShelf(c, idx) {
@@ -2873,7 +3137,9 @@ textarea {
           s.stats.sold += c.bought.qty;
           s.stats.customers++;
           s.stats.best = Math.max(s.stats.best, c.total);
-          repGain(s);
+          if (c.critic) criticVerdict(s, c, true);
+          else sim().changeRep(s, 'served');
+          if (f().isSpecial(s, c.bought.good)) sim().changeRep(s, 'special');
           rt().queue.shift();
           c.state = 'exit';
           c.path = exitPath(c.y);
@@ -2897,6 +3163,13 @@ textarea {
       const shoppers = r.customers.filter((c) => c.kind === 'customer').length;
       if (f().isOpen(s) && shoppers < 14) spawnCustomer(s);
     }
+    // The food critic arrives at their booked time.
+    const cr = s.critic;
+    if (cr && !cr.done && cr.day === f().day(s) && f().dayPhase(s) >= cr.at && f().isOpen(s)) {
+      cr.done = true;
+      spawnCustomer(s, D.customer.critic);
+      if (!rt().silent) bus.emit('criticArrived');
+    }
     for (const c of r.customers) updateCustomer(s, c, dt);
     r.customers = r.customers.filter((c) => !c.done);
   }
@@ -2908,7 +3181,7 @@ textarea {
     const idx = chooseShelf(s, ctype);
     if (idx < 0) {
       s.stats.disappointed++;
-      repLoss(s, 0.01);
+      sim().changeRep(s, 'away');
       return 0;
     }
     const sh = s.shelves[idx];
@@ -2920,7 +3193,7 @@ textarea {
     s.runEarned += amt;
     s.stats.sold += take;
     s.stats.customers++;
-    repGain(s);
+    sim().changeRep(s, 'served');
     sim().restockInstant(s);
     return amt;
   }
@@ -2933,17 +3206,20 @@ textarea {
 // =============================================================================
 // workers.js: THE SHOPKEEPER AND THE STAFF
 // -----------------------------------------------------------------------------
-// Everyone who works at the shop is a "worker". There is always the
-// shopkeeper (you), plus any staff you've hired:
+// Everyone who works at the shop is a "worker": the shopkeeper (you), plus
+// any helpers you've hired (Rosa, Theo, Mabel, Otis).
 //
-//   Shopkeeper  Stands at the register ringing up customers. Goes out to a
-//               hive only when you tap it (honey collection), and restocks
-//               an empty shelf when the shop is quiet. While they're out,
-//               nobody is at the register unless you hired a Cashier.
-//   Cashier     Never leaves the register.
-//   Stocker     Refills shelves from the storehouse whenever they run low.
-//   Collector   Brings honey in from any hive that's filling up.
-//   Candle Maker  Loads wax into the Candle Machine and carries candles out.
+// DUTIES: nobody is stuck in one job. Each worker is ASSIGNED A DUTY in the
+// Shop tab, and does it on their own without any tapping:
+//   Register        stand at the register so customers can pay. At night,
+//                   when the shop is closed, restock the shelves instead.
+//                   Two people on the Register ring up faster.
+//   Stock shelves   carry goods from the storehouse to low shelves.
+//   Collect honey   bring honey in from hives that are filling up.
+//   Candle Machine  load wax, carry candles out.
+// The shopkeeper has a duty too, but always runs YOUR errands first (when you
+// tap a hive, the machine, or "Restock now"). If nobody is on the Register,
+// customers wait in line until someone comes back.
 //
 // HOW A JOB WORKS
 // A job is a to-do list of steps, done in order:
@@ -2961,10 +3237,36 @@ textarea {
   const f = () => HC.sim.f;
   const rt = () => HC.sim.rt;
 
-  // Where each kind of worker waits when there's nothing to do.
-  function homeOf(s, role) {
-    if (role === 'keeper') return s.staff.cashier ? 'SIDE' : 'DESK';
-    return { cashier: 'DESK', stocker: 'STORE', collector: 'LANE3', candler: 'MACH' }[role];
+  // Which duty a worker is on. `w` is a worker (or its role: 'keeper'/'rosa'...).
+  function dutyOf(s, w) {
+    const role = typeof w === 'string' ? w : w.role;
+    const duty = role === 'keeper' ? s.keeperDuty : s.staff[role] && s.staff[role].duty;
+    // A Candle Machine duty without a machine falls back to the Register.
+    if (!D.duty[duty] || (D.duty[duty].needs === 'machine' && !s.machine)) return 'register';
+    return duty;
+  }
+
+  // Everyone on the Register duty, helpers first, the shopkeeper last. The
+  // first one stands AT the register; anyone else stands beside it and bags.
+  function registerCrew(s) {
+    return rt().workers.filter((w) => dutyOf(s, w) === 'register').sort((a, b) => (a.role === 'keeper') - (b.role === 'keeper'));
+  }
+
+  // Where a worker waits when there's nothing to do.
+  function homeOf(s, w) {
+    const role = typeof w === 'string' ? w : w.role;
+    const duty = dutyOf(s, role);
+    if (duty !== 'register') return D.duty[duty].home;
+    const crew = registerCrew(s);
+    const i = crew.findIndex((x) => x.role === role);
+    return i <= 0 ? 'DESK' : 'SIDE';
+  }
+
+  // How many workers (including the shopkeeper) are on a duty.
+  function onDuty(s, duty) {
+    let n = dutyOf(s, 'keeper') === duty ? 1 : 0;
+    for (const id in s.staff) if (s.staff[id] && dutyOf(s, id) === duty) n++;
+    return n;
   }
 
   // Jobs you've asked the shopkeeper to do (tapping hives, the machine...).
@@ -2978,10 +3280,10 @@ textarea {
     const p = nav.NODES[atNode];
     return {
       id: role,
-      role,
+      role, // 'keeper' or the helper's id ('rosa', 'theo'...)
       x: p.x, y: p.y, node: atNode,
       dir: 'down', walk: 0,
-      speed: role === 'keeper' ? 38 : 32, // pixels per second
+      speed: role === 'keeper' ? 38 : 34, // pixels per second
       path: [],
       job: null,
       carry: {}, // what they're holding, e.g. { wildflower: 12 }
@@ -2995,21 +3297,20 @@ textarea {
   // carried into the storehouse).
   function sync(s) {
     const list = rt().workers;
-    if (!list.find((w) => w.role === 'keeper')) list.push(makeWorker(s, 'keeper', homeOf(s, 'keeper')));
+    if (!list.find((w) => w.role === 'keeper')) list.push(makeWorker(s, 'keeper', 'DESK'));
     for (const st of D.STAFF) {
       const has = list.find((w) => w.role === st.id);
       if (s.staff[st.id] && !has) {
         const w = makeWorker(s, st.id, 'STREET');
-        w.job = { label: 'Arriving for their first shift', steps: [{ go: homeOf(s, st.id) }], i: 0 };
         list.push(w);
+        w.job = { label: 'Arriving for their first shift', steps: [{ go: homeOf(s, w) }], i: 0 };
       } else if (!s.staff[st.id] && has) {
         dropCarry(s, has);
         list.splice(list.indexOf(has), 1);
       }
     }
-    // With a Cashier hired, the shopkeeper steps aside from the register.
-    const k = list.find((w) => w.role === 'keeper');
-    if (k && !k.job && k.node !== homeOf(s, 'keeper')) k.job = homeJob(s, k);
+    // Anyone standing in the wrong place after a duty change walks over
+    // (the update loop does this for idle workers).
   }
 
   function dropCarry(s, w) {
@@ -3025,7 +3326,7 @@ textarea {
   // Job recipes
   // ---------------------------------------------------------------------------
   function homeJob(s, w) {
-    return { label: 'Heading back', steps: [{ go: homeOf(s, w.role) }], i: 0 };
+    return { label: 'Heading back', steps: [{ go: homeOf(s, w) }], i: 0 };
   }
 
   // Put everything being carried into the storehouse (takes a second).
@@ -3045,20 +3346,20 @@ textarea {
         { go: 'HV' + i },
         { act: (s2, w2) => {
           w2.targetHive = null;
-          if (!s2.hives[i]) return { insert: [{ go: homeOf(s2, w2.role) }] };
+          if (!s2.hives[i]) return { insert: [{ go: homeOf(s2, w2) }] };
           const got = sim().takeFromHive(s2, i, f().carryCap(s2) - carried(w2));
           let n = 0;
           for (const g in got) {
             w2.carry[g] = (w2.carry[g] || 0) + got[g];
             n += got[g];
           }
-          if (!n) return { insert: [{ go: homeOf(s2, w2.role) }] }; // nothing there after all
+          if (!n) return { insert: [{ go: homeOf(s2, w2) }] }; // nothing there after all
           if (!rt().silent) bus.emit('collected', { hive: i, n, who: w2.role });
           return { wait: 1 + 0.04 * n };
         } },
         { go: 'STORE' },
         depositStep,
-        { go: homeOf(s, w.role) },
+        { go: homeOf(s, w) },
       ],
       i: 0,
     };
@@ -3089,11 +3390,11 @@ textarea {
             room -= take;
             visits.push({ go: 'SH' + k }, { act: placeOnShelf(k) });
           }
-          if (!visits.length) return { insert: [{ go: homeOf(s2, w2.role) }] };
+          if (!visits.length) return { insert: [{ go: homeOf(s2, w2) }] };
           return {
             wait: 0.8,
             insert: visits.concat([
-              { act: (s3, w3) => (carried(w3) ? { insert: [{ go: 'STORE' }, depositStep, { go: homeOf(s3, w3.role) }] } : { insert: [{ go: homeOf(s3, w3.role) }] }) },
+              { act: (s3, w3) => (carried(w3) ? { insert: [{ go: 'STORE' }, depositStep, { go: homeOf(s3, w3) }] } : { insert: [{ go: homeOf(s3, w3) }] }) },
             ]),
           };
         } },
@@ -3122,7 +3423,7 @@ textarea {
         { go: 'STORE' },
         { act: (s2, w2) => {
           const m = s2.machine;
-          if (!m) return { insert: [{ go: homeOf(s2, w2.role) }] };
+          if (!m) return { insert: [{ go: homeOf(s2, w2) }] };
           const want = Math.min(f().carryCap(s2) - carried(w2), f().machineCap(s2) - m.wax, s2.store.wax || 0);
           if (want > 0) {
             s2.store.wax -= want;
@@ -3150,7 +3451,7 @@ textarea {
           }
           return { wait: 1.5 };
         } },
-        { act: (s2, w2) => (carried(w2) ? { insert: [{ go: 'STORE' }, depositStep, { go: homeOf(s2, w2.role) }] } : { insert: [{ go: homeOf(s2, w2.role) }] }) },
+        { act: (s2, w2) => (carried(w2) ? { insert: [{ go: 'STORE' }, depositStep, { go: homeOf(s2, w2) }] } : { insert: [{ go: homeOf(s2, w2) }] }) },
       ],
       i: 0,
     };
@@ -3167,22 +3468,33 @@ textarea {
 
   function nextJobFor(s, w) {
     const r = rt();
-    if (w.role === 'keeper') {
-      // Never walk away in the middle of ringing someone up.
-      if (!s.staff.cashier && r.queue[0] && r.queue[0].state === 'pay') return null;
-      if (keeperJobs.length) {
-        const j = keeperJobs.shift();
-        if (j.type === 'collect') return collectJob(s, w, j.hive);
-        if (j.type === 'tend') return tendJob(s, w);
-        if (j.type === 'restock') return restockJob(s, w, f().shelfCap(s) - 1);
-      }
-      // Quietly restock an empty shelf, but only if nobody is waiting to pay
-      // (or a Cashier is covering) and there's no Stocker to do it.
-      if (!s.staff.stocker && (s.staff.cashier || !r.queue.length) && shelvesNeed(s, 0)) return restockJob(s, w, 1);
+    const cap = f().shelfCap(s);
+    const night = f().isNight(s);
+    // Never walk away from the register in the middle of ringing someone up.
+    if (w.node === 'DESK' && !w.path.length && r.queue[0] && r.queue[0].state === 'pay') return null;
+    // The shopkeeper does your errands before anything else.
+    if (w.role === 'keeper' && keeperJobs.length) {
+      const j = keeperJobs.shift();
+      if (j.type === 'collect') return collectJob(s, w, j.hive);
+      if (j.type === 'tend') return tendJob(s, w);
+      if (j.type === 'restock') return restockJob(s, w, cap - 1);
+    }
+    const duty = dutyOf(s, w);
+    if (duty === 'register') {
+      // Night: the shop is shut, so top up every shelf for the morning.
+      if (night && shelvesNeed(s, cap - 1) && !restocking(w)) return restockJob(s, w, cap - 1);
+      // Daytime: the shopkeeper quietly refills an EMPTY shelf, but only if
+      // nobody is on shelf duty and they aren't leaving a line unattended.
+      const covered = registerCrew(s).length > 1 || !r.queue.length;
+      if (w.role === 'keeper' && !onDuty(s, 'stock') && covered && shelvesNeed(s, 0) && !restocking(w)) return restockJob(s, w, 1);
       return null;
     }
-    if (w.role === 'stocker' && shelvesNeed(s, 3)) return restockJob(s, w, 3);
-    if (w.role === 'collector') {
+    if (duty === 'stock') {
+      const threshold = night ? cap - 1 : 3; // at night, fill shelves right up
+      if (shelvesNeed(s, threshold) && !restocking(w)) return restockJob(s, w, threshold);
+      return null;
+    }
+    if (duty === 'collect') {
       // Fullest hive first, skipping any another worker is already heading to.
       const taken = new Set(r.workers.filter((o) => o !== w && o.targetHive != null).map((o) => o.targetHive));
       let best = -1, bestFill = 0.3;
@@ -3194,12 +3506,19 @@ textarea {
         }
       });
       if (best >= 0) return collectJob(s, w, best);
+      return null;
     }
-    if (w.role === 'candler' && s.machine) {
+    if (duty === 'candles' && s.machine) {
       const m = s.machine;
-      if (m.candles >= 4 || (m.wax <= f().machineCap(s) * 0.3 && (s.store.wax || 0) >= 3)) return tendJob(s, w);
+      const tending = r.workers.some((o) => o !== w && o.job && o.job.type === 'tend');
+      if (!tending && (m.candles >= 4 || (m.wax <= f().machineCap(s) * 0.3 && (s.store.wax || 0) >= 3))) return tendJob(s, w);
     }
     return null;
+  }
+  // Is another worker already out restocking? (Two stockers would just get
+  // in each other's way over the same shelves.)
+  function restocking(w) {
+    return rt().workers.some((o) => o !== w && o.job && o.job.type === 'restock');
   }
 
   // ---------------------------------------------------------------------------
@@ -3257,10 +3576,10 @@ textarea {
       if (w.role !== 'keeper' && w.thinkT > 0) continue;
       w.thinkT = 0.5;
       w.job = nextJobFor(s, w);
-      if (!w.job && w.node !== homeOf(s, w.role)) w.job = homeJob(s, w);
+      if (!w.job && w.node !== homeOf(s, w)) w.job = homeJob(s, w);
       if (!w.job) {
         // Stand facing the right way at home.
-        w.dir = w.role === 'collector' ? 'right' : w.role === 'stocker' ? 'left' : w.role === 'candler' ? 'up' : 'down';
+        w.dir = w.node === 'SIDE' ? 'down' : D.duty[dutyOf(s, w)].face;
       }
     }
   }
@@ -3271,6 +3590,10 @@ textarea {
   // Is someone standing at the register ready to take payment?
   function cashierPresent(s) {
     return rt().workers.some((w) => !w.job && !w.path.length && w.node === 'DESK');
+  }
+  // Is a second person standing beside the register to bag? (Faster checkout.)
+  function baggerPresent(s) {
+    return rt().workers.some((w) => !w.job && !w.path.length && w.node === 'SIDE' && dutyOf(s, w) === 'register');
   }
 
   function keeper() {
@@ -3303,14 +3626,16 @@ textarea {
   // A short sentence describing what a worker is up to (shown in the UI).
   function statusOf(s, w) {
     if (w.job) return w.job.label;
-    if (w.node === 'DESK') return 'At the register';
-    if (w.role === 'keeper') return 'Beside the register';
-    return { stocker: 'Waiting by the storeroom', collector: 'Watching the hives', candler: 'Minding the machine' }[w.role] || 'Idle';
+    if (w.node === 'DESK') return f().isOpen(s) ? 'At the register' : 'At the register (shop closed)';
+    if (w.node === 'SIDE') return dutyOf(s, w) === 'register' ? 'Bagging beside the register' : 'Beside the register';
+    return { stock: 'Waiting by the storeroom', collect: 'Watching the hives', candles: 'Minding the machine' }[dutyOf(s, w)] || 'Idle';
   }
+  // The display name of a worker.
+  const nameOf = (w) => (w.role === 'keeper' ? 'Shopkeeper' : D.staff[w.role].name);
 
   HC.workers = {
-    sync, update, dropAll, cashierPresent, keeper, orderCollect, orderTend, orderRestock, cancelErrands,
-    statusOf, homeOf, keeperJobs,
+    sync, update, dropAll, cashierPresent, baggerPresent, keeper, orderCollect, orderTend, orderRestock, cancelErrands,
+    statusOf, homeOf, dutyOf, onDuty, nameOf, keeperJobs,
     get list() { return rt().workers; },
   };
 })();
@@ -3425,6 +3750,21 @@ textarea {
       h.bees[h.bees.indexOf(hiveBeeId)] = boxId;
       s.box[s.box.indexOf(boxId)] = hiveBeeId;
       return done('Swapped ' + s.bees[boxId].name + ' into hive ' + (hiveIdx + 1) + '.', 'click');
+    },
+
+    // Swap any two bees' homes (hive or bee box). Used when you drag a bee
+    // onto another bee in a full hive: the two trade places.
+    swapBees(aId, bId) {
+      const s = S();
+      if (!s.bees[aId] || !s.bees[bId] || aId === bId) return fail('Those bees moved.');
+      // Find the list each bee lives in (a hive's bee list, or the box).
+      const home = (id) => s.hives.find((h) => h.bees.includes(id))?.bees || (s.box.includes(id) ? s.box : null);
+      const la = home(aId), lb = home(bId);
+      if (!la || !lb) return fail('Those bees moved.');
+      if (la === lb) return fail('They already live together.');
+      la[la.indexOf(aId)] = bId;
+      lb[lb.indexOf(bId)] = aId;
+      return done(s.bees[aId].name + ' and ' + s.bees[bId].name + ' swapped places.', 'click');
     },
 
     sellBee(id) {
@@ -3566,37 +3906,49 @@ textarea {
       const r = HC.builds.skip(S(), id);
       return r.ok ? done(r.msg, 'discover') : fail(r.msg);
     },
-    // A second (or third) builder, bought with gems.
-    buyBuilder() {
-      const s = S();
-      if (s.builders >= 3) return fail('Three builders is plenty.');
-      const cost = D.GEMS.builderSlot * s.builders;
-      if (s.gems < cost) return fail('Not enough gems.');
-      s.gems -= cost;
-      s.builders++;
-      return done('A new builder joins the crew. You can build ' + s.builders + ' things at once.', 'discover');
-    },
-
     // -------------------------------------------------------------------------
     // STAFF
     // -------------------------------------------------------------------------
+    // Helpers are hired in order (Rosa, then Theo...). Each starts on their
+    // usual duty (Rosa: Register, Theo: Shelves, Mabel: Hives, Otis: Candles);
+    // if that needs a machine you don't have, they take a free duty instead.
     hire(id) {
       const s = S();
       const st = D.staff[id];
-      if (!st) return fail('Unknown job.');
-      if (s.staff[id]) return fail('You already have a ' + st.name + '.');
-      if (st.needs === 'machine' && !s.machine) return fail('Build the Candle Machine first.');
+      if (!st) return fail('Nobody by that name is looking for work.');
+      if (s.staff[id]) return fail(st.name + ' already works here.');
+      const next = D.STAFF.find((x) => !s.staff[x.id]);
+      if (next !== st) return fail('Hire ' + next.name + ' first.');
       if (!spend(st.hire)) return fail('Not enough coins.');
-      s.staff[id] = true;
+      let duty = st.duty;
+      if (D.duty[duty].needs && !s.machine) {
+        const taken = new Set([s.keeperDuty, ...Object.values(s.staff).map((x) => x.duty)]);
+        const open = D.DUTIES.find((d) => !taken.has(d.id) && !d.needs);
+        duty = open ? open.id : 'collect';
+      }
+      s.staff[id] = { duty };
       HC.workers.sync(s);
-      return done('You hired a ' + st.name + '. Wages are ₵' + st.wage + ' each morning.');
+      return done(st.name + ' joined the shop on ' + D.duty[s.staff[id].duty].name + ' duty. Wages are ₵' + st.wage + ' each morning.');
     },
     fire(id) {
       const s = S();
       if (!s.staff[id]) return fail('Nobody to let go.');
-      s.staff[id] = false;
+      delete s.staff[id];
       HC.workers.sync(s);
-      return done('Your ' + D.staff[id].name + ' has left. No more wages for them.', 'click');
+      return done(D.staff[id].name + ' has left. No more wages for them.', 'click');
+    },
+    // Give someone a new duty. `who` is 'keeper' or a helper's id.
+    // Whatever they were doing is finished first (they won't drop a basket).
+    setDuty(who, duty) {
+      const s = S();
+      const d = D.duty[duty];
+      if (!d) return fail('Unknown duty.');
+      if (d.needs === 'machine' && !s.machine) return fail('Build the Candle Machine first.');
+      if (who === 'keeper') s.keeperDuty = duty;
+      else if (s.staff[who]) s.staff[who].duty = duty;
+      else return fail('Nobody to assign.');
+      const name = who === 'keeper' ? 'The shopkeeper' : D.staff[who].name;
+      return done(name + ' is now on ' + d.name + ' duty.', 'click');
     },
 
     // -------------------------------------------------------------------------
@@ -3668,7 +4020,7 @@ textarea {
       s.orders = s.orders.filter((x) => x.id !== id);
       HC.sim.earn(s, o.reward);
       if (o.gems) HC.sim.gainGems(s, o.gems, o.who);
-      s.rep = Math.min(5, s.rep + 0.15);
+      HC.sim.changeRep(s, 'order');
       s.stats.orders++;
       bus.emit('orderDone', o);
       return done(o.who + ' paid ₵' + util.fmt(o.reward) + (o.gems ? ' and ' + o.gems + ' 💎' : '') + '. Word gets around.', 'order');
@@ -3746,7 +4098,7 @@ textarea {
       s.goal = old.goal;
       s.cos = old.cos;
       s.gems = old.gems + D.GEMS.festival;
-      s.builders = old.builders;
+      s.keeperDuty = old.keeperDuty;
       s.playTime = old.playTime;
       s.time = old.time;
       s.clock = old.clock;
@@ -3805,8 +4157,8 @@ textarea {
       tip: 'Open the Apiary tab and scroll down to the Bee Market.' },
     { text: 'Build a second hive', check: (s) => s.hives.length >= 2, reward: 60, gems: 3,
       tip: 'Apiary tab → "Build hive 2". Building takes a little while.' },
-    { text: 'Hire a Cashier', check: (s) => !!s.staff.cashier, reward: 80, gems: 3,
-      tip: 'Shop tab → Staff. A Cashier keeps the register open while you collect honey.' },
+    { text: 'Hire your first helper', check: (s) => Object.keys(s.staff).length >= 1, reward: 80, gems: 3,
+      tip: 'Shop tab → Staff. Rosa starts on the Register, so customers can pay while you collect honey.' },
     { text: 'Buy a Clover Bee', check: disc('clover'), reward: 100, gems: 2 },
     { text: 'Stock two different shelves', check: (s) => new Set(s.shelves.map((x) => x.good).filter(Boolean)).size >= 2, reward: 120, gems: 2,
       tip: 'Build an Extra Shelf in the Shop tab, then tap a shelf to choose what it sells.' },
@@ -3819,8 +4171,9 @@ textarea {
       tip: 'Tap the Candle Machine (behind the counter) to have the shopkeeper load wax and unload candles.' },
     { text: 'Fill a request from the board', check: (s) => s.stats.orders >= 1, reward: 300, gems: 3,
       tip: 'Townsfolk pin requests on the board outside the shop. Deliver them from the Town tab.' },
-    { text: 'Hire a Honey Collector', check: (s) => !!s.staff.collector, reward: 500, gems: 4,
-      tip: 'Shop tab → Staff. The collector brings honey in on their own, even while you are away.' },
+    // Any helper (not the shopkeeper) assigned to the Collect honey duty.
+    { text: 'Assign a helper to collect honey', check: (s) => Object.values(s.staff).some((x) => x && x.duty === 'collect'), reward: 500, gems: 4,
+      tip: 'Shop tab → Staff. Tap a duty button under a helper to change their job. Collectors bring honey in on their own, even while you are away.' },
     { text: 'Reach 3 stars of reputation', check: (s) => s.rep >= 3, reward: 500, gems: 4,
       tip: 'Keep shelves stocked and the line moving. Requests give a big boost.' },
     { text: 'Buy a decoration from the Store', check: (s) => s.stats.decor >= 1, reward: 200, gems: 5,
@@ -4383,6 +4736,7 @@ textarea {
     '.': '000000000000010', K: '101101110101101', M: '101111111101101', B: '110101110101110',
     T: '111010010010010', '!': '010010010000010', '?': '111001010000010', ' ': '000000000000000',
     Z: '111001010100111', z: '000111001010111', '/': '001001010100100',
+    '*': '010111010101000', // a tiny star, floated up when reputation changes
   };
 
   // Write `str` centred at (x, y) with a dark outline so it reads on any background.
@@ -4755,9 +5109,17 @@ textarea {
       const [cx, cy] = L.hiveSlots[hi];
       const hx = cx * 16 + 8, hy = cy * 16 + 11;
       const full = f().hiveFull(h);
+      // At night, sleeping bees stay inside: show a drifting "z" instead.
+      if (f().isNight(s) && h.bees.some((id) => s.bees[id] && !f().nightWorker(s.bees[id]) && !busy.has(id))) {
+        const k = (t * 0.6 + hi * 0.37) % 1;
+        ctx.globalAlpha = k > 0.75 ? (1 - k) * 4 : 1;
+        spr.drawText(ctx, k < 0.5 ? 'z' : 'Z', hx + 4 + Math.round(k * 4), hy - 18 - Math.round(k * 8), '#d8d8ff');
+        ctx.globalAlpha = 1;
+      }
       h.bees.slice(0, 8).forEach((id) => {
         const bee = s.bees[id];
         if (!bee || busy.has(id)) return; // resting in the nursery
+        if (f().asleep(s, bee)) return; // asleep inside the hive
         const seed = util.hash(id);
         let x, y;
         if (full) {
@@ -5224,7 +5586,7 @@ textarea {
       if (e.kind !== 'text') continue;
       const k = e.t / e.life;
       ctx.globalAlpha = k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
-      spr.drawText(ctx, e.text, e.x, e.y - k * 14, '#fff08a');
+      spr.drawText(ctx, e.text, e.x, e.y - k * 14, e.color || '#fff08a');
       ctx.globalAlpha = 1;
     }
   }
@@ -5511,7 +5873,7 @@ textarea {
   const coin = () => icon('coin');
   const gem = () => icon('gem');
   const goodImg = (g, size = 16) => `<img class="px ico" src="${spr.goodURL(g)}" alt="" width="${size}" height="${size}">`;
-  const beeImg = (sp, sparkle, size = 32, cls = '') => `<img class="px bee-img ${cls}" src="${spr.beeURL(sp, sparkle)}" alt="" width="${size}" height="${size}">`;
+  const beeImg = (sp, sparkle, size = 32, cls = '') => `<img class="px bee-img ${cls}" src="${spr.beeURL(sp, sparkle)}" alt="" draggable="false" width="${size}" height="${size}">`;
   const price = (n) => `${coin()}<span>${fmt(n)}</span>`;
   const gemPrice = (n) => `${gem()}<span>${n}</span>`;
   const rarityChip = (r) => `<span class="chip chip-${r.toLowerCase()}">${r}</span>`;
@@ -5536,7 +5898,7 @@ textarea {
     const s = S();
     const b = HC.builds.find(s, kind, key);
     if (b) return buildingChip(b);
-    const busy = HC.builds.freeBuilder(s) ? '' : 'Your builder is busy. Wait for the current build, finish it with gems, or buy a second builder in the Store.';
+    const busy = HC.builds.freeBuilder(s) ? '' : 'Your builder is busy. Wait for the current build, or finish it now with gems.';
     return btn(`${label} ${price(cost)} <span class="time">${util.fmtTime(f().buildTime(cost))}</span>`, act, args, { cost, build: true, need: busy || 'Not enough coins.', cls: 'btn-sm' });
   }
   function buildingChip(b) {
@@ -5596,6 +5958,9 @@ textarea {
     }
     el.textbox.hidden = false;
     el.textbox.classList.remove('done');
+    // The shopkeeper's portrait (wearing whatever you've dressed them in).
+    const face = $('#textboxFace');
+    if (face) face.src = spr.personURL(spr.keeperLook(S()));
     el.textboxText.textContent = '';
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduce) {
@@ -5628,7 +5993,7 @@ textarea {
       <div class="hud-coins" title="Coins">${coin()}<b data-live="${L(() => fmt(S().coins))}"></b></div>
       <div class="hud-gems" title="Gems: finish timers early, buy special items">${gem()}<b data-live="${L(() => fmt(S().gems))}"></b></div>
       <div class="hud-item" title="Income over the last minute"><span class="lbl">per min</span><b data-live="${L(() => fmt(HC.sim.incomePerMin()))}"></b></div>
-      <div class="hud-item" title="Reputation"><span class="lbl">rep</span><span class="stars" data-html="${L(starsHtml)}"></span></div>
+      <button class="hud-item hud-rep" data-act="rep" title="Reputation: tap to see what raises and lowers it"><span class="stars" data-html="${L(starsHtml)}"></span><b data-live="${L(() => S().rep.toFixed(1))}"></b></button>
       <div class="hud-item hud-time" title="Time of day"><span data-html="${L(timeHtml)}"></span></div>
       <button class="hud-item season-chip" data-act="season" data-html="${L(seasonHtml)}"></button>
       ${s.ribbons ? `<div class="hud-item" title="Festival ribbons: +${s.ribbons * 10}% sale prices">${icon('ribbon')}<b>${s.ribbons}</b></div>` : ''}
@@ -5642,8 +6007,9 @@ textarea {
         <span class="work-text" data-live="${L(() => (keeper ? HC.workers.statusOf(S(), keeper) : ''))}"></span>
         <span class="work-queue" data-live="${L(() => (HC.workers.keeperJobs.length ? '+' + HC.workers.keeperJobs.length + ' errand' + (HC.workers.keeperJobs.length > 1 ? 's' : '') : ''))}"></span>
         ${HC.workers.keeperJobs.length ? '<button class="link" data-act="cancelErrands">clear</button>' : ''}
-        <span class="work-open" data-html="${L(() => (f().isOpen(S()) ? '<span class="open">Open</span>' : '<span class="closed">Closed for the night</span>'))}"></span>
+        <span class="work-open" data-html="${L(openHtml)}"></span>
       </div>
+      <div class="work-row today-row" data-html="${L(todayHtml)}"></div>
       ${s.builds.map((b) => `<div class="build-row"><span class="goal-label">Building</span><span class="work-text">${esc(b.label)}</span>${buildingChip(b)}</div>`).join('')}
     `;
   }
@@ -5655,6 +6021,25 @@ textarea {
     const reward = price(g.reward) + (g.gems ? ' ' + gemPrice(g.gems) : '');
     return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span><button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
       (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${reward}</button>` : `<span class="goal-reward">${reward}</span>`);
+  }
+  // "Open", "Lunch rush!" or "Closed for the night".
+  function openHtml() {
+    const s = S();
+    if (!f().isOpen(s)) return '<span class="closed">Closed · bees asleep</span>';
+    return f().isRush(s) ? '<span class="rush">Lunch rush!</span>' : '<span class="open">Open</span>';
+  }
+  // Today's special and whether the food critic is still expected.
+  function todayHtml() {
+    const s = S();
+    const bits = [];
+    if (s.special && f().isSpecial(s, s.special.good)) {
+      const g = D.good[s.special.good];
+      bits.push(`<span class="goal-label">Today</span><span class="today-item">${goodImg(g.id, 14)} <b>${g.name}</b> is the special · +${Math.round((D.EVENTS.special.priceMult - 1) * 100)}% price</span>`);
+    }
+    const cr = s.critic;
+    if (cr && cr.day === f().day(s) && !cr.done) bits.push('<span class="today-item critic-note">A food critic is expected today</span>');
+    else if (HC.sim.rt.customers.some((c) => c.critic && !c.done)) bits.push('<span class="today-item critic-note">The food critic is in the shop!</span>');
+    return bits.join('');
   }
   function seasonHtml() {
     const s = S();
@@ -5709,7 +6094,7 @@ textarea {
       const upgrade = h.level < D.HIVE_MAX_LEVEL
         ? buildBtn('Upgrade', 'upgradeHive', { i }, f().hiveUpgradeCost(s, i), 'hiveUp', i)
         : '<span class="chip">Max level</span>';
-      return `<article class="card hive-card" id="hive-${i}">
+      return `<article class="card hive-card" id="hive-${i}" data-drop-hive="${i}">
         <header class="card-head">
           <img class="px hive-ico" src="${spr.hiveURL(h.level, style)}" alt="" width="27" height="48">
           <div class="grow"><h3>Hive ${i + 1}</h3><p class="muted">Level ${h.level + 1} · ${h.bees.length}/${cap} bees · ${util.pct(f().hiveMult(s, h))} output</p></div>
@@ -5719,7 +6104,7 @@ textarea {
           <span class="lbl">Honey</span>
           ${bar(() => f().honeyIn(S().hives[i]) / f().honeyCap(S().hives[i]), 'honey')}
           <b data-live="${L(() => f().honeyIn(S().hives[i]) + '/' + f().honeyCap(S().hives[i]))}"></b>
-          <span class="full-flag" data-html="${L(() => (f().hiveFull(S().hives[i]) ? 'Full! Bees are waiting' : ''))}"></span>
+          <span class="full-flag" data-html="${L(() => (f().hiveFull(S().hives[i]) ? 'Full! Bees are waiting' : f().isNight(S()) ? '<span class=\"zzz\">Zzz · asleep</span>' : ''))}"></span>
           ${btn('Collect', 'collect', { i }, { cls: 'btn-sm' })}
         </div>
         <div class="bee-grid">${slots.join('')}</div>
@@ -5752,11 +6137,11 @@ textarea {
     return `
       <section class="win">
         <div class="win-head"><h2>Apiary</h2>${btn('Collect all', 'collectAll', {}, { cls: 'btn-sm' })}</div>
-        <p class="muted small">${f().beeCount(s)} bees · ${s.hives.length}/6 hives. Bees fill their hive with honey; when it's full they stop until someone collects it. Tap a hive in the garden to send the shopkeeper.</p>
+        <p class="muted small">${f().beeCount(s)} bees · ${s.hives.length}/6 hives. Bees fill their hive with honey; when it's full they stop until someone collects it. Tap a hive in the garden to send the shopkeeper. <b>Long-press a bee and drag it</b> onto another hive (or onto a bee to swap them).</p>
         <div class="pills">${prod || '<span class="muted">Nothing in production.</span>'}</div>
         <div class="stack">${hiveCards}${nextHive}</div>
       </section>
-      <section class="win">
+      <section class="win" data-drop-box="1">
         <div class="win-head"><h2>Bee box</h2><span class="muted">${s.box.length}/${f().boxCap(s)} spaces</span>
           ${s.box.length >= 4 ? btn('Sell extras', 'sellExtras', {}, { cls: 'btn-sm btn-ghost' }) : ''}</div>
         <div class="bee-grid">${boxBees}</div>
@@ -5788,20 +6173,47 @@ textarea {
     const s = S();
     const cap = f().shelfCap(s);
 
-    // Staff
-    const staff = D.STAFF.map((st) => {
-      const hired = !!s.staff[st.id];
-      const locked = st.needs === 'machine' && !s.machine;
-      const w = HC.workers.list.find((x) => x.role === st.id);
-      return `<div class="row-item staff-row ${locked ? 'locked' : ''}">
-        <img class="px person" src="${spr.personURL(st.look)}" alt="" width="32" height="40">
-        <div class="grow"><b>${st.name}</b> <span class="chip">${hired ? 'Hired' : '₵' + st.wage + '/day'}</span>
-          <p class="muted">${st.desc}</p>
-          ${hired && w ? `<p class="small">Now: <span data-live="${L(() => { const x = HC.workers.list.find((y) => y.role === st.id); return x ? HC.workers.statusOf(S(), x) : ''; })}"></span></p>` : ''}
+    // Staff: the shopkeeper and each hired helper, with a row of duty
+    // buttons to reassign them, then a card to hire the next helper.
+    const dutyButtons = (who, current) => `<div class="duty-row" role="group" aria-label="Duty">${D.DUTIES.map((d) => {
+      const locked = d.needs === 'machine' && !s.machine;
+      const on = current === d.id;
+      return `<button class="duty ${on ? 'on' : ''}" data-act="setDuty" data-who="${who}" data-duty="${d.id}" ${locked ? 'disabled title="Build the Candle Machine first"' : `title="${esc(d.desc)}"`} aria-pressed="${on}">${d.short}</button>`;
+    }).join('')}</div>`;
+    const workerNow = (role) => `<p class="small">Now: <span data-live="${L(() => { const x = HC.workers.list.find((y) => y.role === role); return x ? HC.workers.statusOf(S(), x) : ''; })}"></span></p>`;
+    const keeperDuty = HC.workers.dutyOf(s, 'keeper');
+    let staff = `<div class="row-item staff-row">
+        <img class="px person" src="${spr.personURL(spr.keeperLook(s))}" alt="" width="32" height="40">
+        <div class="grow"><b>You (shopkeeper)</b> <span class="chip">${D.duty[keeperDuty].name}</span>
+          <p class="muted">Runs your errands first (tapping a hive, the machine, Restock now), then does their duty.</p>
+          ${workerNow('keeper')}
+          ${dutyButtons('keeper', keeperDuty)}
         </div>
-        ${hired ? btn('Let go', 'fire', { id: st.id }, { cls: 'btn-sm btn-ghost' }) : locked ? '<span class="chip">Needs machine</span>' : btn(`Hire ${price(st.hire)}`, 'hire', { id: st.id }, { cost: st.hire, cls: 'btn-sm' })}
       </div>`;
-    }).join('');
+    for (const st of D.STAFF) {
+      if (!s.staff[st.id]) continue;
+      const duty = HC.workers.dutyOf(s, st.id);
+      staff += `<div class="row-item staff-row">
+        <img class="px person" src="${spr.personURL(st.look)}" alt="" width="32" height="40">
+        <div class="grow"><b>${st.name}</b> <span class="chip">${D.duty[duty].name}</span> <span class="muted small">₵${st.wage}/day</span>
+          ${workerNow(st.id)}
+          ${dutyButtons(st.id, duty)}
+        </div>
+        ${btn('Let go', 'fire', { id: st.id }, { cls: 'btn-sm btn-ghost' })}
+      </div>`;
+    }
+    const nextHire = D.STAFF.find((x) => !s.staff[x.id]);
+    if (nextHire) {
+      staff += `<div class="row-item staff-row hire-row">
+        <img class="px person" src="${spr.personURL(nextHire.look)}" alt="" width="32" height="40">
+        <div class="grow"><b>${nextHire.name}</b> <span class="chip">looking for work</span>
+          <p class="muted">Wage ₵${nextHire.wage} each morning. Starts on ${D.duty[nextHire.duty].name}; you can reassign them any time.</p></div>
+        ${btn(`Hire ${price(nextHire.hire)}`, 'hire', { id: nextHire.id }, { cost: nextHire.hire, cls: 'btn-sm' })}
+      </div>`;
+    }
+    // Who's on each duty right now, and a warning if the register is empty.
+    const cover = D.DUTIES.map((d) => `<span class="pill">${d.short} <b>${HC.workers.onDuty(s, d.id)}</b></span>`).join('');
+    const noRegister = !HC.workers.onDuty(s, 'register');
     const wages = f().wagesPerDay(s);
 
     // Candle Machine
@@ -5858,8 +6270,10 @@ textarea {
 
     return `
       <section class="win" id="staff">
-        <div class="win-head"><h2>Staff</h2><span class="muted">${wages ? 'Wages ₵' + fmt(wages) + ' each morning' : 'Nobody hired yet'}</span></div>
-        <p class="muted small">Staff work on their own and keep working while you're away. If you can't pay the morning wages, someone quits.</p>
+        <div class="win-head"><h2>Staff</h2><span class="muted">${wages ? 'Wages ₵' + fmt(wages) + ' each morning' : 'No helpers yet'}</span></div>
+        <p class="muted small">Give everyone a duty and they get on with it by themselves, even while you're away. Two people on the Register ring customers up faster. If you can't pay the morning wages, someone quits.</p>
+        <div class="pills">${cover}</div>
+        ${noRegister ? '<p class="warn small">Nobody is on the Register: customers will wait in line and may walk out.</p>' : ''}
         <div class="list">${staff}</div>
       </section>
       <section class="win" id="machine">
@@ -5877,8 +6291,8 @@ textarea {
         <div class="store-grid">${store}</div>
       </section>
       <section class="win">
-        <div class="win-head"><h2>Upgrades</h2><span class="muted">${s.builders} builder${s.builders > 1 ? 's' : ''}</span></div>
-        <p class="muted small">Upgrades take time to build. Your builder works on one at a time; gems finish a build instantly.</p>
+        <div class="win-head"><h2>Upgrades</h2><span class="muted">1 builder</span></div>
+        <p class="muted small">Upgrades take time to build. Your builder works on one thing at a time, so choose what to build next carefully. Gems finish a build instantly.</p>
         <div class="list">${ups}</div>
       </section>`;
   };
@@ -5971,7 +6385,6 @@ textarea {
       const items = D.CATALOG.filter((it) => it.cat === sec.cat).map((it) => storeCard(s, it, sec)).join('');
       return `<h3 class="store-sec">${sec.name}${sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>'}</h3><div class="store-cards">${items}</div>`;
     }).join('');
-    const nextBuilder = D.GEMS.builderSlot * s.builders;
     return `
       <section class="win">
         <div class="win-head"><h2>Store</h2><span class="muted">${gem()} ${fmt(s.gems)} gems</span></div>
@@ -5982,9 +6395,11 @@ textarea {
             <p class="muted small">Gems come from goals, requests, new species, festivals, season changes and golden drips.</p>
           </div>
         </div>
-        <div class="row-item">
-          <div class="grow"><b>Extra builder</b><p class="muted">Build ${s.builders + 1} things at the same time. You have ${s.builders}.</p></div>
-          ${s.builders < 3 ? btn(`Hire ${gemPrice(nextBuilder)}`, 'buyBuilder', {}, { gems: nextBuilder, cls: 'btn-sm btn-gem', need: 'Not enough gems.' }) : '<span class="chip">Max</span>'}
+        <!-- A second builder is planned as a paid unlock in the full game, so
+             here it's shown locked rather than sold for gems. -->
+        <div class="row-item locked">
+          <div class="grow"><b>Second builder</b><p class="muted">Build two things at once. Coming as an optional purchase in the full version of the game.</p></div>
+          <span class="chip">🔒 Full version</span>
         </div>
       </section>
       <section class="win store">${sections}</section>`;
@@ -6396,8 +6811,36 @@ textarea {
         </div>
         ${made ? `<p class="muted">Storehouse changes:</p><div class="pills">${made}</div>` : ''}
         ${notes}
-        <p class="muted small">While you're gone the shopkeeper minds the register and shelves, but only a Honey Collector brings honey in from the hives. Customers stay home at night.</p>
+        <p class="muted small">While you're gone the shopkeeper minds the register and shelves, but honey only comes in from the hives if someone is on the Collect honey duty. Customers stay home at night, and most bees sleep.</p>
         <div class="btn-row end">${btn('Open the shop', 'closeModal', {}, { cls: 'btn-go' })}</div>`,
+    });
+  }
+
+  // The Reputation window: what reputation does, every rule that changes it
+  // (from REP in data.js), and today's and yesterday's changes by reason.
+  function repModal() {
+    openModal({
+      render: () => {
+        const s = S();
+        const fmtAmt = (a) => (a >= 0 ? '+' : '−') + Math.abs(a).toFixed(2);
+        const logRows = (log) => {
+          if (!log || !Object.keys(log.items).length) return '<p class="muted small">No changes yet.</p>';
+          return '<div class="stats">' + Object.entries(log.items).sort((a, b) => Math.abs(b[1].amt) - Math.abs(a[1].amt)).map(([k, v]) =>
+            `<div class="stat-row"><span>${esc(D.REP[k] ? D.REP[k].text : k)} <span class="muted">×${v.n}</span></span><b class="${v.amt >= 0 ? 'up' : 'down'}">${fmtAmt(v.amt)}</b></div>`).join('') + '</div>';
+        };
+        const rules = Object.entries(D.REP).filter(([k]) => k !== 'away').map(([k, r]) =>
+          `<div class="stat-row"><span>${esc(r.text)}</span><b class="${r.good ? 'up' : 'down'}">${fmtAmt(r.amt)}${k === 'served' ? '*' : ''}</b></div>`).join('');
+        const decor = f().decorBonus(s, 'rep');
+        return `<h2>Reputation ${starsHtml()} ${s.rep.toFixed(2)}/5</h2>
+          <p><b>What it does:</b> more reputation means customers come more often (right now one every <b>${f().spawnInterval(s).toFixed(1)}s</b> while open), and more rich Nobles and Collectors, who buy your priciest goods.</p>
+          <h3 class="sub">Today (day ${f().day(s)})</h3>
+          ${logRows(s.repLog && s.repLog.day === f().day(s) ? s.repLog : null)}
+          ${s.repPrev ? `<h3 class="sub">Day ${s.repPrev.day}</h3>${logRows(s.repPrev)}` : ''}
+          <h3 class="sub">How it changes</h3>
+          <div class="stats">${rules}</div>
+          <p class="muted small">* A happy customer counts for less the closer you are to 5 stars${decor ? `, and your decorations add +${Math.round(decor * 100)}%` : '. Decorations like String Lights make it count for more'}. Watch the scene: a red star floats up whenever reputation drops.</p>
+          <div class="btn-row end">${btn('Close', 'closeModal', {}, { cls: 'btn-go' })}</div>`;
+      },
     });
   }
 
@@ -6521,14 +6964,15 @@ textarea {
       case 'upgradeMachine': r = HC.act.upgradeMachine(); break;
       case 'tendMachine': r = HC.act.tendMachine(); break;
       case 'skipBuild': r = HC.act.skipBuild(ds.id); break;
-      case 'buyBuilder': r = HC.act.buyBuilder(); break;
+      case 'setDuty': r = HC.act.setDuty(ds.who, ds.duty); break;
+      case 'rep': return repModal();
       case 'collect': r = HC.act.collect(Number(ds.i)); break;
       case 'collectAll': r = HC.act.collectAll(); break;
       case 'restockNow': r = HC.act.restockNow(); break;
       case 'cancelErrands': r = HC.act.cancelErrands(); break;
       case 'hire': r = HC.act.hire(ds.id); break;
       case 'fire':
-        return confirmModal('Let your ' + D.staff[ds.id].name + ' go?', 'They leave right away and the hiring fee is not refunded.', 'Let them go', () => {
+        return confirmModal('Let ' + D.staff[ds.id].name + ' go?', 'They leave right away and the hiring fee is not refunded.', 'Let them go', () => {
           const res = HC.act.fire(ds.id);
           if (res.ok) toast(res.msg);
         }, true);
@@ -6611,6 +7055,12 @@ textarea {
 
   // One click listener for the whole page.
   function onClick(e) {
+    if (drag.suppressClick) {
+      // This click is the end of a bee drag, not a tap.
+      drag.suppressClick = false;
+      e.preventDefault();
+      return;
+    }
     const t = e.target.closest('[data-act]');
     if (!t || t.disabled) return;
     if (t.type === 'checkbox') return; // handled by onChange
@@ -6642,15 +7092,10 @@ textarea {
     const rect = el.canvas.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * HC.layout.W;
     const y = ((e.clientY - rect.top) / rect.height) * HC.layout.H;
-    if (!el.textbox.hidden && y > HC.layout.H * 0.62) {
-      nextLine();
-      return;
-    }
+    // (The tutorial text box now sits below the picture, so taps on the
+    // picture always go to the scene.)
     const hit = HC.render.hitTest(S(), x, y);
-    if (!hit) {
-      if (!el.textbox.hidden) nextLine();
-      return;
-    }
+    if (!hit) return;
     const s = S();
     if (hit.kind === 'drip') {
       const amt = HC.sim.claimDrip(s);
@@ -6698,8 +7143,125 @@ textarea {
     else if (hit.kind === 'worker') {
       const w = HC.workers.list.find((x) => x.role === hit.role);
       if (hit.role === 'keeper') say([util.pick(D.TIPS)]);
-      else if (w) toast(D.staff[hit.role].name + ': ' + HC.workers.statusOf(s, w));
+      else if (w) toast(D.staff[hit.role].name + ' (' + D.duty[HC.workers.dutyOf(s, w)].name + '): ' + HC.workers.statusOf(s, w));
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // MOVING BEES BY DRAGGING (Apiary tab)
+  // Press and hold a bee for about a third of a second: it lifts up and
+  // follows your finger (or mouse). Let go over:
+  //   - another hive's card  → the bee moves into that hive (if there's room)
+  //   - another bee          → the two bees swap places
+  //   - the Bee box section  → the bee goes into the box
+  // Moving your finger straight away (before the hold) scrolls as normal, and
+  // a quick tap still opens the bee's details.
+  // ---------------------------------------------------------------------------
+  const HOLD_MS = 350;
+  const drag = { timer: null, active: false, id: null, tile: null, start: null, ghost: null, over: null, suppressClick: false };
+
+  function onBeeDown(e) {
+    if (tab !== 'apiary' || modal || (e.button != null && e.button !== 0)) return;
+    const tile = e.target.closest('.bee-tile[data-act="bee"]');
+    if (!tile || !el.panel.contains(tile)) return;
+    drag.id = tile.dataset.id;
+    drag.tile = tile;
+    drag.start = { x: e.clientX, y: e.clientY };
+    drag.timer = setTimeout(() => liftBee(drag.start.x, drag.start.y), HOLD_MS);
+  }
+
+  // The hold time passed: pick the bee up.
+  function liftBee(x, y) {
+    drag.timer = null;
+    const bee = S().bees[drag.id];
+    if (!bee) return endDrag();
+    drag.active = true;
+    drag.ghost = document.createElement('div');
+    drag.ghost.className = 'drag-ghost';
+    drag.ghost.innerHTML = beeImg(bee.sp, bee.sparkle, 40) + `<span>${esc(bee.name)}</span>`;
+    document.body.appendChild(drag.ghost);
+    drag.tile.classList.add('dragging');
+    document.body.classList.add('is-dragging');
+    moveGhost(x, y);
+    if (navigator.vibrate) navigator.vibrate(12); // a little buzz on phones that support it
+    HC.audio.play('click');
+  }
+
+  function moveGhost(x, y) {
+    drag.ghost.style.transform = `translate(${Math.round(x - 24)}px, ${Math.round(y - 30)}px)`;
+    // Highlight whatever is under the finger.
+    const t = dropTargetAt(x, y);
+    const node = t && (t.tile || t.card);
+    if (drag.over !== node) {
+      if (drag.over) drag.over.classList.remove('drop-over');
+      if (node) node.classList.add('drop-over');
+      drag.over = node;
+    }
+    // Near the top or bottom of the screen: scroll so far-away hives are reachable.
+    const edge = 70;
+    const dy = y < edge ? -10 : y > window.innerHeight - edge ? 10 : 0;
+    if (dy) {
+      window.scrollBy(0, dy);
+      el.panel.scrollBy(0, dy);
+    }
+  }
+
+  // What's under the point (x, y): another bee, a hive card, or the bee box.
+  function dropTargetAt(x, y) {
+    const node = document.elementFromPoint(x, y); // the ghost ignores pointers, so this sees through it
+    if (!node) return null;
+    const tile = node.closest('.bee-tile[data-id]');
+    if (tile && tile.dataset.id !== drag.id && el.panel.contains(tile)) return { tile, beeId: tile.dataset.id };
+    const hive = node.closest('[data-drop-hive]');
+    if (hive) return { card: hive, hive: Number(hive.dataset.dropHive) };
+    const box = node.closest('[data-drop-box]');
+    if (box) return { card: box, box: true };
+    return null;
+  }
+
+  function onBeeMove(e) {
+    if (drag.timer) {
+      // Moved before the hold finished: that's a scroll, not a drag.
+      if (Math.hypot(e.clientX - drag.start.x, e.clientY - drag.start.y) > 8) endDrag();
+      return;
+    }
+    if (!drag.active) return;
+    e.preventDefault();
+    moveGhost(e.clientX, e.clientY);
+  }
+
+  function onBeeUp(e) {
+    if (drag.timer) return endDrag(); // a normal quick tap: the click opens the bee
+    if (!drag.active) return;
+    const t = dropTargetAt(e.clientX, e.clientY);
+    const id = drag.id;
+    drag.suppressClick = true; // don't also open the bee's details
+    setTimeout(() => (drag.suppressClick = false), 400);
+    endDrag();
+    if (!t) return;
+    const s = S();
+    let r;
+    if (t.beeId) r = HC.act.swapBees(id, t.beeId);
+    else if (t.box) r = HC.act.moveBee(id, 'box');
+    else if (f().hiveOf(s, id) === t.hive) return; // dropped back where it was
+    else {
+      const h = s.hives[t.hive];
+      r = h.bees.length >= f().hiveCap(h) ? { ok: false, msg: 'Hive ' + (t.hive + 1) + ' is full. Drop onto one of its bees to swap them.' } : HC.act.moveBee(id, t.hive);
+    }
+    if (r && r.ok) toast(r.msg);
+    else if (r) bus.emit('fail', r.msg);
+    dirty = true;
+  }
+
+  function endDrag() {
+    clearTimeout(drag.timer);
+    drag.timer = null;
+    drag.active = false;
+    if (drag.ghost) drag.ghost.remove();
+    if (drag.tile) drag.tile.classList.remove('dragging');
+    if (drag.over) drag.over.classList.remove('drop-over');
+    document.body.classList.remove('is-dragging');
+    drag.ghost = drag.tile = drag.over = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -6708,9 +7270,13 @@ textarea {
   const HINTS = [
     { id: 'welcome', when: () => true, lines: ['Welcome to Honeycomb Corner!', 'Your bees fill their hive with honey out in the garden. When a hive is full, they stop and wait.', 'Tap a hive to walk out and collect it. Then customers can buy it from the shelves, as long as someone is at the register.'] },
     { id: 'collect', when: (s) => s.stats.collected === 0 && f().honeyIn(s.hives[0]) >= 4, lines: ['Hive 1 has honey waiting. Tap it in the garden to send the shopkeeper out.'] },
-    { id: 'line', when: (s) => HC.sim.rt.queue.length >= 2 && !HC.workers.cashierPresent(s), lines: ["Customers are waiting at the register, but nobody's there! They'll leave if they wait too long. A Cashier (Shop tab) can cover for you."] },
+    { id: 'line', when: (s) => HC.sim.rt.queue.length >= 2 && !HC.workers.cashierPresent(s), lines: ["Customers are waiting at the register, but nobody's there! They'll leave if they wait too long. Hire a helper in the Shop tab to cover the Register."] },
+    { id: 'duties', when: (s) => Object.keys(s.staff).length >= 1, lines: ['You have a helper! In Shop → Staff, tap the duty buttons (Register, Shelves, Hives, Candles) to choose what each person does. No more tapping for chores they cover.'] },
     { id: 'full', when: (s) => s.hives.some((h) => f().hiveFull(h)), lines: ['A hive is full, so those bees have stopped working. Collect it to get them going again.'] },
-    { id: 'night', when: (s) => f().isNight(s), lines: ["The shop is closed for the night. Bees keep working, so it's a good time to collect honey and restock for the morning."] },
+    { id: 'night', when: (s) => f().isNight(s), lines: ['Night has fallen. The shop is closed and most bees are asleep in their hives.', 'Nobody needs the register now, so whoever is on Register duty fills the shelves for the morning. Collect any leftover honey too.'] },
+    { id: 'rush', when: (s) => f().isRush(s), lines: ["It's the lunch rush! Customers pour in for a while. Full shelves and a second person on the Register keep the line moving."] },
+    { id: 'critic', when: () => HC.sim.rt.customers.some((c) => c.critic), lines: ['A food critic (the one in the dark suit and top hat) just walked in. Keep most shelves stocked and the line short for a glowing review.'] },
+    { id: 'drag', when: (s) => s.hives.length >= 2, lines: ['Tip: in the Apiary tab, press and hold a bee, then drag it onto another hive to move it.'] },
     { id: 'clover', when: (s) => f().marketUnlocked(s, 'clover') && !s.discovered.clover, lines: ['Word is getting around! The Bee Market now sells Clover Bees.'] },
     { id: 'build', when: (s) => s.builds.length > 0, lines: ['Upgrades take time to build. You can keep playing, or tap Finish to use gems.'] },
     { id: 'nursery', when: (s) => s.discovered.clover && !s.discovered.waxwing, lines: ['Try the Nursery: pair a Meadow Bee with a Clover Bee. The parents rest while they raise the egg.'] },
@@ -6764,6 +7330,15 @@ textarea {
       if (modal && modal.onSubmit) modal.onSubmit(e.target);
     });
     el.canvas.addEventListener('pointerdown', onCanvasTap);
+    // Bee dragging (see "MOVING BEES BY DRAGGING" above).
+    document.addEventListener('pointerdown', onBeeDown);
+    document.addEventListener('pointermove', onBeeMove, { passive: false });
+    document.addEventListener('pointerup', onBeeUp);
+    document.addEventListener('pointercancel', endDrag);
+    // Stop the page scrolling under a bee being dragged, and stop phones
+    // opening the "save image" menu on a long press.
+    document.addEventListener('touchmove', (e) => { if (drag.active) e.preventDefault(); }, { passive: false });
+    document.addEventListener('contextmenu', (e) => { if (e.target.closest('.bee-tile')) e.preventDefault(); });
     el.textbox.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       nextLine();
@@ -6817,7 +7392,24 @@ textarea {
     bus.on('buildStart', () => (dirty = true));
     bus.on('hiveFull', (i) => toastOnce('full' + i, 60, 'Hive ' + (i + 1) + ' is full. Tap it to collect.'));
     bus.on('walkout', () => toastOnce('walkout', 20, 'A customer got tired of waiting and walked out.', 'bad'));
-    bus.on('staffQuit', (st) => toast('Your ' + st.name + " quit: you couldn't pay the morning wages.", 'bad'));
+    bus.on('staffQuit', (st) => toast(st.name + " quit: you couldn't pay the morning wages.", 'bad'));
+    // Daily events (see sim.js updateDay / updateAnnouncements).
+    bus.on('rush', () => {
+      toast('Lunch rush! Customers are pouring in.', 'good');
+      HC.audio.play('bell');
+    });
+    bus.on('nightfall', () => toast('Night falls. The shop closes and the bees go to sleep.'));
+    bus.on('morning', () => toast('Good morning! The shop is open.', 'good'));
+    bus.on('special', (g) => toast("Today's special: " + g.name + ' sells for ' + Math.round((D.EVENTS.special.priceMult - 1) * 100) + '% more.', 'good'));
+    bus.on('criticArrived', () => {
+      toast('A food critic just walked in!', 'good');
+      HC.audio.play('bell');
+    });
+    bus.on('critic', (e) => {
+      if (e.good) toast('The critic loved it! Reputation up, +' + D.EVENTS.critic.reward + ' gems.', 'good');
+      else toast(!e.bought ? 'The critic left without buying anything. Bad review.' : e.full / Math.max(1, e.of) < 0.75 ? 'The critic found too many empty shelves. Bad review.' : 'The critic waited too long in line. Bad review.', 'bad');
+      HC.audio.play(e.good ? 'discover' : 'fail');
+    });
     bus.on('wagesPaid', (n) => toastOnce('wages', 5, 'Paid ₵' + fmt(n) + ' in wages this morning.'));
     bus.on('season', (se) => {
       toast(se.name + ' has arrived. ' + se.desc, 'good');
@@ -6834,6 +7426,7 @@ textarea {
     };
     // Four times a second: full redraw if needed, otherwise just live values.
     setInterval(() => {
+      if (drag.active) return; // don't rebuild the page under a bee being dragged
       if (dirty && !typingNow()) render();
       else {
         refreshLive();

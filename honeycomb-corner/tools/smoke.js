@@ -45,12 +45,19 @@ const target = process.env.TARGET || 'file://' + path.join(root, 'index.html');
   const advance = (page, secs) => page.evaluate((secs) => { for (let i = 0; i < secs * 20; i++) HC.sim.update(HC.game, 0.05); }, secs);
   const closeAll = async (page) => {
     await page.keyboard.press('Escape');
-    await page.evaluate(() => { HC.game.hints = Object.fromEntries(['welcome', 'collect', 'line', 'full', 'night', 'clover', 'build', 'nursery', 'wax', 'order', 'merchant', 'drip', 'boxfull', 'festival'].map((k) => [k, true])); });
+    await page.evaluate(() => { HC.game.hints = Object.fromEntries(['welcome', 'collect', 'line', 'full', 'night', 'clover', 'build', 'nursery', 'wax', 'order', 'merchant', 'drip', 'boxfull', 'festival', 'duties', 'rush', 'critic', 'drag'].map((k) => [k, true])); });
     for (let i = 0; i < 6; i++) await page.click('#textbox', { force: true, timeout: 500 }).catch(() => {});
   };
 
   await run('desktop', { width: 1280, height: 900 }, async (page) => {
     await shot(page, 'desktop-start.png');
+    // The tutorial box must sit below the picture, not on top of it.
+    const overlap = await page.evaluate(() => {
+      const a = document.querySelector('#scene').getBoundingClientRect();
+      const b = document.querySelector('#textbox').getBoundingClientRect();
+      return !document.querySelector('#textbox').hidden && b.top < a.bottom - 1;
+    });
+    if (overlap) errors.push('[desktop] the text box covers the scene');
     await closeAll(page);
 
     // Tap hive 1 in the scene: the keeper should walk out and collect.
@@ -65,11 +72,17 @@ const target = process.env.TARGET || 'file://' + path.join(root, 'index.html');
 
     // Money for testing the rest.
     await page.evaluate(() => { HC.game.coins = 50000; HC.game.gems = 500; HC.game.lifetime = 500; HC.ui.markDirty(); });
-    // Hire a cashier from the Shop tab.
+    // Hire Rosa from the Shop tab, then reassign her with a duty button.
     await page.click('.tabs [data-tab="shop"]');
     await page.waitForTimeout(300);
-    await page.click('[data-act="hire"][data-id="cashier"]');
-    await page.waitForTimeout(200);
+    await page.click('[data-act="hire"][data-id="rosa"]');
+    await page.waitForTimeout(400);
+    await page.click('[data-act="setDuty"][data-who="rosa"][data-duty="collect"]');
+    await page.waitForTimeout(400);
+    await shot(page, 'desktop-staff.png', true);
+    if (await page.evaluate(() => HC.game.staff.rosa.duty) !== 'collect') errors.push('[desktop] duty button did not reassign Rosa');
+    await page.click('[data-act="setDuty"][data-who="rosa"][data-duty="register"]');
+    await page.waitForTimeout(300);
     // Start an upgrade and finish it with gems.
     await page.click('[data-act="upgrade"][data-id="shelf"]');
     await page.waitForTimeout(400);
@@ -102,13 +115,40 @@ const target = process.env.TARGET || 'file://' + path.join(root, 'index.html');
       HC.act.skipBuild(HC.game.builds[0].id);
       HC.game.store.wax = 20;
       HC.act.tendMachine();
-      HC.act.hire('collector');
-      HC.act.hire('stocker');
-      HC.act.hire('candler');
+      HC.act.hire('theo');
+      HC.act.hire('mabel');
+      HC.act.hire('otis');
     });
     await advance(page, 60);
     const machine = await page.evaluate(() => HC.game.machine && HC.game.stats.candles);
     if (!machine) errors.push('[desktop] candle machine made no candles');
+
+    // Drag a bee from hive 1 onto hive 2 with a long press.
+    await page.evaluate(() => { HC.act.buildHive(); HC.act.skipBuild(HC.game.builds[0].id); });
+    await closeAll(page);
+    await page.click('.tabs [data-tab="apiary"]');
+    await page.waitForTimeout(500);
+    const beeId = await page.evaluate(() => HC.game.hives[0].bees[0]);
+    const tile = await page.locator(`#hive-0 .bee-tile[data-id="${beeId}"]`).boundingBox();
+    const target = await page.locator('#hive-1').boundingBox();
+    await page.mouse.move(tile.x + tile.width / 2, tile.y + tile.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(500);
+    await page.mouse.move(target.x + target.width / 2, target.y + 20, { steps: 8 });
+    await shot(page, 'desktop-drag.png');
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+    const movedTo = await page.evaluate((id) => HC.sim.f.hiveOf(HC.game, id), beeId);
+    if (movedTo !== 1) errors.push('[desktop] long-press drag did not move the bee (hive ' + movedTo + ')');
+    if (await page.locator('#modal:not([hidden])').count()) errors.push('[desktop] drag also opened the bee details');
+    await closeAll(page);
+
+    // Reputation window from the status bar.
+    await page.click('[data-act="rep"]');
+    await page.waitForTimeout(300);
+    await shot(page, 'desktop-rep.png');
+    if (!(await page.locator('#modalBody h2').innerText()).includes('Reputation')) errors.push('[desktop] reputation window did not open');
+    await closeAll(page);
 
     // Store: buy and place a few things, change hive style.
     await page.click('.tabs [data-tab="store"]');
@@ -165,7 +205,7 @@ const target = process.env.TARGET || 'file://' + path.join(root, 'index.html');
     // Save round trip
     const ok = await page.evaluate(() => {
       const back = HC.state.importSave(HC.state.exportSave(HC.game));
-      return back.coins === HC.game.coins && Object.keys(back.bees).length === Object.keys(HC.game.bees).length && !!back.staff.cashier;
+      return back.coins === HC.game.coins && Object.keys(back.bees).length === Object.keys(HC.game.bees).length && !!back.staff.rosa;
     });
     if (!ok) errors.push('[desktop] save round trip mismatch');
 

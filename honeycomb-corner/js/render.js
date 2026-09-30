@@ -327,9 +327,17 @@
       const [cx, cy] = L.hiveSlots[hi];
       const hx = cx * 16 + 8, hy = cy * 16 + 11;
       const full = f().hiveFull(h);
+      // At night, sleeping bees stay inside: show a drifting "z" instead.
+      if (f().isNight(s) && h.bees.some((id) => s.bees[id] && !f().nightWorker(s.bees[id]) && !busy.has(id))) {
+        const k = (t * 0.6 + hi * 0.37) % 1;
+        ctx.globalAlpha = k > 0.75 ? (1 - k) * 4 : 1;
+        spr.drawText(ctx, k < 0.5 ? 'z' : 'Z', hx + 4 + Math.round(k * 4), hy - 18 - Math.round(k * 8), '#d8d8ff');
+        ctx.globalAlpha = 1;
+      }
       h.bees.slice(0, 8).forEach((id) => {
         const bee = s.bees[id];
         if (!bee || busy.has(id)) return; // resting in the nursery
+        if (f().asleep(s, bee)) return; // asleep inside the hive
         const seed = util.hash(id);
         let x, y;
         if (full) {
@@ -796,7 +804,7 @@
       if (e.kind !== 'text') continue;
       const k = e.t / e.life;
       ctx.globalAlpha = k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
-      spr.drawText(ctx, e.text, e.x, e.y - k * 14, '#fff08a');
+      spr.drawText(ctx, e.text, e.x, e.y - k * 14, e.color || '#fff08a');
       ctx.globalAlpha = 1;
     }
   }

@@ -11,7 +11,8 @@
 //   5. eggs in the Nursery get closer to hatching
 //   6. the town pins requests, the merchant comes and goes
 //   7. timers for upgrades tick down (builds.js)
-//   8. each morning, staff wages are paid
+//   8. each morning: wages are paid, a "today's special" is picked, and
+//      maybe a food critic is booked for later in the day
 //
 // It never touches the screen directly. When something noteworthy happens it
 // announces it on HC.bus (see util.js) and the UI/sound react.
@@ -40,6 +41,17 @@
     },
     // The shop only serves customers while it isn't night.
     isOpen: (s) => !f.isNight(s),
+    // The lunch rush: for a while around midday customers pour in.
+    isRush(s) {
+      const p = f.dayPhase(s);
+      return f.isOpen(s) && p >= D.EVENTS.rush.from && p < D.EVENTS.rush.to;
+    },
+    // Bees sleep at night, except night-lovers: species with a night bonus
+    // (Moonmoth) and bees with the Night Owl trait keep working.
+    nightWorker(bee) {
+      return !!(D.species[bee.sp].nightBonus || bee.trait === 'nightowl');
+    },
+    asleep: (s, bee) => f.isNight(s) && !f.nightWorker(bee),
     season(s) {
       const len = D.DAY_LENGTH * D.SEASON_DAYS;
       return D.SEASONS[Math.floor(s.time / len) % 4];
@@ -77,12 +89,17 @@
       const se = f.season(s);
       let m = mult * (1 + (se.price || 0));
       if (goodId === 'candle' && se.candle) m *= 1 + se.candle;
+      if (f.isSpecial(s, goodId)) m *= D.EVENTS.special.priceMult; // today's special
       return Math.max(1, Math.round(D.good[goodId].price * f.priceMult(s) * m));
     },
+    // Is this product today's special?
+    isSpecial: (s, goodId) => !!(s.special && s.special.good === goodId && s.special.day === f.day(s)),
     // The Honey Cart sells storehouse overflow at this fraction of the price.
     cartRate: (s) => (s.up.cart ? 0.2 + 0.05 * (s.up.cart - 1) : 0),
     // Seconds for the person at the register to ring up one customer.
-    checkoutTime: (s) => 1.6 * Math.pow(0.88, s.up.register),
+    // A second person on the Register duty, bagging beside the till, makes
+    // it almost twice as fast.
+    checkoutTime: (s) => 1.6 * Math.pow(0.88, s.up.register) * (HC.workers && HC.workers.baggerPresent(s) ? 0.55 : 1),
 
     // -- Decorations --------------------------------------------------------------
     // Adds up one kind of bonus ('customers', 'prod' or 'rep') from every
@@ -129,15 +146,18 @@
       for (const n of s.nursery) if (n) busy.add(n.a).add(n.b);
       return busy;
     },
-    // Units per second of each product across all hives (resting bees excluded).
-    goodRates(s) {
-      const night = f.isNight(s);
+    // Units per second of each product across all hives (resting bees
+    // excluded). `asDay` pretends it's daytime (used to size requests, so
+    // they aren't tiny just because the bees are asleep).
+    goodRates(s, asDay) {
+      const night = !asDay && f.isNight(s);
       const busy = f.busyBees(s);
       const out = {};
       for (const h of s.hives) {
         for (const id of h.bees) {
           if (busy.has(id)) continue;
           const bee = s.bees[id];
+          if (night && !f.nightWorker(bee)) continue; // asleep
           const g = D.species[bee.sp].good;
           out[g] = (out[g] || 0) + f.beeRate(s, bee, h, night);
         }
@@ -160,7 +180,8 @@
       return b;
     },
     // Average seconds between customers arriving (smaller = busier shop).
-    spawnInterval: (s) => Math.max(0.8, 9 / (1 + 0.2 * s.rep) / (1 + f.customerBoost(s))),
+    // During the lunch rush it's about three times busier.
+    spawnInterval: (s) => Math.max(0.8, 9 / (1 + 0.2 * s.rep) / (1 + f.customerBoost(s))) * (f.isRush(s) ? D.EVENTS.rush.spawnMult : 1),
 
     // -- Buying bees ------------------------------------------------------------
     marketUnlocked(s, sp) {
@@ -195,7 +216,7 @@
     // -- Staff --------------------------------------------------------------------
     wagesPerDay(s) {
       let w = 0;
-      for (const id in s.staff) if (s.staff[id]) w += D.staff[id].wage;
+      for (const id in s.staff) if (s.staff[id] && D.staff[id]) w += D.staff[id].wage;
       return w;
     },
 
@@ -246,6 +267,36 @@
     if (n <= 0) return;
     s.gems += n;
     if (!rt.silent) bus.emit('gems', { n, why });
+  }
+
+  // ---------------------------------------------------------------------------
+  // REPUTATION. Every change goes through here so it can be explained: the
+  // amount comes from data.js (REP), and it's added to today's log, which the
+  // Reputation window shows. `key` is the reason ('served', 'walkout'...).
+  // `scale` multiplies the amount. x/y float a little star in the scene.
+  // ---------------------------------------------------------------------------
+  function changeRep(s, key, scale = 1, x, y) {
+    const rule = D.REP[key];
+    let amt = rule.amt * scale;
+    // Happy customers count for less near 5 stars, more with decorations.
+    if (key === 'served' || key === 'special') amt *= (1 + f.decorBonus(s, 'rep')) * (1 - s.rep / 5.5);
+    const before = s.rep;
+    s.rep = util.clamp(s.rep + amt, 0, 5);
+    const real = s.rep - before;
+    const day = f.day(s);
+    if (!s.repLog || s.repLog.day !== day) rollRepLog(s, day);
+    const item = s.repLog.items[key] || (s.repLog.items[key] = { n: 0, amt: 0 });
+    item.n++;
+    item.amt += real;
+    if (x != null && !rt.silent) {
+      rt.fx.push({ kind: 'text', x, y, text: (real >= 0 ? '+' : '-') + '*', t: 0, life: 1.4, color: real >= 0 ? '#fff08a' : '#ff7a6a' });
+    }
+    return real;
+  }
+  // Start a fresh log for a new day, keeping the last one as "yesterday".
+  function rollRepLog(s, day) {
+    if (s.repLog && Object.keys(s.repLog.items).length) s.repPrev = s.repLog;
+    s.repLog = { day, items: {} };
   }
 
   // Coins earned in the last minute (shown as "per min" in the status bar).
@@ -311,7 +362,8 @@
   // 1. BEES MAKE HONEY
   // Each bee fills a progress bar at its own speed. When the bar fills, one
   // unit goes into its hive. A full hive stops everyone in it until someone
-  // collects. Bees raising an egg in the Nursery rest.
+  // collects. Bees raising an egg in the Nursery rest, and at night most bees
+  // sleep (only Moonmoths and Night Owls keep working).
   // ---------------------------------------------------------------------------
   function produce(s, dt) {
     const night = f.isNight(s);
@@ -322,6 +374,7 @@
       for (const id of h.bees) {
         if (busy.has(id)) continue;
         const bee = s.bees[id];
+        if (night && !f.nightWorker(bee)) continue; // asleep for the night
         if (total >= cap) {
           bee.prog = Math.min(bee.prog, 0.999); // waiting for space
           continue;
@@ -417,7 +470,7 @@
   // Create a request for something you actually make, sized to roughly two
   // or three minutes of your production of it.
   function makeOrder(s) {
-    const rates = f.goodRates(s);
+    const rates = f.goodRates(s, true);
     const goods = D.GOODS.filter((g) => s.unlockedGoods[g.id] && !g.raw);
     if (!goods.length) return null;
     const g = util.weighted(goods, (x) => (rates[x.id] || x.id === 'candle' ? 3 + x.tier : 0.5));
@@ -534,18 +587,46 @@
   }
 
   // ---------------------------------------------------------------------------
-  // 8. WAGES: paid once each new in-game day. If you can't afford everyone,
-  // the most expensive employees quit until the rest can be paid.
+  // 8. A NEW DAY. Once each morning:
+  //   - wages are paid. If you can't afford everyone, the most expensive
+  //     helpers quit until the rest can be paid.
+  //   - a "today's special" product is picked (sells for 50% more)
+  //   - on some days a food critic is booked to visit later
+  //   - the reputation log starts a new page
   // ---------------------------------------------------------------------------
-  function updateWages(s) {
+  function updateDay(s) {
     const day = Math.floor(s.time / D.DAY_LENGTH);
+    // The very first day also needs a special.
+    if (!s.special || s.special.day !== day + 1 || (!s.special.good && D.GOODS.filter((g) => s.unlockedGoods[g.id] && !g.raw).length >= D.EVENTS.special.minGoods)) pickSpecial(s, day + 1);
     if (day <= s.lastDay) return;
     s.lastDay = day;
-    const hired = Object.keys(s.staff).filter((id) => s.staff[id]).sort((a, b) => D.staff[b].wage - D.staff[a].wage);
+    payWages(s);
+    rollRepLog(s, day + 1);
+    const c = D.EVENTS.critic;
+    s.critic = Math.random() < c.chance ? { day: day + 1, at: util.rand(c.earliest, c.latest), done: false } : null;
+  }
+
+  // Pick today's special among the products you can actually sell,
+  // preferring ones you have in stock. (With only one product there's no
+  // special: it would just be a permanent price rise.)
+  function pickSpecial(s, day) {
+    const goods = D.GOODS.filter((g) => s.unlockedGoods[g.id] && !g.raw);
+    if (goods.length < D.EVENTS.special.minGoods) {
+      s.special = { day, good: null }; // no special until there's a choice
+      return;
+    }
+    const g = util.weighted(goods, (x) => 1 + (s.store[x.id] || 0) + x.tier);
+    s.special = { day, good: g.id };
+    if (!rt.silent && day > 1) bus.emit('special', g);
+    bus.emit('dirty');
+  }
+
+  function payWages(s) {
+    const hired = Object.keys(s.staff).filter((id) => s.staff[id] && D.staff[id]).sort((a, b) => D.staff[b].wage - D.staff[a].wage);
     let owed = hired.reduce((t, id) => t + D.staff[id].wage, 0);
     for (const id of hired) {
       if (s.coins >= owed) break;
-      s.staff[id] = false;
+      delete s.staff[id];
       owed -= D.staff[id].wage;
       if (HC.workers) HC.workers.sync(s);
       if (!rt.silent) bus.emit('staffQuit', D.staff[id]);
@@ -555,6 +636,18 @@
       s.coins -= owed;
       if (!rt.silent) bus.emit('wagesPaid', owed);
     }
+  }
+
+  // Announce the lunch rush, nightfall and morning, once each as they start.
+  function updateAnnouncements(s) {
+    const rush = f.isRush(s), open = f.isOpen(s);
+    if (rush && !rt.wasRush && !rt.silent) bus.emit('rush');
+    if (open !== rt.wasOpen && rt.wasOpen != null) {
+      if (!rt.silent) bus.emit(open ? 'morning' : 'nightfall');
+      bus.emit('dirty');
+    }
+    rt.wasRush = rush;
+    rt.wasOpen = open;
   }
 
   function updateFx(dt) {
@@ -578,7 +671,8 @@
     updateTown(s, dt);
     updateDrip(s, dt);
     updateSeason(s);
-    updateWages(s);
+    updateDay(s);
+    updateAnnouncements(s);
     if (HC.builds) HC.builds.update(s);
     updateFx(dt);
   }
@@ -587,10 +681,11 @@
   // FAST-FORWARD for time spent away (tab closed, phone locked).
   // Walking every step would be slow, so this uses shortcuts:
   //   - bees fill their hives as normal (so hives cap out if nobody collects)
-  //   - a hired Honey Collector moves honey at about one basket per 30s
+  //   - bees sleep at night, as usual
+  //   - each person on the Collect duty moves about one basket per 30s
   //   - the shopkeeper keeps the shelves stocked from the storehouse
   //   - while the shop is open, customers buy at 60% of the live rate
-  //   - a hired Candle Maker keeps the machine running
+  //   - anyone on the Candle Machine duty keeps it running
   //   - timers, eggs, requests and wages all progress
   // Production and sales stop after OFFLINE_CAP (8 hours); timers keep going.
   // Returns a summary for the "While you were away" report.
@@ -612,21 +707,24 @@
       s.clock += dt;
       produce(s, dt);
       updateMachine(s, dt);
-      if (s.staff.collector) offlineCollect(s, dt);
-      if (s.staff.candler && s.machine) offlineTend(s);
+      // Anyone on the Collect duty brings honey in; the Candle Machine duty
+      // keeps the machine going. (See workers.js for duties.)
+      const collectors = HC.workers ? HC.workers.onDuty(s, 'collect') : 0;
+      if (collectors) offlineCollect(s, dt, collectors);
+      if (s.machine && HC.workers && HC.workers.onDuty(s, 'candles')) offlineTend(s);
       restockInstant(s);
       if (f.isOpen(s)) instantCustomers(s, dt, 0.6);
       updateNursery(s, dt);
       updateTown(s, dt);
       updateSeason(s);
-      updateWages(s);
+      updateDay(s);
       if (HC.builds) HC.builds.update(s);
     }
     // Any time beyond the 8-hour cap still counts for timers.
     if (seconds > active) {
       s.time += seconds - active;
       s.clock += seconds - active;
-      updateWages(s);
+      updateDay(s);
       if (HC.builds) HC.builds.update(s);
     }
     rt.silent = false;
@@ -650,10 +748,10 @@
     };
   }
 
-  // While away: the collector moves roughly one basket every 30 seconds,
+  // While away: each collector moves roughly one basket every 30 seconds,
   // always from the fullest hive.
-  function offlineCollect(s, dt) {
-    rt.offlineCarry = (rt.offlineCarry || 0) + (f.carryCap(s) / 30) * dt;
+  function offlineCollect(s, dt, people) {
+    rt.offlineCarry = (rt.offlineCarry || 0) + (f.carryCap(s) / 30) * dt * people;
     while (rt.offlineCarry >= 1) {
       const i = s.hives.reduce((bi, h, k) => (f.honeyIn(h) > f.honeyIn(s.hives[bi]) ? k : bi), 0);
       if (f.honeyIn(s.hives[i]) <= 0) {
@@ -714,7 +812,7 @@
   }
 
   HC.sim = {
-    f, rt, update, catchUp, resetRuntime, earn, gainGems, addToStore, takeFromHive, restockInstant,
+    f, rt, update, catchUp, resetRuntime, earn, gainGems, changeRep, addToStore, takeFromHive, restockInstant,
     decideEgg, makeOrder, makeMerchantOffer, pinOrder, incomePerMin, claimDrip, produce,
   };
 })();

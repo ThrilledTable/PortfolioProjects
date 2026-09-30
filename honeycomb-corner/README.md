@@ -25,17 +25,20 @@ bees fill their hive ─► shopkeeper walks out, collects ─► storehouse ─
 - **Hives fill up.** Each hive holds a limited amount of honey (16 jars, +12 per level). When it's full, its bees stop working until someone collects.
 - **You carry the honey.** Tap a hive and the shopkeeper walks out through the door, down the garden path, scoops the honey, and carries it to the storeroom. They also carry stock from the storeroom to the shelves.
 - **The register needs a person.** Customers can only pay while someone stands at the register. While the shopkeeper is out, the line waits. Customers who wait too long put their items back and walk out, and reputation drops.
-- **Staff** automate the chores for a daily wage paid each morning (miss a payday and someone quits):
-  - **Cashier:** stays at the register.
-  - **Shelf Stocker:** keeps the shelves full.
-  - **Honey Collector:** fetches honey, including while you're away.
-  - **Candle Maker:** runs the Candle Machine.
+- **Helpers with duties.** Hire up to four helpers (Rosa, Theo, Mabel, Otis) for a daily wage paid each morning (miss a payday and someone quits). Nobody is locked into one job: in **Shop → Staff**, tap a duty button to assign each person, including the shopkeeper:
+  - **Register:** stays at the register. Two people on the Register ring up faster. At night, restocks the shelves.
+  - **Stock shelves:** keeps the shelves full.
+  - **Collect honey:** fetches honey from the hives, including while you're away.
+  - **Candle Machine:** loads wax and carries candles out.
+- **Daily rhythm.** Around midday the **lunch rush** brings customers in about three times faster. Each morning one product becomes **today's special** (+30% price, customers look for it first; starts once you sell two products). On some days a **food critic** visits: stocked shelves and a short wait earn a big reputation boost and gems, otherwise a bad review.
+- **Reputation is explained.** Tap the stars in the status bar for every rule that raises or lowers it, and a log of today's changes by reason. A red star floats up in the scene whenever it drops.
+- **Move bees by dragging.** In the Apiary tab, long-press a bee and drag it onto another hive, onto another bee (they swap), or into the Bee box.
 - **Candles need a machine.** Waxwing Bees make raw Beeswax. The Candle Machine turns it into candles, but someone has to load the wax and carry the candles out.
-- **Everything is built over time.** Upgrades, new hives, hive upgrades and the machine are timed builds: under a minute early on, up to 4 hours late in the game. One builder works at a time (more can be hired with gems).
-- **Gems** are earned in-game only: from goals, requests, new species, seasons, festivals and golden drips. Spend them to finish a timer early, hire extra builders, or buy special cosmetics.
+- **Everything is built over time.** Upgrades, new hives, hive upgrades and the machine are timed builds: under a minute early on, up to 4 hours late in the game. You have one builder, so one thing at a time. (A second builder is planned as an optional paid unlock in a full release.)
+- **Gems** are earned in-game only: from goals, requests, new species, seasons, festivals and golden drips. Spend them to finish a timer early or buy special cosmetics.
 - **Nursery:** pair two bees to raise an egg. The parents rest (no honey) until it hatches. There are 12 species and 10 recipes, plus vigor, traits and rare sparkle variants. A pity timer guarantees a recipe after 4 misses.
 - **The town:** townsfolk walk up to the board outside the shop and pin requests, which pay 2.5× market value and sometimes gems. A travelling merchant sometimes parks outside with a rare bee.
-- **Night:** the shop closes and no customers come, but the bees keep working, so the mornings start with full hives.
+- **Night:** the shop closes, no customers come, and most bees go to sleep (Moonmoths and Night Owls keep working). Whoever is on the Register restocks the shelves for the morning.
 - **Seasons:** each lasts 4 in-game days (32 minutes) and brings one twist, plus its own grass, flowers and weather.
 - **Store:** hats, hair, shirts and aprons for your shopkeeper. Shop and garden decorations that appear in the scene, many with a small bonus. Wallpaper, floors, and hive styles.
 - **Hives grow as you upgrade them:** more boxes, a peaked roof, a flower box, then a gold pennant. **Flower Beds** plant visible beds in the garden.
@@ -49,13 +52,13 @@ These come from `tools/balance.js`, a bot playing the real game. A human will be
 
 | Milestone | Bot time |
 |---|---|
-| First Clover Bee, first Cashier | about 10–17 min |
-| First five goals done | about 16–25 min |
-| Candle Machine built | about 22–26 min |
-| Honey Collector hired (collection goes hands-off) | about 27–31 min |
-| Lavender | about 70 min |
-| Royal | about 2.5 h |
-| Starlight (last species) | about 3.6–4.1 h |
+| First Clover Bee, first helper | about 15–30 min |
+| First five goals done | about 25–34 min |
+| Candle Machine built | about 29–50 min |
+| Third helper (collection hands-off) | about 30–53 min |
+| Lavender | about 65–75 min |
+| Royal | about 2.3–2.6 h |
+| Starlight (last species) | about 3.8–4.0 h |
 
 ## Design notes
 
@@ -89,7 +92,7 @@ The rules never touch the page; they post events on `HC.bus`. That's why the who
 ## Dev tools
 
 ```bash
-node tools/test.js                    # 24 mechanics tests (Node, no browser)
+node tools/test.js                    # 34 mechanics tests (Node, no browser)
 node tools/balance.js 4 1 5           # simulate 4h, 1 run, bot acting every 5s; prints milestones
 node tools/smoke.js out/              # headless browser: every flow, audio, festival, away report
 node tools/phone-walkthrough.js out/  # tap-only opening minutes at phone size, screenshots

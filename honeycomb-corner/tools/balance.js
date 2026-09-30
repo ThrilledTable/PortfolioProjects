@@ -44,8 +44,8 @@ function run(hours) {
     const goods = D.GOODS.filter((g) => s.unlockedGoods[g.id] && !g.raw).map((g) => g.id).reverse();
     s.shelves.forEach((sh, i) => { if (goods[i] && sh.good !== goods[i]) act.setShelf(i, goods[i]); });
     // Send the keeper for honey (a player tapping hives), unless a collector does it.
-    if (!s.staff.collector) s.hives.forEach((h, i) => { if (f.honeyIn(h) / f.honeyCap(h) > 0.5) act.collect(i); });
-    if (s.machine && !s.staff.candler && (s.machine.candles > 3 || (s.store.wax > 5 && s.machine.wax < 3))) act.tendMachine();
+    if (!HC.workers.onDuty(s, 'collect')) s.hives.forEach((h, i) => { if (f.honeyIn(h) / f.honeyCap(h) > 0.5) act.collect(i); });
+    if (s.machine && !HC.workers.onDuty(s, 'candles') && (s.machine.candles > 3 || (s.store.wax > 5 && s.machine.wax < 3))) act.tendMachine();
     for (const o of [...s.orders]) if ((s.store[o.good] || 0) >= o.qty) act.deliverOrder(o.id);
     s.nursery.forEach((n, i) => n && n.ready && act.hatch(i));
     // Breeding: prefer the highest recipe we can do and still need.
@@ -72,11 +72,15 @@ function run(hours) {
       }
     }
     if (s.box.length > f.boxCap(s) - 2) act.sellExtras();
-    // Staff, in a sensible order, when there's a comfortable buffer.
-    for (const st of ['cashier', 'collector', 'stocker', 'candler']) {
-      const d = D.staff[st];
-      if (!s.staff[st] && (st !== 'candler' || s.machine) && s.coins > d.hire + d.wage * 3) act.hire(st);
-    }
+    // Staff: hire the next helper when there's a comfortable buffer, and
+    // give helpers duties in order of how much tapping they save:
+    // Register, then Collect honey, then Shelves, then Candles.
+    const next = D.STAFF.find((x) => !s.staff[x.id]);
+    if (next && s.coins > next.hire + next.wage * 3) act.hire(next.id);
+    ['register', 'collect', 'stock', 'candles'].forEach((duty, k) => {
+      const id = D.STAFF[k].id;
+      if (s.staff[id] && s.staff[id].duty !== duty && (duty !== 'candles' || s.machine)) act.setDuty(id, duty);
+    });
     if (s.discovered.waxwing && !s.machine) act.buildMachine();
     // Use gems only on nearly-finished builds (a thrifty player).
     for (const b of s.builds) if (f.gemsToSkip(HC.builds.left(s, b)) <= 2 && s.gems > 20) act.skipBuild(b.id);

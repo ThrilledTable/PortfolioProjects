@@ -15,7 +15,17 @@
 //   pay      the person at the register rings them up and coins are earned
 //   exit / leave   walk out and disappear
 //
-// Nobody new arrives while the shop is closed at night.
+// Nobody new arrives while the shop is closed at night. Around midday the
+// lunch rush brings customers in much faster.
+//
+// THE FOOD CRITIC: on some days a critic visits (sim.js books the time).
+// They buy one item and judge the shop when they pay: if most shelves are
+// stocked and they didn't wait long, reputation jumps and they leave gems.
+// Otherwise reputation drops. If they leave without buying, that counts as
+// a bad review too.
+//
+// Every reputation change goes through HC.sim.changeRep, which records the
+// reason so the Reputation window can explain it.
 //
 // "Requesters" are townsfolk who walk up to the request board outside,
 // pin a note (which becomes a request in the Town tab) and walk away.
@@ -49,8 +59,11 @@
     });
     if (!idx.length) return -1;
     const pick = util.weighted(idx, (i) => {
-      const p = D.good[s.shelves[i].good].price;
-      return ctype.id === 'collector' ? Math.pow(p, 1.5) : Math.sqrt(p);
+      const g = s.shelves[i].good;
+      const p = D.good[g].price;
+      // Today's special is what everyone's talking about.
+      const special = f().isSpecial(s, g) ? D.EVENTS.special.pickWeight : 1;
+      return (ctype.id === 'collector' ? Math.pow(p, 1.5) : Math.sqrt(p)) * special;
     });
     return pick == null ? -1 : pick;
   }
@@ -60,17 +73,6 @@
     let n = util.randInt(ctype.units[0], ctype.units[1]);
     for (let i = 0; i < s.up.samples; i++) if (Math.random() < 0.1) n++;
     return n;
-  }
-
-  // Reputation goes up a little with each happy customer (more slowly the
-  // closer you are to 5 stars; String Lights and Lanterns speed it up)...
-  function repGain(s, scale = 1) {
-    const boost = 1 + f().decorBonus(s, 'rep');
-    s.rep = Math.min(5, s.rep + 0.02 * scale * boost * (1 - s.rep / 5.5));
-  }
-  // ...and down with each unhappy one.
-  function repLoss(s, amt = 0.04) {
-    s.rep = Math.max(0, s.rep - amt);
   }
 
   // A random appearance for a new customer.
@@ -92,8 +94,9 @@
   // ---------------------------------------------------------------------------
   // Creating people
   // ---------------------------------------------------------------------------
-  function spawnCustomer(s) {
-    const ctype = rollCustomerType(s);
+  // `forced` is a customer type to use instead of a random one (the critic).
+  function spawnCustomer(s, forced) {
+    const ctype = forced || rollCustomerType(s);
     const fromLeft = Math.random() < 0.5;
     rt().customers.push({
       id: util.uid(),
@@ -118,6 +121,7 @@
       timer: 0,
       wait: 0, // seconds spent waiting in line
       patience: util.rand(40, 70), // how long they'll wait before walking out
+      critic: ctype.id === 'critic',
     });
   }
 
@@ -150,7 +154,8 @@
     c.bubble = { kind: 'dots', t: 0 };
     c.state = 'leave';
     c.path = exitPath(c.y);
-    repLoss(s);
+    if (c.critic) criticVerdict(s, c, false);
+    else sim().changeRep(s, 'empty', 1, c.x, c.y - 26);
     s.stats.disappointed++;
     bus.emit('disappointed', c);
   }
@@ -165,9 +170,21 @@
     c.bubble = { kind: 'angry', t: 0 };
     c.state = 'leave';
     c.path = exitPath(c.y);
-    repLoss(s, 0.06);
+    if (c.critic) criticVerdict(s, c, false);
+    else sim().changeRep(s, 'walkout', 1, c.x, c.y - 26);
     s.stats.walkouts++;
     if (!rt().silent) bus.emit('walkout', c);
+  }
+
+  // The critic's review. `bought` is false if they left without buying.
+  // A good review needs 3 of every 4 shelves stocked and a short wait.
+  function criticVerdict(s, c, bought) {
+    const stocked = s.shelves.filter((sh) => sh.good);
+    const full = stocked.filter((sh) => sh.qty > 0).length;
+    const good = bought && stocked.length > 0 && full / stocked.length >= 0.75 && c.wait < 25;
+    sim().changeRep(s, good ? 'criticGood' : 'criticBad', 1, c.x, c.y - 26);
+    if (good) sim().gainGems(s, D.EVENTS.critic.reward, 'the food critic');
+    if (!rt().silent) bus.emit('critic', { good, wait: c.wait, full, of: stocked.length, bought });
   }
 
   function goToShelf(c, idx) {
@@ -288,7 +305,9 @@
           s.stats.sold += c.bought.qty;
           s.stats.customers++;
           s.stats.best = Math.max(s.stats.best, c.total);
-          repGain(s);
+          if (c.critic) criticVerdict(s, c, true);
+          else sim().changeRep(s, 'served');
+          if (f().isSpecial(s, c.bought.good)) sim().changeRep(s, 'special');
           rt().queue.shift();
           c.state = 'exit';
           c.path = exitPath(c.y);
@@ -312,6 +331,13 @@
       const shoppers = r.customers.filter((c) => c.kind === 'customer').length;
       if (f().isOpen(s) && shoppers < 14) spawnCustomer(s);
     }
+    // The food critic arrives at their booked time.
+    const cr = s.critic;
+    if (cr && !cr.done && cr.day === f().day(s) && f().dayPhase(s) >= cr.at && f().isOpen(s)) {
+      cr.done = true;
+      spawnCustomer(s, D.customer.critic);
+      if (!rt().silent) bus.emit('criticArrived');
+    }
     for (const c of r.customers) updateCustomer(s, c, dt);
     r.customers = r.customers.filter((c) => !c.done);
   }
@@ -323,7 +349,7 @@
     const idx = chooseShelf(s, ctype);
     if (idx < 0) {
       s.stats.disappointed++;
-      repLoss(s, 0.01);
+      sim().changeRep(s, 'away');
       return 0;
     }
     const sh = s.shelves[idx];
@@ -335,7 +361,7 @@
     s.runEarned += amt;
     s.stats.sold += take;
     s.stats.customers++;
-    repGain(s);
+    sim().changeRep(s, 'served');
     sim().restockInstant(s);
     return amt;
   }

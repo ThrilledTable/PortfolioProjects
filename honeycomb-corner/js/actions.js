@@ -108,6 +108,21 @@
       return done('Swapped ' + s.bees[boxId].name + ' into hive ' + (hiveIdx + 1) + '.', 'click');
     },
 
+    // Swap any two bees' homes (hive or bee box). Used when you drag a bee
+    // onto another bee in a full hive: the two trade places.
+    swapBees(aId, bId) {
+      const s = S();
+      if (!s.bees[aId] || !s.bees[bId] || aId === bId) return fail('Those bees moved.');
+      // Find the list each bee lives in (a hive's bee list, or the box).
+      const home = (id) => s.hives.find((h) => h.bees.includes(id))?.bees || (s.box.includes(id) ? s.box : null);
+      const la = home(aId), lb = home(bId);
+      if (!la || !lb) return fail('Those bees moved.');
+      if (la === lb) return fail('They already live together.');
+      la[la.indexOf(aId)] = bId;
+      lb[lb.indexOf(bId)] = aId;
+      return done(s.bees[aId].name + ' and ' + s.bees[bId].name + ' swapped places.', 'click');
+    },
+
     sellBee(id) {
       const s = S();
       const bee = s.bees[id];
@@ -247,37 +262,49 @@
       const r = HC.builds.skip(S(), id);
       return r.ok ? done(r.msg, 'discover') : fail(r.msg);
     },
-    // A second (or third) builder, bought with gems.
-    buyBuilder() {
-      const s = S();
-      if (s.builders >= 3) return fail('Three builders is plenty.');
-      const cost = D.GEMS.builderSlot * s.builders;
-      if (s.gems < cost) return fail('Not enough gems.');
-      s.gems -= cost;
-      s.builders++;
-      return done('A new builder joins the crew. You can build ' + s.builders + ' things at once.', 'discover');
-    },
-
     // -------------------------------------------------------------------------
     // STAFF
     // -------------------------------------------------------------------------
+    // Helpers are hired in order (Rosa, then Theo...). Each starts on their
+    // usual duty (Rosa: Register, Theo: Shelves, Mabel: Hives, Otis: Candles);
+    // if that needs a machine you don't have, they take a free duty instead.
     hire(id) {
       const s = S();
       const st = D.staff[id];
-      if (!st) return fail('Unknown job.');
-      if (s.staff[id]) return fail('You already have a ' + st.name + '.');
-      if (st.needs === 'machine' && !s.machine) return fail('Build the Candle Machine first.');
+      if (!st) return fail('Nobody by that name is looking for work.');
+      if (s.staff[id]) return fail(st.name + ' already works here.');
+      const next = D.STAFF.find((x) => !s.staff[x.id]);
+      if (next !== st) return fail('Hire ' + next.name + ' first.');
       if (!spend(st.hire)) return fail('Not enough coins.');
-      s.staff[id] = true;
+      let duty = st.duty;
+      if (D.duty[duty].needs && !s.machine) {
+        const taken = new Set([s.keeperDuty, ...Object.values(s.staff).map((x) => x.duty)]);
+        const open = D.DUTIES.find((d) => !taken.has(d.id) && !d.needs);
+        duty = open ? open.id : 'collect';
+      }
+      s.staff[id] = { duty };
       HC.workers.sync(s);
-      return done('You hired a ' + st.name + '. Wages are ₵' + st.wage + ' each morning.');
+      return done(st.name + ' joined the shop on ' + D.duty[s.staff[id].duty].name + ' duty. Wages are ₵' + st.wage + ' each morning.');
     },
     fire(id) {
       const s = S();
       if (!s.staff[id]) return fail('Nobody to let go.');
-      s.staff[id] = false;
+      delete s.staff[id];
       HC.workers.sync(s);
-      return done('Your ' + D.staff[id].name + ' has left. No more wages for them.', 'click');
+      return done(D.staff[id].name + ' has left. No more wages for them.', 'click');
+    },
+    // Give someone a new duty. `who` is 'keeper' or a helper's id.
+    // Whatever they were doing is finished first (they won't drop a basket).
+    setDuty(who, duty) {
+      const s = S();
+      const d = D.duty[duty];
+      if (!d) return fail('Unknown duty.');
+      if (d.needs === 'machine' && !s.machine) return fail('Build the Candle Machine first.');
+      if (who === 'keeper') s.keeperDuty = duty;
+      else if (s.staff[who]) s.staff[who].duty = duty;
+      else return fail('Nobody to assign.');
+      const name = who === 'keeper' ? 'The shopkeeper' : D.staff[who].name;
+      return done(name + ' is now on ' + d.name + ' duty.', 'click');
     },
 
     // -------------------------------------------------------------------------
@@ -349,7 +376,7 @@
       s.orders = s.orders.filter((x) => x.id !== id);
       HC.sim.earn(s, o.reward);
       if (o.gems) HC.sim.gainGems(s, o.gems, o.who);
-      s.rep = Math.min(5, s.rep + 0.15);
+      HC.sim.changeRep(s, 'order');
       s.stats.orders++;
       bus.emit('orderDone', o);
       return done(o.who + ' paid ₵' + util.fmt(o.reward) + (o.gems ? ' and ' + o.gems + ' 💎' : '') + '. Word gets around.', 'order');
@@ -427,7 +454,7 @@
       s.goal = old.goal;
       s.cos = old.cos;
       s.gems = old.gems + D.GEMS.festival;
-      s.builders = old.builders;
+      s.keeperDuty = old.keeperDuty;
       s.playTime = old.playTime;
       s.time = old.time;
       s.clock = old.clock;

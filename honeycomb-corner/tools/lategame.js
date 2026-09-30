@@ -32,8 +32,11 @@ fs.mkdirSync(out, { recursive: true });
     const bot = () => {
       const s = HC.game;
       HC.goals.claim();
-      if (!s.staff.collector) s.hives.forEach((h, i) => { if (f.honeyIn(h) / f.honeyCap(h) > 0.5) act.collect(i); });
-      for (const st of ['cashier', 'collector', 'stocker', 'candler']) if (!s.staff[st] && (st !== 'candler' || s.machine) && s.coins > D.staff[st].hire * 2) act.hire(st);
+      if (!HC.workers.onDuty(s, 'collect')) s.hives.forEach((h, i) => { if (f.honeyIn(h) / f.honeyCap(h) > 0.5) act.collect(i); });
+      const next = D.STAFF.find((x) => !s.staff[x.id]);
+      if (next && s.coins > next.hire * 2) act.hire(next.id);
+      if (s.staff.theo && s.staff.theo.duty !== 'collect') act.setDuty('theo', 'collect');
+      if (s.staff.mabel && s.staff.mabel.duty !== 'stock') act.setDuty('mabel', 'stock');
       if (s.discovered.waxwing && !s.machine) act.buildMachine();
       for (const b of s.builds) if (s.gems >= f.gemsToSkip(HC.builds.left(s, b))) act.skipBuild(b.id);
       s.gems += 1; // a generous gem trickle so the soak reaches the late game
