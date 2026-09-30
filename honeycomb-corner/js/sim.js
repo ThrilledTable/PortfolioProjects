@@ -34,12 +34,10 @@
     // -- Time of day and seasons ---------------------------------------------
     // dayPhase: how far through the current day we are, 0 (dawn) to 1.
     dayPhase: (s) => (s.time % D.DAY_LENGTH) / D.DAY_LENGTH,
-    // Night is the last quarter of each day (70% to 95% of the way through).
-    isNight(s) {
-      const p = f.dayPhase(s);
-      return p >= 0.7 && p < 0.95;
-    },
-    // The shop only serves customers while it isn't night.
+    // Night runs from 8pm (NIGHT.start in data.js) until 6am, when the next
+    // day begins.
+    isNight: (s) => f.dayPhase(s) >= D.NIGHT.start,
+    // The shop serves customers only by day. Nights are for catching up.
     isOpen: (s) => !f.isNight(s),
     // The lunch rush: for a while around midday customers pour in.
     isRush(s) {
@@ -204,7 +202,19 @@
       if (sp === 'clover') return s.lifetime >= 150 || !!s.discovered.clover;
       return false;
     },
-    marketPrice(s, sp) {
+    // A HELPING HAND: if none of the bees in your hives make anything you can
+    // sell (e.g. only Waxwings and no Candle Machine) and you can't afford a
+    // Meadow Bee, the market gives you one free, so the game can never get
+    // stuck with no income.
+    needsHelpingHand(s) {
+      const sellable = s.hives.some((h) => h.bees.some((id) => {
+        const g = D.good[D.species[s.bees[id].sp].good];
+        return !g.raw || s.machine;
+      }));
+      return !sellable && s.coins < f.marketPrice(s, 'meadow', true);
+    },
+    marketPrice(s, sp, ignoreHelp) {
+      if (sp === 'meadow' && !ignoreHelp && f.needsHelpingHand(s)) return 0;
       const n = s.market[sp] || 0;
       return util.nice(sp === 'meadow' ? 25 * Math.pow(1.2, n) : 150 * Math.pow(1.22, n));
     },
@@ -685,6 +695,32 @@
     rt.wasOpen = open;
   }
 
+  // ---------------------------------------------------------------------------
+  // CLOSING TIME CHOICES (see NIGHT in data.js)
+  // ---------------------------------------------------------------------------
+  // Sleep until 6am. The night is fast-forwarded in 2-second steps, but only
+  // the time of day moves: the game clock (which build and egg timers use)
+  // does not. Night-owl bees make their honey and the morning's wages are
+  // paid. Nobody restocks: that's what staying up is for.
+  function sleepTillMorning(s) {
+    if (!f.isNight(s)) return false;
+    const morning = (Math.floor(s.time / D.DAY_LENGTH) + 1) * D.DAY_LENGTH;
+    rt.silent = true;
+    while (s.time < morning) {
+      const dt = Math.min(2, morning - s.time);
+      s.time += dt;
+      produce(s, dt);
+      updateDay(s);
+    }
+    s.time = morning + 0.01;
+    rt.silent = false;
+    resetRuntime();
+    rt.wasOpen = true; // already open: don't announce a second "good morning"
+    bus.emit('slept');
+    bus.emit('dirty');
+    return true;
+  }
+
   function updateFx(dt) {
     for (const e of rt.fx) e.t += dt;
     rt.fx = rt.fx.filter((e) => e.t < e.life);
@@ -847,7 +883,7 @@
   }
 
   HC.sim = {
-    f, rt, update, catchUp, resetRuntime, earn, gainGems, changeRep, addToStore, takeFromHive, restockInstant,
+    f, rt, update, catchUp, resetRuntime, earn, gainGems, changeRep, sleepTillMorning, addToStore, takeFromHive, restockInstant,
     decideEgg, makeOrder, makeMerchantOffer, pinOrder, incomePerMin, claimDrip, produce,
   };
 })();

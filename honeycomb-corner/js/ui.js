@@ -218,7 +218,8 @@
   // "Open", "Lunch rush!" or "Closed for the night".
   function openHtml() {
     const s = S();
-    if (!f().isOpen(s)) return '<span class="closed">Closed · bees asleep</span>';
+    // At night: closed, with a button to sleep through to the morning.
+    if (!f().isOpen(s)) return '<span class="closed">Closed for the night</span> <button class="btn btn-sm btn-go" data-act="sleep">Sleep till 6am</button>';
     return f().isRush(s) ? '<span class="rush">Lunch rush!</span>' : '<span class="open">Open</span>';
   }
   // Today's special and whether the food critic is still expected.
@@ -320,7 +321,7 @@
       return `<div class="row-item ${unlocked ? '' : 'locked'}">
         ${beeImg(sp, false, 32)}
         <div class="grow"><b>${spec.name}</b><p class="muted">${unlocked ? `Makes ${D.good[spec.good].name} · 1 per ${spec.secs}s` : `Unlocks after earning ₵${fmt(150)} in total.`}</p></div>
-        ${unlocked ? btn(`Buy ${price(cost)}`, 'buyBee', { sp }, { cost }) : '<span class="chip">Locked</span>'}
+        ${!unlocked ? '<span class="chip">Locked</span>' : cost === 0 ? btn('Free (a helping hand)', 'buyBee', { sp }, { cls: 'btn-go' }) : btn(`Buy ${price(cost)}`, 'buyBee', { sp }, { cost })}
       </div>`;
     }).join('');
     const prod = Object.entries(rates).sort((a, b) => D.good[a[0]].tier - D.good[b[0]].tier)
@@ -1151,6 +1152,28 @@
     });
   }
 
+  // CLOSING TIME (8pm): a summary of the day and the two choices.
+  function closingModal() {
+    const s = S();
+    const log = s.repLog && s.repLog.items ? Object.values(s.repLog.items).reduce((a, x) => a + x.amt, 0) : 0;
+    openModal({
+      render: () => `
+        <p class="eyebrow">8:00 pm · closing time</p>
+        <h2>That's day ${f().day(s)} done!</h2>
+        <div class="stats">
+          <div class="stat-row"><span>Earned today</span><b>${coin()} ${fmt(s.today || 0)}</b></div>
+          <div class="stat-row"><span>Reputation today</span><b class="${log >= 0 ? 'up' : 'down'}">${log >= 0 ? '+' : '−'}${Math.abs(log).toFixed(2)}</b></div>
+          <div class="stat-row"><span>Tomorrow's wages (about)</span><b>${coin()} ${fmt(f().wagesDue(s))}</b></div>
+        </div>
+        <h3 class="sub">What now?</h3>
+        <p>The shop is closed until 6am and most bees are asleep. No customers will come.</p>
+        <p><b>Stay up and work:</b> the night plays out. It's a quiet time to restock the shelves and collect honey for the morning. (Anyone on Register duty restocks by themselves.)</p>
+        <p><b>Sleep till 6am:</b> skip straight to the morning. The shelves stay as they are, so check them first! Build and egg timers don't jump ahead.</p>
+        <p class="muted small">You can also sleep any time during the night with the button under the picture.</p>
+        <div class="btn-row end">${btn('Stay up and work', 'closeModal')}${btn('Sleep till 6am', 'sleep', {}, { cls: 'btn-go' })}</div>`,
+    });
+  }
+
   function festivalModal() {
     let keep = null;
     openModal({
@@ -1275,6 +1298,7 @@
       case 'train': r = HC.act.train(ds.id, ds.track); break;
       case 'rep': return repModal();
       case 'feedback': return feedbackModal();
+      case 'sleep': closeModal(); r = HC.act.sleep(); break;
       case 'collect': r = HC.act.collect(Number(ds.i)); break;
       case 'collectAll': r = HC.act.collectAll(); break;
       case 'restockNow': r = HC.act.restockNow(); break;
@@ -1649,7 +1673,7 @@
     { id: 'line', when: (s) => HC.sim.rt.queue.length >= 2 && !HC.workers.cashierPresent(s), lines: ["Customers are waiting at the register, but nobody's there! They'll leave if they wait too long. Hire a helper in the Shop tab to cover the Register."] },
     { id: 'duties', when: (s) => Object.keys(s.staff).length >= 1, lines: ['You have a helper! In Shop → Staff, tap the duty buttons (Register, Shelves, Hives, Candles) to choose what each person does. No more tapping for chores they cover.'] },
     { id: 'full', when: (s) => s.hives.some((h) => f().hiveFull(h)), lines: ['A hive is full, so those bees have stopped working. Collect it to get them going again.'] },
-    { id: 'night', when: (s) => f().isNight(s), lines: ['Night has fallen. The shop is closed and most bees are asleep in their hives.', 'Nobody needs the register now, so whoever is on Register duty fills the shelves for the morning. Collect any leftover honey too.'] },
+    { id: 'night', when: (s) => f().isNight(s) && !modal, lines: ['At 8pm the shop closes and most bees go to sleep. No customers until morning.', 'Stay up to restock the shelves and collect honey, or tap "Sleep till 6am" under the picture to skip ahead.'] },
     { id: 'rush', when: (s) => f().isRush(s), lines: ["It's the lunch rush! Customers pour in for a while. Full shelves and a second person on the Register keep the line moving."] },
     { id: 'critic', when: () => HC.sim.rt.customers.some((c) => c.critic), lines: ['A food critic (the one in the dark suit and top hat) just walked in. Keep most shelves stocked and the line short for a glowing review.'] },
     { id: 'drag', when: (s) => s.hives.length >= 2, lines: ['Tip: in the Apiary tab, press and hold a bee, then drag it onto another hive to move it.'] },
@@ -1787,7 +1811,9 @@
       HC.audio.play('bell');
     });
     bus.on('nightfall', () => {
-      toast('Night falls. The shop closes and the bees go to sleep.');
+      // 8pm: closing time. Offer the choice (unless another window is open;
+      // the buttons are also in the strip under the picture).
+      if (!modal) closingModal();
       // Warn in time if there isn't enough put aside for the morning wages.
       const due = f().wagesDue(S());
       if (due > S().coins) toast('Heads up: wages in the morning are about ₵' + fmt(due) + ". Keep enough coins, or someone will quit.", 'bad');

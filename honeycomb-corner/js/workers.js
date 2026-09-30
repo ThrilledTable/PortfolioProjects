@@ -433,6 +433,8 @@
   HC.workers = {
     sync, update, dropAll, cashierPresent, baggerPresent, keeper, orderCollect, orderTend, orderRestock, cancelErrands,
     statusOf, homeOf, dutyOf, onDuty, nameOf, keeperJobs,
+    // Is any shelf short of stock that the storehouse could fill?
+    shelvesNeedAny: (s) => shelvesNeed(s, f().shelfCap(s) - 1),
     get list() { return rt().workers; },
   };
 })();

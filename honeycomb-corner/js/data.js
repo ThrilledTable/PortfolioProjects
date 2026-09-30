@@ -336,7 +336,9 @@
   const EVENTS = {
     rush: { from: 0.2, to: 0.3, spawnMult: 0.35 },
     special: { priceMult: 1.3, pickWeight: 4, minGoods: 2 }, // only once you sell 2+ products
-    critic: { chance: 0.6, earliest: 0.08, latest: 0.6, reward: 2 },
+    // (Visits trimmed to 40% of days and 1 gem after closing time made days
+    // pass faster: more days meant more critic gems.)
+    critic: { chance: 0.4, earliest: 0.08, latest: 0.5, reward: 1 },
   };
 
   // ---------------------------------------------------------------------------
@@ -598,6 +600,15 @@
     regular: byId(REGULARS),
     item: byId(CATALOG),
     DAY_LENGTH: 480, // real seconds in one in-game day (8 minutes)
+    // CLOSING TIME (playtest 6). The shift ends at 8pm (`start`, as a
+    // fraction of the day: 0 = 6am) and night lasts until 6am. The shop is
+    // closed all night: no customers. At 8pm you choose:
+    //   Sleep       skip straight to 6am. The shelves stay as you left them;
+    //               night-owl bees still make their honey. Build and egg
+    //               timers do NOT jump ahead (sleeping isn't a free timer skip).
+    //   Stay up     the night plays out: a quiet time to restock the shelves
+    //               and collect honey (the Register crew restocks by itself).
+    NIGHT: { start: 14 / 24 },
     WAGE_SHARE: 0.05, // each helper's cut of yesterday's earnings (5%), on top of their base wage
     SEASON_DAYS: 4,
     OFFLINE_CAP: 8 * 3600, // bees and shop keep going for at most 8h while you're away

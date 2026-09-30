@@ -557,6 +557,40 @@ test('seasonal specials alternate sets each year; seasonal bees boom in their se
   assert(spring > HC.sim.f.beeRate(s, bee, h, false) * 1.5, 'Blossom Bee works harder in spring');
 });
 
+test('closing time is 8pm: no customers at night', (HC) => {
+  const s = HC.game;
+  setDay(HC, (20 - 6) / 24 + 0.001); // just after 8pm
+  assert(HC.sim.f.isNight(s) && !HC.sim.f.isOpen(s));
+  setDay(HC, (19.9 - 6) / 24); // just before
+  assert(HC.sim.f.isOpen(s));
+});
+
+test('closing time: sleeping skips to 6am without moving build timers', (HC) => {
+  const s = HC.game;
+  s.coins = 1e4;
+  HC.act.buyUpgrade('sign');
+  setDay(HC, 0.6); // 8:24pm
+  s.store = { wildflower: 30 };
+  s.shelves[0].qty = 0;
+  const clock = s.clock, day = HC.sim.f.day(s);
+  assert(HC.act.sleep().ok);
+  assert.strictEqual(HC.sim.f.day(s), day + 1, 'next day');
+  assert(HC.sim.f.isOpen(s) && HC.sim.f.dayPhase(s) < 0.01, 'morning, open');
+  assert.strictEqual(s.clock, clock, 'timers did not jump');
+  assert.strictEqual(s.builds.length, 1, 'build still running');
+  assert.strictEqual(s.shelves[0].qty, 0, 'sleeping does not restock: staying up does');
+});
+
+test('a helping hand: a free Meadow Bee if nothing you keep makes sellable honey', (HC) => {
+  const s = HC.game;
+  const wax = HC.state.makeBee(s, 'waxwing');
+  s.hives[0].bees = [wax.id];
+  s.coins = 3;
+  assert.strictEqual(HC.sim.f.marketPrice(s, 'meadow'), 0);
+  assert(HC.act.buyBee('meadow').ok);
+  assert(HC.sim.f.marketPrice(s, 'meadow') > 0, 'only while stuck');
+});
+
 test('there is one builder: a second build waits', (HC) => {
   const s = HC.game;
   s.coins = 1e5;

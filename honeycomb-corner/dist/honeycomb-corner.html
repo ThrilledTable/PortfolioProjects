@@ -1436,7 +1436,9 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
   const EVENTS = {
     rush: { from: 0.2, to: 0.3, spawnMult: 0.35 },
     special: { priceMult: 1.3, pickWeight: 4, minGoods: 2 }, // only once you sell 2+ products
-    critic: { chance: 0.6, earliest: 0.08, latest: 0.6, reward: 2 },
+    // (Visits trimmed to 40% of days and 1 gem after closing time made days
+    // pass faster: more days meant more critic gems.)
+    critic: { chance: 0.4, earliest: 0.08, latest: 0.5, reward: 1 },
   };
 
   // ---------------------------------------------------------------------------
@@ -1698,6 +1700,15 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     regular: byId(REGULARS),
     item: byId(CATALOG),
     DAY_LENGTH: 480, // real seconds in one in-game day (8 minutes)
+    // CLOSING TIME (playtest 6). The shift ends at 8pm (`start`, as a
+    // fraction of the day: 0 = 6am) and night lasts until 6am. The shop is
+    // closed all night: no customers. At 8pm you choose:
+    //   Sleep       skip straight to 6am. The shelves stay as you left them;
+    //               night-owl bees still make their honey. Build and egg
+    //               timers do NOT jump ahead (sleeping isn't a free timer skip).
+    //   Stay up     the night plays out: a quiet time to restock the shelves
+    //               and collect honey (the Register crew restocks by itself).
+    NIGHT: { start: 14 / 24 },
     WAGE_SHARE: 0.05, // each helper's cut of yesterday's earnings (5%), on top of their base wage
     SEASON_DAYS: 4,
     OFFLINE_CAP: 8 * 3600, // bees and shop keep going for at most 8h while you're away
@@ -2175,12 +2186,10 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     // -- Time of day and seasons ---------------------------------------------
     // dayPhase: how far through the current day we are, 0 (dawn) to 1.
     dayPhase: (s) => (s.time % D.DAY_LENGTH) / D.DAY_LENGTH,
-    // Night is the last quarter of each day (70% to 95% of the way through).
-    isNight(s) {
-      const p = f.dayPhase(s);
-      return p >= 0.7 && p < 0.95;
-    },
-    // The shop only serves customers while it isn't night.
+    // Night runs from 8pm (NIGHT.start in data.js) until 6am, when the next
+    // day begins.
+    isNight: (s) => f.dayPhase(s) >= D.NIGHT.start,
+    // The shop serves customers only by day. Nights are for catching up.
     isOpen: (s) => !f.isNight(s),
     // The lunch rush: for a while around midday customers pour in.
     isRush(s) {
@@ -2345,7 +2354,19 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       if (sp === 'clover') return s.lifetime >= 150 || !!s.discovered.clover;
       return false;
     },
-    marketPrice(s, sp) {
+    // A HELPING HAND: if none of the bees in your hives make anything you can
+    // sell (e.g. only Waxwings and no Candle Machine) and you can't afford a
+    // Meadow Bee, the market gives you one free, so the game can never get
+    // stuck with no income.
+    needsHelpingHand(s) {
+      const sellable = s.hives.some((h) => h.bees.some((id) => {
+        const g = D.good[D.species[s.bees[id].sp].good];
+        return !g.raw || s.machine;
+      }));
+      return !sellable && s.coins < f.marketPrice(s, 'meadow', true);
+    },
+    marketPrice(s, sp, ignoreHelp) {
+      if (sp === 'meadow' && !ignoreHelp && f.needsHelpingHand(s)) return 0;
       const n = s.market[sp] || 0;
       return util.nice(sp === 'meadow' ? 25 * Math.pow(1.2, n) : 150 * Math.pow(1.22, n));
     },
@@ -2826,6 +2847,32 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     rt.wasOpen = open;
   }
 
+  // ---------------------------------------------------------------------------
+  // CLOSING TIME CHOICES (see NIGHT in data.js)
+  // ---------------------------------------------------------------------------
+  // Sleep until 6am. The night is fast-forwarded in 2-second steps, but only
+  // the time of day moves: the game clock (which build and egg timers use)
+  // does not. Night-owl bees make their honey and the morning's wages are
+  // paid. Nobody restocks: that's what staying up is for.
+  function sleepTillMorning(s) {
+    if (!f.isNight(s)) return false;
+    const morning = (Math.floor(s.time / D.DAY_LENGTH) + 1) * D.DAY_LENGTH;
+    rt.silent = true;
+    while (s.time < morning) {
+      const dt = Math.min(2, morning - s.time);
+      s.time += dt;
+      produce(s, dt);
+      updateDay(s);
+    }
+    s.time = morning + 0.01;
+    rt.silent = false;
+    resetRuntime();
+    rt.wasOpen = true; // already open: don't announce a second "good morning"
+    bus.emit('slept');
+    bus.emit('dirty');
+    return true;
+  }
+
   function updateFx(dt) {
     for (const e of rt.fx) e.t += dt;
     rt.fx = rt.fx.filter((e) => e.t < e.life);
@@ -2988,7 +3035,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
   }
 
   HC.sim = {
-    f, rt, update, catchUp, resetRuntime, earn, gainGems, changeRep, addToStore, takeFromHive, restockInstant,
+    f, rt, update, catchUp, resetRuntime, earn, gainGems, changeRep, sleepTillMorning, addToStore, takeFromHive, restockInstant,
     decideEgg, makeOrder, makeMerchantOffer, pinOrder, incomePerMin, claimDrip, produce,
   };
 })();
@@ -3963,6 +4010,8 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
   HC.workers = {
     sync, update, dropAll, cashierPresent, baggerPresent, keeper, orderCollect, orderTend, orderRestock, cancelErrands,
     statusOf, homeOf, dutyOf, onDuty, nameOf, keeperJobs,
+    // Is any shelf short of stock that the storehouse could fill?
+    shelvesNeedAny: (s) => shelvesNeed(s, f().shelfCap(s) - 1),
     get list() { return rt().workers; },
   };
 })();
@@ -4040,7 +4089,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       if (!hasRoom()) return fail('No room. Build a hive or expand the bee box.');
       const cost = f().marketPrice(s, sp);
       if (!spend(cost)) return fail('Not enough coins.');
-      s.market[sp] = (s.market[sp] || 0) + 1;
+      if (cost > 0) s.market[sp] = (s.market[sp] || 0) + 1; // a free helping-hand bee doesn't raise prices
       const isNew = !s.discovered[sp];
       const bee = HC.state.makeBee(s, sp);
       const where = placeBee(bee);
@@ -4265,6 +4314,12 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       delete s.staff[id];
       HC.workers.sync(s);
       return done(D.staff[id].name + ' has left. No more wages for them.', 'click');
+    },
+    // Closing time (8pm): sleep until morning (or just keep playing: the
+    // night then plays out, shop closed, for restocking and collecting).
+    sleep() {
+      if (!HC.sim.sleepTillMorning(S())) return fail('It is not night yet.');
+      return done('Good morning! The shop is open.', 'bell');
     },
     // Train a helper on one track ('speed' or 'basket'). Instant, coins only.
     train(id, track) {
@@ -6009,12 +6064,15 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
   function lightLevels(s) {
     const p = f().dayPhase(s);
     let night = 0, dusk = 0;
-    if (p >= 0.6 && p < 0.7) {
-      const k = (p - 0.6) / 0.1;
-      dusk = Math.sin(Math.PI * k);
-      night = k;
-    } else if (p >= 0.7 && p < 0.95) night = 1;
-    else if (p >= 0.95) night = 1 - (p - 0.95) / 0.05;
+    // Sunset glow from about 6:30pm, dark from 8pm (closing time), and a
+    // brightening dawn in the last half hour before 6am.
+    const n0 = D.NIGHT.start;
+    if (p >= n0 - 0.06 && p < n0) {
+      const k = (p - (n0 - 0.06)) / 0.06;
+      dusk = Math.sin(Math.PI * k * 0.9);
+      night = k * 0.8;
+    } else if (p >= n0 && p < 0.98) night = 1;
+    else if (p >= 0.98) night = 1 - (p - 0.98) / 0.02;
     return { night, dusk };
   }
 
@@ -6592,7 +6650,8 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
   // "Open", "Lunch rush!" or "Closed for the night".
   function openHtml() {
     const s = S();
-    if (!f().isOpen(s)) return '<span class="closed">Closed · bees asleep</span>';
+    // At night: closed, with a button to sleep through to the morning.
+    if (!f().isOpen(s)) return '<span class="closed">Closed for the night</span> <button class="btn btn-sm btn-go" data-act="sleep">Sleep till 6am</button>';
     return f().isRush(s) ? '<span class="rush">Lunch rush!</span>' : '<span class="open">Open</span>';
   }
   // Today's special and whether the food critic is still expected.
@@ -6694,7 +6753,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       return `<div class="row-item ${unlocked ? '' : 'locked'}">
         ${beeImg(sp, false, 32)}
         <div class="grow"><b>${spec.name}</b><p class="muted">${unlocked ? `Makes ${D.good[spec.good].name} · 1 per ${spec.secs}s` : `Unlocks after earning ₵${fmt(150)} in total.`}</p></div>
-        ${unlocked ? btn(`Buy ${price(cost)}`, 'buyBee', { sp }, { cost }) : '<span class="chip">Locked</span>'}
+        ${!unlocked ? '<span class="chip">Locked</span>' : cost === 0 ? btn('Free (a helping hand)', 'buyBee', { sp }, { cls: 'btn-go' }) : btn(`Buy ${price(cost)}`, 'buyBee', { sp }, { cost })}
       </div>`;
     }).join('');
     const prod = Object.entries(rates).sort((a, b) => D.good[a[0]].tier - D.good[b[0]].tier)
@@ -7525,6 +7584,28 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     });
   }
 
+  // CLOSING TIME (8pm): a summary of the day and the two choices.
+  function closingModal() {
+    const s = S();
+    const log = s.repLog && s.repLog.items ? Object.values(s.repLog.items).reduce((a, x) => a + x.amt, 0) : 0;
+    openModal({
+      render: () => `
+        <p class="eyebrow">8:00 pm · closing time</p>
+        <h2>That's day ${f().day(s)} done!</h2>
+        <div class="stats">
+          <div class="stat-row"><span>Earned today</span><b>${coin()} ${fmt(s.today || 0)}</b></div>
+          <div class="stat-row"><span>Reputation today</span><b class="${log >= 0 ? 'up' : 'down'}">${log >= 0 ? '+' : '−'}${Math.abs(log).toFixed(2)}</b></div>
+          <div class="stat-row"><span>Tomorrow's wages (about)</span><b>${coin()} ${fmt(f().wagesDue(s))}</b></div>
+        </div>
+        <h3 class="sub">What now?</h3>
+        <p>The shop is closed until 6am and most bees are asleep. No customers will come.</p>
+        <p><b>Stay up and work:</b> the night plays out. It's a quiet time to restock the shelves and collect honey for the morning. (Anyone on Register duty restocks by themselves.)</p>
+        <p><b>Sleep till 6am:</b> skip straight to the morning. The shelves stay as they are, so check them first! Build and egg timers don't jump ahead.</p>
+        <p class="muted small">You can also sleep any time during the night with the button under the picture.</p>
+        <div class="btn-row end">${btn('Stay up and work', 'closeModal')}${btn('Sleep till 6am', 'sleep', {}, { cls: 'btn-go' })}</div>`,
+    });
+  }
+
   function festivalModal() {
     let keep = null;
     openModal({
@@ -7649,6 +7730,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       case 'train': r = HC.act.train(ds.id, ds.track); break;
       case 'rep': return repModal();
       case 'feedback': return feedbackModal();
+      case 'sleep': closeModal(); r = HC.act.sleep(); break;
       case 'collect': r = HC.act.collect(Number(ds.i)); break;
       case 'collectAll': r = HC.act.collectAll(); break;
       case 'restockNow': r = HC.act.restockNow(); break;
@@ -8023,7 +8105,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     { id: 'line', when: (s) => HC.sim.rt.queue.length >= 2 && !HC.workers.cashierPresent(s), lines: ["Customers are waiting at the register, but nobody's there! They'll leave if they wait too long. Hire a helper in the Shop tab to cover the Register."] },
     { id: 'duties', when: (s) => Object.keys(s.staff).length >= 1, lines: ['You have a helper! In Shop → Staff, tap the duty buttons (Register, Shelves, Hives, Candles) to choose what each person does. No more tapping for chores they cover.'] },
     { id: 'full', when: (s) => s.hives.some((h) => f().hiveFull(h)), lines: ['A hive is full, so those bees have stopped working. Collect it to get them going again.'] },
-    { id: 'night', when: (s) => f().isNight(s), lines: ['Night has fallen. The shop is closed and most bees are asleep in their hives.', 'Nobody needs the register now, so whoever is on Register duty fills the shelves for the morning. Collect any leftover honey too.'] },
+    { id: 'night', when: (s) => f().isNight(s) && !modal, lines: ['At 8pm the shop closes and most bees go to sleep. No customers until morning.', 'Stay up to restock the shelves and collect honey, or tap "Sleep till 6am" under the picture to skip ahead.'] },
     { id: 'rush', when: (s) => f().isRush(s), lines: ["It's the lunch rush! Customers pour in for a while. Full shelves and a second person on the Register keep the line moving."] },
     { id: 'critic', when: () => HC.sim.rt.customers.some((c) => c.critic), lines: ['A food critic (the one in the dark suit and top hat) just walked in. Keep most shelves stocked and the line short for a glowing review.'] },
     { id: 'drag', when: (s) => s.hives.length >= 2, lines: ['Tip: in the Apiary tab, press and hold a bee, then drag it onto another hive to move it.'] },
@@ -8161,7 +8243,9 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       HC.audio.play('bell');
     });
     bus.on('nightfall', () => {
-      toast('Night falls. The shop closes and the bees go to sleep.');
+      // 8pm: closing time. Offer the choice (unless another window is open;
+      // the buttons are also in the strip under the picture).
+      if (!modal) closingModal();
       // Warn in time if there isn't enough put aside for the morning wages.
       const due = f().wagesDue(S());
       if (due > S().coins) toast('Heads up: wages in the morning are about ₵' + fmt(due) + ". Keep enough coins, or someone will quit.", 'bad');

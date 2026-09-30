@@ -826,12 +826,15 @@
   function lightLevels(s) {
     const p = f().dayPhase(s);
     let night = 0, dusk = 0;
-    if (p >= 0.6 && p < 0.7) {
-      const k = (p - 0.6) / 0.1;
-      dusk = Math.sin(Math.PI * k);
-      night = k;
-    } else if (p >= 0.7 && p < 0.95) night = 1;
-    else if (p >= 0.95) night = 1 - (p - 0.95) / 0.05;
+    // Sunset glow from about 6:30pm, dark from 8pm (closing time), and a
+    // brightening dawn in the last half hour before 6am.
+    const n0 = D.NIGHT.start;
+    if (p >= n0 - 0.06 && p < n0) {
+      const k = (p - (n0 - 0.06)) / 0.06;
+      dusk = Math.sin(Math.PI * k * 0.9);
+      night = k * 0.8;
+    } else if (p >= n0 && p < 0.98) night = 1;
+    else if (p >= 0.98) night = 1 - (p - 0.98) / 0.02;
     return { night, dusk };
   }
 

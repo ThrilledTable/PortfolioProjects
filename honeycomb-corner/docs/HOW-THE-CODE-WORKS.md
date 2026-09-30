@@ -117,7 +117,7 @@ All of these are edits to `js/data.js` unless noted. After a change, run the che
 
 **Add a goal.** In `js/goals.js`, add a line to `GOALS` with `text`, a `check` (for example `(s) => s.hives.length >= 3`), `reward` and `gems`.
 
-**Change the length of a day.** `DAY_LENGTH` (seconds). Night is the last quarter of each day, set in `sim.js → isNight`. Which bees stay awake at night is `nightWorker` just below it.
+**Change the length of a day.** `DAY_LENGTH` (seconds). Closing time is `NIGHT.start` in `data.js` (14/24 of the day after 6am = 8pm); night lasts until 6am. Sleeping through it is `sleepTillMorning` in `sim.js`. Which bees stay awake at night is `nightWorker` just below it.
 
 **Change the shopkeeper's tips.** `TIPS`. **Change tutorial messages:** `HINTS` in `ui.js`.
 
@@ -126,7 +126,7 @@ All of these are edits to `js/data.js` unless noted. After a change, run the che
 These need Node.js (a free program for running JavaScript outside a browser). Run them from the `honeycomb-corner` folder:
 
 ```bash
-node tools/test.js            # 41 automatic checks of the rules. Should say "41 passed".
+node tools/test.js            # 44 automatic checks of the rules. Should say "44 passed".
 node tools/balance.js 4 1 5   # plays 4 hours with a bot and prints when milestones happen
 node tools/smoke.js out/      # opens the real game in a hidden browser, clicks around, saves screenshots
 python3 tools/build.py        # bundles everything into one file: dist/honeycomb-corner.html

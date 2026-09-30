@@ -223,7 +223,9 @@ const target = process.env.TARGET || 'file://' + path.join(root, 'index.html');
     });
     if (!ok) errors.push('[desktop] save round trip mismatch');
 
-    // Festival through the UI
+    // Festival through the UI (first close the 8pm closing-time window, which
+    // the night screenshot above triggers).
+    await closeAll(page);
     await page.evaluate(() => { HC.game.runEarned = 2e7; HC.ui.markDirty(); });
     await page.click('.tabs [data-tab="town"]');
     await page.waitForTimeout(400);

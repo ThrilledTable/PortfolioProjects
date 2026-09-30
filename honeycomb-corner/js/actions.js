@@ -69,7 +69,7 @@
       if (!hasRoom()) return fail('No room. Build a hive or expand the bee box.');
       const cost = f().marketPrice(s, sp);
       if (!spend(cost)) return fail('Not enough coins.');
-      s.market[sp] = (s.market[sp] || 0) + 1;
+      if (cost > 0) s.market[sp] = (s.market[sp] || 0) + 1; // a free helping-hand bee doesn't raise prices
       const isNew = !s.discovered[sp];
       const bee = HC.state.makeBee(s, sp);
       const where = placeBee(bee);
@@ -294,6 +294,12 @@
       delete s.staff[id];
       HC.workers.sync(s);
       return done(D.staff[id].name + ' has left. No more wages for them.', 'click');
+    },
+    // Closing time (8pm): sleep until morning (or just keep playing: the
+    // night then plays out, shop closed, for restocking and collecting).
+    sleep() {
+      if (!HC.sim.sleepTillMorning(S())) return fail('It is not night yet.');
+      return done('Good morning! The shop is open.', 'bell');
     },
     // Train a helper on one track ('speed' or 'basket'). Instant, coins only.
     train(id, track) {

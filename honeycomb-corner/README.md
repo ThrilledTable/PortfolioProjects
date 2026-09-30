@@ -39,7 +39,8 @@ bees fill their hive ─► shopkeeper walks out, collects ─► storehouse ─
 - **Gems are rare** and earned in-game only, at notable moments: milestone goals (every fifth goal), discovering an uncommon-or-rarer species, a glowing food-critic review, the odd request or golden drip, and festivals. Each one gets a little celebration. Spend them to finish a timer early or buy special cosmetics. Expect roughly 10 in the first hour.
 - **Nursery:** pair two bees to raise an egg. The parents rest (no honey) until it hatches. There are 16 species (including a seasonal family that works 80% harder in its own season) and 14 recipes, plus vigor, traits and rare sparkle variants. A pity timer guarantees a recipe after 4 misses.
 - **The town:** townsfolk walk up to the board outside the shop and pin requests, which pay 2.5× market value and sometimes gems. A travelling merchant sometimes parks outside with a rare bee.
-- **Night:** the shop closes, no customers come, and most bees go to sleep (Moonmoths and Night Owls keep working). Whoever is on the Register restocks the shelves for the morning.
+- **Closing time (8pm):** the shop closes until 6am, no customers come, and most bees go to sleep (Moonmoths and Night Owls keep working). Stay up to restock and collect for the morning (whoever is on the Register restocks by themselves), or tap **Sleep till 6am** to skip ahead. Sleeping moves the time of day only: build and egg timers don't jump.
+- **A helping hand:** if none of your hive bees make anything sellable and you can't afford a Meadow Bee, the market gives you one free, so you can never get stuck.
 - **Seasons:** each lasts 4 in-game days (32 minutes) and brings one twist, plus its own grass, flowers and weather.
 - **Store:** hats, hair, shirts and aprons for your shopkeeper. Shop and garden decorations that appear in the scene, many with a small bonus. Wallpaper, floors, and hive styles.
 - **Helper training:** in Shop → Staff, spend coins to train each helper: *Quick feet* (+15% walking speed per level) and *Strong arms* (+6 jars per trip per level). Instant, and it doesn't use the builder.
@@ -105,7 +106,7 @@ The rules never touch the page; they post events on `HC.bus`. That's why the who
 ## Dev tools
 
 ```bash
-node tools/test.js                    # 41 mechanics tests (Node, no browser)
+node tools/test.js                    # 44 mechanics tests (Node, no browser)
 node tools/balance.js 4 1 5           # simulate 4h, 1 run, bot acting every 5s; prints milestones
 node tools/smoke.js out/              # headless browser: every flow, audio, festival, away report
 node tools/phone-walkthrough.js out/  # tap-only opening minutes at phone size, screenshots

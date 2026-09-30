@@ -41,11 +41,14 @@ function run(hours) {
   // Economy snapshots: how much money and gems are sitting unspent at set
   // times. A healthy economy keeps "banked" (unspent / earned) fairly low.
   const snaps = [];
+  const stall = { earned: 0, t: 0, reported: false };
   const snapAt = [10, 20, 30, 45, 60, 90, 120, 180, 240].map((m) => m * 60);
 
   function bot() {
     const s = HC.game;
     HC.goals.claim();
+    // Closing time: a typical player sleeps through to the morning.
+    if (f.isNight(s) && !HC.workers.shelvesNeedAny(s)) act.sleep(); // after the Register crew restocks
     // Shelves: best sellable goods first.
     const goods = D.GOODS.filter((g) => s.unlockedGoods[g.id] && !g.raw).map((g) => g.id).reverse();
     s.shelves.forEach((sh, i) => { if (goods[i] && sh.good !== goods[i]) act.setShelf(i, goods[i]); });
@@ -131,6 +134,14 @@ function run(hours) {
     mark('hive' + s.hives.length, t);
     for (const st of Object.keys(s.staff)) if (s.staff[st]) mark('hire:' + st, t);
     if (s.machine) mark('machine', t);
+    // Stall detector: if nothing has been earned for 10 minutes, print the
+    // state once so the cause can be found.
+    if (s.lifetime > stall.earned) { stall.earned = s.lifetime; stall.t = t; }
+    if (!stall.reported && t - stall.t > 600) {
+      stall.reported = true;
+      const k = HC.workers.keeper();
+      console.log('STALL at', fmtT(t), JSON.stringify({ phase: f.dayPhase(s).toFixed(3), open: f.isOpen(s), coins: s.coins, store: s.store, shelves: s.shelves, hives: s.hives.map((h) => [h.bees.length, h.stock]), keeper: k && [k.node, k.job && k.job.label, k.path.length], errands: HC.workers.keeperJobs.length, customers: sim.rt.customers.map((c) => c.state), builds: s.builds.map((b) => b.label), goal: s.goal }));
+    }
     if (snapAt.length && t >= snapAt[0]) {
       snapAt.shift();
       snaps.push(`${fmtT(t).padStart(6)}  coins ${HC.util.fmt(Math.floor(s.coins)).padStart(7)}  earned ${HC.util.fmt(Math.floor(s.lifetime)).padStart(7)}  banked ${Math.round((100 * s.coins) / Math.max(1, s.lifetime))}%  gems ${s.gems} (earned ${s.stats.gemsEarned || 0})  wages/day ${f.wagesPerDay(s)}`);
