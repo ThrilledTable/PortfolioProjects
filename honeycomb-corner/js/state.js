@@ -163,7 +163,8 @@
     // Version 1 saves: hives had no honey storage, and Waxwings made candles
     // directly. Give hives empty storage and turn old candle-making into wax.
     s.hives.forEach((h) => (h.stock = h.stock || {}));
-    if ((loaded.v || 1) < 2) {
+    const fromV = loaded.v || 1;
+    if (fromV < 2) {
       if (s.unlockedGoods.candle && !s.machine) s.unlockedGoods.wax = true;
       // The goal chain was rewritten: start it again. Goals you've already
       // met can be claimed straight away, a small welcome-back bonus.
@@ -180,6 +181,13 @@
         if (old[role] === true) s.staff[roles[role]] = { duty: data.staff[roles[role]].duty };
       }
       for (let b = 1; b < (loaded.builders || 1); b++) s.gems += 80 * b; // what each extra builder cost
+      // The goal list changed: "Assign a helper to collect honey" was added as
+      // goal 6 and "Hire a Honey Collector" (old goal 13) was removed. Shift
+      // old goals 6-12 one place later, and old 13 to the goal after it, so
+      // nobody lands on a goal they already claimed.
+      const g = loaded.goal || 0;
+      if (fromV === 2 && g >= 5 && g <= 11) s.goal = g + 1;
+      else if (fromV === 2 && g === 12) s.goal = 13;
     }
     s.builders = 1;
     s.repLog = s.repLog || { day: 0, items: {} };

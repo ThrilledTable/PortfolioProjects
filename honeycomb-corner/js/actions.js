@@ -82,6 +82,10 @@
       if (!hasRoom()) return fail('No room. Build a hive or expand the bee box.');
       if (!spend(cost)) return fail('Not enough coins.');
       if (cost > 0) s.market[sp] = (s.market[sp] || 0) + 1; // a free helping-hand bee doesn't raise prices
+      else {
+        s.helpedAt = s.playTime; // remember when the helping hand was used
+        s.soldAfterHelp = false;
+      }
       const isNew = !s.discovered[sp];
       const bee = HC.state.makeBee(s, sp);
       const where = placeBee(bee);
@@ -148,6 +152,7 @@
       s.box = s.box.filter((b) => b !== id);
       if (s.keepsake === id) s.keepsake = null;
       delete s.bees[id];
+      if (s.helpedAt != null) s.soldAfterHelp = true; // see needsHelpingHand
       HC.sim.earn(s, price);
       return done(bee.name + ' went to a keeper in the next town for ₵' + util.fmt(price) + '.', 'coin');
     },

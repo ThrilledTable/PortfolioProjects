@@ -72,6 +72,15 @@ function run(hours) {
         if (a && b && s.coins >= f.breedCost(a, b) * 1.5) { act.startBreed(i, a.id, b.id); busy.add(a.id).add(b.id); return; }
       }
     });
+    // Keep at least one honey (sellable) bee in a hive, like a player
+    // following the "nohoney" tip would.
+    const sellableBee = (id) => !D.good[D.species[s.bees[id].sp].good].raw || s.machine;
+    if (!s.hives.some((h) => h.bees.some(sellableBee))) {
+      if (!s.box.some(sellableBee)) act.buyBee('meadow'); // lands in the box
+      const inBox = s.box.find(sellableBee);
+      const out = s.hives[0].bees.find((id) => !sellableBee(id));
+      if (inBox && out) act.swapBees(inBox, out);
+    }
     // Put better bees into hives.
     const val = (b) => f.beeValue(b);
     for (const id of [...s.box]) {
@@ -79,7 +88,9 @@ function run(hours) {
         const h = s.hives[hi];
         if (h.bees.length < f.hiveCap(h)) { act.moveBee(id, hi); break; }
         const worst = h.bees.filter((x) => !busy.has(x)).reduce((m, x) => (!m || val(s.bees[x]) < val(s.bees[m]) ? x : m), null);
-        if (worst && val(s.bees[id]) > val(s.bees[worst]) * 1.2) { act.swapBee(id, hi, worst); break; }
+        // Never swap out the last bee making something sellable.
+        const lastSeller = sellableBee(worst || id) && !sellableBee(id) && s.hives.reduce((n, hv) => n + hv.bees.filter(sellableBee).length, 0) <= 1;
+        if (worst && !lastSeller && val(s.bees[id]) > val(s.bees[worst]) * 1.2) { act.swapBee(id, hi, worst); break; }
       }
     }
     if (s.box.length > f.boxCap(s) - 2) act.sellExtras();
@@ -142,7 +153,7 @@ function run(hours) {
     if (!stall.reported && t - stall.t > 600) {
       stall.reported = true;
       const k = HC.workers.keeper();
-      console.log('STALL at', fmtT(t), JSON.stringify({ phase: f.dayPhase(s).toFixed(3), open: f.isOpen(s), coins: s.coins, store: s.store, shelves: s.shelves, hives: s.hives.map((h) => [h.bees.length, h.stock]), keeper: k && [k.node, k.job && k.job.label, k.path.length], errands: HC.workers.keeperJobs.length, customers: sim.rt.customers.map((c) => c.state), builds: s.builds.map((b) => b.label), goal: s.goal }));
+      console.log('STALL at', fmtT(t), JSON.stringify({ phase: f.dayPhase(s).toFixed(3), open: f.isOpen(s), coins: s.coins, store: s.store, shelves: s.shelves, hives: s.hives.map((h) => [h.bees.length, h.stock]), keeper: k && [k.node, k.job && k.job.label, k.path.length], errands: HC.workers.keeperJobs.length, customers: sim.rt.customers.map((c) => c.state), builds: s.builds.map((b) => b.label), goal: s.goal, box: s.box.map((id) => s.bees[id].sp), market: s.market, meadowPrice: f.marketPrice(s, "meadow", true), soldAfterHelp: s.soldAfterHelp, helpedAgo: s.helpedAt != null ? Math.round((s.playTime - s.helpedAt) / 60) : null }));
     }
     if (snapAt.length && t >= snapAt[0]) {
       snapAt.shift();

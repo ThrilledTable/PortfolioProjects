@@ -56,7 +56,9 @@
       guide: { tab: 'apiary', sel: '[data-act="buyBee"][data-sp="clover"]' } },
     { text: 'Stock two different shelves', check: (s) => new Set(s.shelves.map((x) => x.good).filter(Boolean)).size >= 2, reward: 120, gems: 1,
       // First build the extra shelf, then tap the empty shelf to fill it.
-      guide: { tab: 'shop', sel: (s) => (s.shelves.length < 2 ? '[data-act="upgrade"][data-id="shelf"]' : '.shelf-tile:has(.shelf-empty)') },
+      // (Finds the empty shelf with plain code rather than the CSS ':has()'
+      // selector, which older phones don't understand.)
+      guide: { tab: 'shop', sel: (s) => (s.shelves.length < 2 ? '[data-act="upgrade"][data-id="shelf"]' : () => [...document.querySelectorAll('.shelf-tile')].find((t) => t.querySelector('.shelf-empty'))) },
       tip: 'Build an Extra Shelf in the Shop tab, then tap a shelf to choose what it sells.' },
     { text: 'Hatch an egg in the Nursery', check: (s) => s.stats.bred >= 1, reward: 150, gems: 2,
       guide: { tab: 'nursery', sel: '[data-act="hatch"], [data-act="breed"]' },

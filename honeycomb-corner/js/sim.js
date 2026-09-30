@@ -206,12 +206,13 @@
     // sell (e.g. only Waxwings and no Candle Machine) and you can't afford a
     // Meadow Bee, the market gives you one free, so the game can never get
     // stuck with no income.
+    // Bees in the bee box count too. And if you SOLD a bee after your last
+    // free one, there's no new free bee for 20 minutes (so it can't be used
+    // to farm coins: get a free bee, sell it, repeat).
     needsHelpingHand(s) {
-      const sellable = s.hives.some((h) => h.bees.some((id) => {
-        const g = D.good[D.species[s.bees[id].sp].good];
-        return !g.raw || s.machine;
-      }));
-      return !sellable && s.coins < f.marketPrice(s, 'meadow', true);
+      const sellable = Object.values(s.bees).some((b) => !D.good[D.species[b.sp].good].raw || s.machine);
+      const recently = s.soldAfterHelp && s.playTime - s.helpedAt < 20 * 60;
+      return !sellable && !recently && s.coins < f.marketPrice(s, 'meadow', true);
     },
     marketPrice(s, sp, ignoreHelp) {
       if (sp === 'meadow' && !ignoreHelp && f.needsHelpingHand(s)) return 0;
@@ -674,7 +675,10 @@
       delete s.staff[id];
       owed -= pay(id);
       if (HC.workers) HC.workers.sync(s);
+      // While fast-forwarding (sleeping, away) announcements are muted, so
+      // remember who quit and announce it afterwards (see flushQuits).
       if (!rt.silent) bus.emit('staffQuit', D.staff[id]);
+      else (rt.quitWhileSilent = rt.quitWhileSilent || []).push(D.staff[id]);
       bus.emit('dirty');
     }
     if (owed > 0) {
@@ -704,6 +708,7 @@
   // paid. Nobody restocks: that's what staying up is for.
   function sleepTillMorning(s) {
     if (!f.isNight(s)) return false;
+    returnHeldGoods(s);
     const morning = (Math.floor(s.time / D.DAY_LENGTH) + 1) * D.DAY_LENGTH;
     rt.silent = true;
     while (s.time < morning) {
@@ -716,9 +721,29 @@
     rt.silent = false;
     resetRuntime();
     rt.wasOpen = true; // already open: don't announce a second "good morning"
+    flushQuits();
     bus.emit('slept');
     bus.emit('dirty');
     return true;
+  }
+
+  // Customers still in the shop carry items they took off the shelves but
+  // haven't paid for. Before everyone goes home, put those items back (on
+  // their shelf if it still sells them, otherwise in the storehouse).
+  function returnHeldGoods(s) {
+    for (const c of rt.customers) {
+      if (!c.bought || c.state === 'exit' || c.state === 'leave' || c.done) continue;
+      const sh = s.shelves[c.shelf];
+      if (sh && sh.good === c.bought.good) sh.qty = Math.min(f.shelfCap(s), sh.qty + c.bought.qty);
+      else addToStore(s, c.bought.good, c.bought.qty);
+      c.bought = null;
+    }
+  }
+  // Announce any helpers who quit while announcements were muted.
+  function flushQuits() {
+    const q = rt.quitWhileSilent || [];
+    rt.quitWhileSilent = [];
+    for (const st of q) bus.emit('staffQuit', st);
   }
 
   function updateFx(dt) {
@@ -800,6 +825,7 @@
     }
     rt.silent = false;
     lastSeason = f.season(s).id;
+    flushQuits();
     const made = {};
     for (const g of Object.keys(s.store)) {
       const d = (s.store[g] || 0) - (start.store[g] || 0);

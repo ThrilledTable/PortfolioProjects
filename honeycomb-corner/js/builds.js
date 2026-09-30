@@ -30,7 +30,7 @@
   // Start building. `cost` coins are paid now; returns {ok, msg}.
   function start(s, kind, key, label, cost) {
     if (find(s, kind, key)) return { ok: false, msg: label + ' is already being built.' };
-    if (!freeBuilder(s)) return { ok: false, msg: 'Your builder is busy. Wait, finish the current build with gems, or hire a second builder in the Store.' };
+    if (!freeBuilder(s)) return { ok: false, msg: 'Your builder is busy. Wait for the current build, or finish it now with gems.' };
     if (s.coins < cost) return { ok: false, msg: 'Not enough coins.' };
     s.coins -= cost;
     const dur = f().buildTime(cost);

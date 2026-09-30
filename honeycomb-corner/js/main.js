@@ -104,7 +104,7 @@
 
     HC.render.init(document.getElementById('scene'));
     HC.ui.init();
-    HC.track.init(); // playtest notes: sessions, days, goals, gem use (track.js)
+    if (HC.track) HC.track.init(); // playtest notes (skipped if that file failed to load): sessions, days, goals, gem use (track.js)
 
     if (!isNew && !restored) {
       const away = (Date.now() - (s.lastSeen || Date.now())) / 1000;

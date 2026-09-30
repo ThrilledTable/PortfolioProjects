@@ -1,0 +1,5 @@
+# Netlify settings for the public playtest site (honeycomb-corner.netlify.app).
+# The game is plain files: nothing to build, publish this folder as-is.
+[build]
+  publish = "."
+  command = ""

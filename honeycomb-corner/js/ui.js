@@ -1254,7 +1254,9 @@
       b.classList.toggle('on', on);
     });
     updateBadges();
-    if (modal) renderModal();
+    // Re-draw an open pop-up too, EXCEPT ones with a form (feedback, rename):
+    // redrawing would wipe what the player has typed or ticked.
+    if (modal && !modal.onSubmit) renderModal();
     refreshLive();
     dirty = false;
   }
@@ -1631,8 +1633,14 @@
       return $('.screen');
     }
     if (gd.tab && tab !== gd.tab) return el.tabs.querySelector(`[data-tab="${gd.tab}"]`);
+    // `sel` is a CSS selector, or a function that finds the element itself.
     const sel = typeof gd.sel === 'function' ? gd.sel(s) : gd.sel;
-    return sel ? el.panel.querySelector(sel) : null;
+    if (typeof sel === 'function') return sel() || null;
+    try {
+      return sel ? el.panel.querySelector(sel) : null;
+    } catch (e) {
+      return null; // a selector this browser doesn't understand: skip the guide
+    }
   }
   // WAITING INSTEAD OF DIMMING (playtest 6): if the button the guide wants is
   // greyed out (not enough coins yet, or the builder is busy), there's
@@ -1647,7 +1655,7 @@
     guideWait = null;
     if (target && target.classList.contains('cant')) {
       const cost = Number(target.dataset.cost || 0);
-      guideWait = S().coins < cost ? { cost } : { busy: true };
+      guideWait = S().coins < cost ? { cost } : !HC.builds.freeBuilder(S()) ? { busy: true } : null;
       target = null;
     }
     if (Date.now() < guideSnoozedUntil) target = null;
@@ -1685,6 +1693,11 @@
     { id: 'merchant', when: (s) => !!s.merchant, lines: ["A travelling merchant has parked outside. The bees are rare, and the wagon won't stay long."] },
     { id: 'drip', when: () => !!HC.sim.rt.drip, lines: ['A golden drip is glistening on one of your hives. Tap it before it drips away!'] },
     { id: 'boxfull', when: (s) => s.box.length >= f().boxCap(s), lines: ["Your bee box is full. Build or upgrade a hive, or sell bees you don't need."] },
+    // No bee in any hive makes something sellable, but one in the bee box
+    // does: tell the player how to get honey flowing again. (Checked often,
+    // shown once; it clears itself once fixed.)
+    { id: 'nohoney', when: (s) => !s.machine && !s.hives.some((h) => h.bees.some((id) => !D.good[D.species[s.bees[id].sp].good].raw)) && s.box.some((id) => !D.good[D.species[s.bees[id].sp].good].raw),
+      lines: ["None of the bees in your hives make honey you can sell (Beeswax needs the Candle Machine). Drag a honey bee from the Bee box into a hive, onto a Waxwing to swap them."] },
     // After 20 minutes of play, invite feedback once (the ⚙ menu has it too).
     { id: 'feedback', when: (s) => s.playTime > 20 * 60, lines: ['Enjoying the shop? If you have a minute, tap ⚙ → Send feedback and tell us what you think. It really helps!'] },
     { id: 'festival', when: (s) => f().festivalRibbons(s) > 0, lines: ['The town wants to throw a Honey Festival in your honour! Take a look in the Town tab.'] },

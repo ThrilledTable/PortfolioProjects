@@ -1889,7 +1889,8 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     // Version 1 saves: hives had no honey storage, and Waxwings made candles
     // directly. Give hives empty storage and turn old candle-making into wax.
     s.hives.forEach((h) => (h.stock = h.stock || {}));
-    if ((loaded.v || 1) < 2) {
+    const fromV = loaded.v || 1;
+    if (fromV < 2) {
       if (s.unlockedGoods.candle && !s.machine) s.unlockedGoods.wax = true;
       // The goal chain was rewritten: start it again. Goals you've already
       // met can be claimed straight away, a small welcome-back bonus.
@@ -1906,6 +1907,13 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
         if (old[role] === true) s.staff[roles[role]] = { duty: data.staff[roles[role]].duty };
       }
       for (let b = 1; b < (loaded.builders || 1); b++) s.gems += 80 * b; // what each extra builder cost
+      // The goal list changed: "Assign a helper to collect honey" was added as
+      // goal 6 and "Hire a Honey Collector" (old goal 13) was removed. Shift
+      // old goals 6-12 one place later, and old 13 to the goal after it, so
+      // nobody lands on a goal they already claimed.
+      const g = loaded.goal || 0;
+      if (fromV === 2 && g >= 5 && g <= 11) s.goal = g + 1;
+      else if (fromV === 2 && g === 12) s.goal = 13;
     }
     s.builders = 1;
     s.repLog = s.repLog || { day: 0, items: {} };
@@ -2358,12 +2366,13 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     // sell (e.g. only Waxwings and no Candle Machine) and you can't afford a
     // Meadow Bee, the market gives you one free, so the game can never get
     // stuck with no income.
+    // Bees in the bee box count too. And if you SOLD a bee after your last
+    // free one, there's no new free bee for 20 minutes (so it can't be used
+    // to farm coins: get a free bee, sell it, repeat).
     needsHelpingHand(s) {
-      const sellable = s.hives.some((h) => h.bees.some((id) => {
-        const g = D.good[D.species[s.bees[id].sp].good];
-        return !g.raw || s.machine;
-      }));
-      return !sellable && s.coins < f.marketPrice(s, 'meadow', true);
+      const sellable = Object.values(s.bees).some((b) => !D.good[D.species[b.sp].good].raw || s.machine);
+      const recently = s.soldAfterHelp && s.playTime - s.helpedAt < 20 * 60;
+      return !sellable && !recently && s.coins < f.marketPrice(s, 'meadow', true);
     },
     marketPrice(s, sp, ignoreHelp) {
       if (sp === 'meadow' && !ignoreHelp && f.needsHelpingHand(s)) return 0;
@@ -2826,7 +2835,10 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       delete s.staff[id];
       owed -= pay(id);
       if (HC.workers) HC.workers.sync(s);
+      // While fast-forwarding (sleeping, away) announcements are muted, so
+      // remember who quit and announce it afterwards (see flushQuits).
       if (!rt.silent) bus.emit('staffQuit', D.staff[id]);
+      else (rt.quitWhileSilent = rt.quitWhileSilent || []).push(D.staff[id]);
       bus.emit('dirty');
     }
     if (owed > 0) {
@@ -2856,6 +2868,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
   // paid. Nobody restocks: that's what staying up is for.
   function sleepTillMorning(s) {
     if (!f.isNight(s)) return false;
+    returnHeldGoods(s);
     const morning = (Math.floor(s.time / D.DAY_LENGTH) + 1) * D.DAY_LENGTH;
     rt.silent = true;
     while (s.time < morning) {
@@ -2868,9 +2881,29 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     rt.silent = false;
     resetRuntime();
     rt.wasOpen = true; // already open: don't announce a second "good morning"
+    flushQuits();
     bus.emit('slept');
     bus.emit('dirty');
     return true;
+  }
+
+  // Customers still in the shop carry items they took off the shelves but
+  // haven't paid for. Before everyone goes home, put those items back (on
+  // their shelf if it still sells them, otherwise in the storehouse).
+  function returnHeldGoods(s) {
+    for (const c of rt.customers) {
+      if (!c.bought || c.state === 'exit' || c.state === 'leave' || c.done) continue;
+      const sh = s.shelves[c.shelf];
+      if (sh && sh.good === c.bought.good) sh.qty = Math.min(f.shelfCap(s), sh.qty + c.bought.qty);
+      else addToStore(s, c.bought.good, c.bought.qty);
+      c.bought = null;
+    }
+  }
+  // Announce any helpers who quit while announcements were muted.
+  function flushQuits() {
+    const q = rt.quitWhileSilent || [];
+    rt.quitWhileSilent = [];
+    for (const st of q) bus.emit('staffQuit', st);
   }
 
   function updateFx(dt) {
@@ -2952,6 +2985,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     }
     rt.silent = false;
     lastSeason = f.season(s).id;
+    flushQuits();
     const made = {};
     for (const g of Object.keys(s.store)) {
       const d = (s.store[g] || 0) - (start.store[g] || 0);
@@ -3074,7 +3108,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
   // Start building. `cost` coins are paid now; returns {ok, msg}.
   function start(s, kind, key, label, cost) {
     if (find(s, kind, key)) return { ok: false, msg: label + ' is already being built.' };
-    if (!freeBuilder(s)) return { ok: false, msg: 'Your builder is busy. Wait, finish the current build with gems, or hire a second builder in the Store.' };
+    if (!freeBuilder(s)) return { ok: false, msg: 'Your builder is busy. Wait for the current build, or finish it now with gems.' };
     if (s.coins < cost) return { ok: false, msg: 'Not enough coins.' };
     s.coins -= cost;
     const dur = f().buildTime(cost);
@@ -4102,6 +4136,10 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       if (!hasRoom()) return fail('No room. Build a hive or expand the bee box.');
       if (!spend(cost)) return fail('Not enough coins.');
       if (cost > 0) s.market[sp] = (s.market[sp] || 0) + 1; // a free helping-hand bee doesn't raise prices
+      else {
+        s.helpedAt = s.playTime; // remember when the helping hand was used
+        s.soldAfterHelp = false;
+      }
       const isNew = !s.discovered[sp];
       const bee = HC.state.makeBee(s, sp);
       const where = placeBee(bee);
@@ -4168,6 +4206,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       s.box = s.box.filter((b) => b !== id);
       if (s.keepsake === id) s.keepsake = null;
       delete s.bees[id];
+      if (s.helpedAt != null) s.soldAfterHelp = true; // see needsHelpingHand
       HC.sim.earn(s, price);
       return done(bee.name + ' went to a keeper in the next town for ₵' + util.fmt(price) + '.', 'coin');
     },
@@ -4612,7 +4651,9 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       guide: { tab: 'apiary', sel: '[data-act="buyBee"][data-sp="clover"]' } },
     { text: 'Stock two different shelves', check: (s) => new Set(s.shelves.map((x) => x.good).filter(Boolean)).size >= 2, reward: 120, gems: 1,
       // First build the extra shelf, then tap the empty shelf to fill it.
-      guide: { tab: 'shop', sel: (s) => (s.shelves.length < 2 ? '[data-act="upgrade"][data-id="shelf"]' : '.shelf-tile:has(.shelf-empty)') },
+      // (Finds the empty shelf with plain code rather than the CSS ':has()'
+      // selector, which older phones don't understand.)
+      guide: { tab: 'shop', sel: (s) => (s.shelves.length < 2 ? '[data-act="upgrade"][data-id="shelf"]' : () => [...document.querySelectorAll('.shelf-tile')].find((t) => t.querySelector('.shelf-empty'))) },
       tip: 'Build an Extra Shelf in the Shop tab, then tap a shelf to choose what it sells.' },
     { text: 'Hatch an egg in the Nursery', check: (s) => s.stats.bred >= 1, reward: 150, gems: 2,
       guide: { tab: 'nursery', sel: '[data-act="hatch"], [data-act="breed"]' },
@@ -7698,7 +7739,9 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       b.classList.toggle('on', on);
     });
     updateBadges();
-    if (modal) renderModal();
+    // Re-draw an open pop-up too, EXCEPT ones with a form (feedback, rename):
+    // redrawing would wipe what the player has typed or ticked.
+    if (modal && !modal.onSubmit) renderModal();
     refreshLive();
     dirty = false;
   }
@@ -8075,8 +8118,14 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       return $('.screen');
     }
     if (gd.tab && tab !== gd.tab) return el.tabs.querySelector(`[data-tab="${gd.tab}"]`);
+    // `sel` is a CSS selector, or a function that finds the element itself.
     const sel = typeof gd.sel === 'function' ? gd.sel(s) : gd.sel;
-    return sel ? el.panel.querySelector(sel) : null;
+    if (typeof sel === 'function') return sel() || null;
+    try {
+      return sel ? el.panel.querySelector(sel) : null;
+    } catch (e) {
+      return null; // a selector this browser doesn't understand: skip the guide
+    }
   }
   // WAITING INSTEAD OF DIMMING (playtest 6): if the button the guide wants is
   // greyed out (not enough coins yet, or the builder is busy), there's
@@ -8091,7 +8140,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     guideWait = null;
     if (target && target.classList.contains('cant')) {
       const cost = Number(target.dataset.cost || 0);
-      guideWait = S().coins < cost ? { cost } : { busy: true };
+      guideWait = S().coins < cost ? { cost } : !HC.builds.freeBuilder(S()) ? { busy: true } : null;
       target = null;
     }
     if (Date.now() < guideSnoozedUntil) target = null;
@@ -8129,6 +8178,11 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     { id: 'merchant', when: (s) => !!s.merchant, lines: ["A travelling merchant has parked outside. The bees are rare, and the wagon won't stay long."] },
     { id: 'drip', when: () => !!HC.sim.rt.drip, lines: ['A golden drip is glistening on one of your hives. Tap it before it drips away!'] },
     { id: 'boxfull', when: (s) => s.box.length >= f().boxCap(s), lines: ["Your bee box is full. Build or upgrade a hive, or sell bees you don't need."] },
+    // No bee in any hive makes something sellable, but one in the bee box
+    // does: tell the player how to get honey flowing again. (Checked often,
+    // shown once; it clears itself once fixed.)
+    { id: 'nohoney', when: (s) => !s.machine && !s.hives.some((h) => h.bees.some((id) => !D.good[D.species[s.bees[id].sp].good].raw)) && s.box.some((id) => !D.good[D.species[s.bees[id].sp].good].raw),
+      lines: ["None of the bees in your hives make honey you can sell (Beeswax needs the Candle Machine). Drag a honey bee from the Bee box into a hive, onto a Waxwing to swap them."] },
     // After 20 minutes of play, invite feedback once (the ⚙ menu has it too).
     { id: 'feedback', when: (s) => s.playTime > 20 * 60, lines: ['Enjoying the shop? If you have a minute, tap ⚙ → Send feedback and tell us what you think. It really helps!'] },
     { id: 'festival', when: (s) => f().festivalRibbons(s) > 0, lines: ['The town wants to throw a Honey Festival in your honour! Take a look in the Town tab.'] },
@@ -8559,7 +8613,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
 
     HC.render.init(document.getElementById('scene'));
     HC.ui.init();
-    HC.track.init(); // playtest notes: sessions, days, goals, gem use (track.js)
+    if (HC.track) HC.track.init(); // playtest notes (skipped if that file failed to load): sessions, days, goals, gem use (track.js)
 
     if (!isNew && !restored) {
       const away = (Date.now() - (s.lastSeen || Date.now())) / 1000;

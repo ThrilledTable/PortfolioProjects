@@ -584,18 +584,64 @@ test('closing time: sleeping skips to 6am without moving build timers', (HC) => 
 test('a helping hand: a free Meadow Bee if nothing you keep makes sellable honey', (HC) => {
   const s = HC.game;
   const wax = HC.state.makeBee(s, 'waxwing');
+  s.hives[0].bees.forEach((id) => delete s.bees[id]); // no honey bees left anywhere
   s.hives[0].bees = [wax.id];
   s.coins = 3;
   assert.strictEqual(HC.sim.f.marketPrice(s, 'meadow'), 0);
   assert(HC.act.buyBee('meadow').ok);
   assert(HC.sim.f.marketPrice(s, 'meadow') > 0, 'only while stuck');
   // A FULL hive of Waxwings and a full bee box: the free bee still gets in.
+  Object.values(s.bees).filter((b) => b.sp === 'meadow').forEach((b) => delete s.bees[b.id]);
   s.hives[0].bees = [0, 1, 2].map(() => HC.state.makeBee(s, 'waxwing').id);
   s.box = [];
+  s.helpedAt = null; // pretend the last helping hand was long ago
   while (s.box.length < HC.sim.f.boxCap(s)) s.box.push(HC.state.makeBee(s, 'waxwing').id);
   s.coins = 3;
   assert(HC.act.buyBee('meadow').ok, 'helping hand works with no room');
   assert(s.hives[0].bees.some((id) => s.bees[id].sp === 'meadow'), 'free bee is in the hive, making honey');
+});
+
+test('review fixes: sleeping announces quits and returns held goods', (HC) => {
+  const s = HC.game;
+  s.coins = 250;
+  HC.act.hire('rosa');
+  s.coins = 0;
+  s.today = 0;
+  let quits = 0;
+  HC.bus.on('staffQuit', () => quits++);
+  setDay(HC, 0.6);
+  // A customer holding 2 jars they haven't paid for yet.
+  s.shelves[0] = { good: 'wildflower', qty: 1 };
+  HC.sim.rt.customers.push({ id: 'x', kind: 'customer', state: 'queue', shelf: 0, bought: { good: 'wildflower', qty: 2 }, x: 0, y: 0 });
+  HC.act.sleep();
+  assert.strictEqual(quits, 1, 'the quit was announced after sleeping');
+  assert.strictEqual(s.shelves[0].qty, 3, 'held jars went back on the shelf');
+});
+
+test('review fixes: the helping hand counts the bee box and works once per 20 min', (HC) => {
+  const s = HC.game;
+  const wax = HC.state.makeBee(s, 'waxwing');
+  s.box = s.hives[0].bees.slice(); // meadows moved to the box
+  s.hives[0].bees = [wax.id];
+  s.coins = 3;
+  assert.strictEqual(HC.sim.f.marketPrice(s, 'meadow'), 25, 'box bees still make honey: no free bee');
+  s.box.forEach((id) => delete s.bees[id]);
+  s.box = [];
+  assert(HC.act.buyBee('meadow').ok);
+  const fresh = Object.values(s.bees).find((b) => b.sp === 'meadow');
+  assert(HC.act.sellBee(fresh.id).ok);
+  s.coins = 3;
+  assert(HC.sim.f.marketPrice(s, 'meadow') > 0, 'sold the free bee: no new one straight away');
+});
+
+test('review fixes: v2 saves keep their place in the reordered goal list', (HC) => {
+  const s = HC.game;
+  const v2 = JSON.parse(HC.state.serialize(s));
+  v2.v = 2;
+  v2.goal = 8; // old goal 9 "Discover the Waxwing"
+  assert.strictEqual(HC.state.deserialize(JSON.stringify(v2)).goal, 9);
+  v2.goal = 12; // old goal 13 "Hire a Honey Collector"
+  assert.strictEqual(HC.state.deserialize(JSON.stringify(v2)).goal, 13);
 });
 
 test('there is one builder: a second build waits', (HC) => {
