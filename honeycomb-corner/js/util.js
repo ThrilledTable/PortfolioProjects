@@ -158,15 +158,36 @@
     // The browser's built-in save space ("localStorage"). Some browsers block
     // it (private windows, strict settings), so every use is wrapped in
     // try/catch: if saving fails, the game keeps running instead of crashing.
+    // Saving. In a browser this is localStorage. Inside the phone app
+    // (Capacitor, see native/README.md) every save is ALSO copied to the
+    // app's own storage (the Preferences plugin), because iPhones can wipe a
+    // web page's storage. On start-up, restoreNative() brings that copy back
+    // if the browser copy has gone missing.
     store: {
       get(k) {
         try { return window.localStorage.getItem(k); } catch (e) { return null; }
       },
       set(k, v) {
-        try { window.localStorage.setItem(k, v); return true; } catch (e) { return false; }
+        const prefs = nativePrefs();
+        if (prefs) prefs.set({ key: k, value: v }).catch(() => {});
+        try { window.localStorage.setItem(k, v); return true; } catch (e) { return !!prefs; }
       },
       del(k) {
+        const prefs = nativePrefs();
+        if (prefs) prefs.remove({ key: k }).catch(() => {});
         try { window.localStorage.removeItem(k); } catch (e) { /* ignore */ }
+      },
+      // Returns a promise. Only does anything inside the phone app.
+      restoreNative(k) {
+        const prefs = nativePrefs();
+        if (!prefs) return Promise.resolve();
+        return prefs.get({ key: k }).then((r) => {
+          let have = null;
+          try { have = window.localStorage.getItem(k); } catch (e) { /* ignore */ }
+          if (r && r.value && !have) {
+            try { window.localStorage.setItem(k, r.value); } catch (e) { /* ignore */ }
+          }
+        }).catch(() => {});
       },
     },
   };
@@ -189,6 +210,12 @@
       (handlers['*'] || []).forEach((fn) => fn(evt, payload));
     },
   };
+
+  // The phone app's storage plugin, or null in an ordinary browser.
+  function nativePrefs() {
+    const cap = window.Capacitor;
+    return cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins && cap.Plugins.Preferences ? cap.Plugins.Preferences : null;
+  }
 
   HC.util = util;
 })();

@@ -138,5 +138,8 @@
 
   const hot = window.claude && window.claude.hot;
   if (hot && hot.ready) hot.ready(start);
-  else start((hot && hot.data) || {});
+  // In the phone app, first bring back the app's copy of the save if the
+  // browser storage was wiped (see util.store.restoreNative). Elsewhere this
+  // finishes instantly.
+  else HC.util.store.restoreNative(HC.data.SAVE_KEY).then(() => start((hot && hot.data) || {}));
 })();

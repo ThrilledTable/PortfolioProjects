@@ -111,7 +111,7 @@ function run(hours) {
     for (const id in s.staff) for (const track of ['speed', 'basket']) {
       if (f.trainLevel(s, id, track) < D.TRAINING[track].max) options.push([f.trainCost(s, id, track) * 1.5, () => act.train(id, track)]);
     }
-    for (const it of D.CATALOG) if (it.season && !s.cos.owned[it.id] && f.season(s).id === it.season) options.push([it.cost.coins * 1.2, () => act.buyItem(it.id)]);
+    for (const it of D.CATALOG) if (it.season && !s.cos.owned[it.id] && f.inSeason(s, it)) options.push([it.cost.coins * 1.2, () => act.buyItem(it.id)]);
     options.sort((a, b) => a[0] - b[0]);
     // Keep tomorrow's wages aside, like a sensible player.
     const reserve = f.wagesDue(s) * 1.2;

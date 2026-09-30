@@ -5,7 +5,7 @@
 | | Idle Bee Factory Tycoon (incumbent) | Honeycomb Corner |
 |---|---|---|
 | Presentation | Abstract factory, machines and numbers | A small-town shop with customers who walk in and buy |
-| Depth | Unlock more bee types by paying | 12 species found through breeding, plus vigor, traits and sparkles |
+| Depth | Unlock more bee types by paying | 16 species found through breeding, plus vigor, traits and sparkles |
 | Session hook | Upgrade taps | Goals, requests, golden drips, a merchant, seasons |
 | Monetisation | Heavy interstitial and rewarded ads (the main complaint in reviews) | Undecided; see below |
 | Audience | Hypercasual | Cozy and collector players, including adults who grew up on GBA-era games |
@@ -71,9 +71,9 @@ The intended arc is **hands-on early, automated later**. For roughly the first h
 ## Roadmap to a store build
 
 1. **Playtest** the Artifact or a GitHub Pages build with 5–10 people and note where they get stuck. The goals chain is the first thing to tune.
-2. **Wrap with Capacitor.** The folder is already a PWA with a manifest, icons and a service worker. Add native storage (Capacitor Preferences) alongside localStorage, since iOS can evict web storage.
-3. **Add an analytics hook** (first session length, day-1 return, goal step reached). One `track(event)` call in `HC.bus` handlers would cover it.
-4. **Content pass**: more species (aim for 24+), named regular customers, and one more seasonal event per season.
+2. **Wrap with Capacitor.** Scaffolded in `native/` (see its README), including native save backup via Capacitor Preferences, since iOS can evict web storage.
+3. **Playtest analytics**: done as private notes in `js/track.js`, shared only via "Send feedback" (Netlify Forms on the playtest site). The gem store plan in `docs/GEM-STORE.md` depends on what they show.
+4. **Content pass**: done in part (16 species with a seasonal family, six named regulars, two alternating sets of seasonal specials). Still to do: more species (aim for 24+) and one more seasonal event per season.
 5. **Store assets**: record screenshots and video from the canvas, which has native pixel-perfect framing.
 
 ## IP guardrails

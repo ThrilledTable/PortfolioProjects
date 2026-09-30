@@ -56,6 +56,7 @@
   //   aura   - a special effect while it lives in a hive (see Scout and Nurse)
   //   flavor - the description in the Field Guide once discovered
   //   hint   - the clue shown before it's discovered
+  //   season - (seasonal family) works 80% harder in this season
   // ---------------------------------------------------------------------------
   const SPECIES = [
     {
@@ -143,6 +144,38 @@
       flavor: 'Appears on clear nights. Old keepers say it followed a comet down.',
       hint: 'Crystal clarity and a golden heart.',
     },
+    // ---- THE SEASONAL FAMILY (playtest 6) ----------------------------------
+    // Four side-branch bees that make existing products but work 80% harder
+    // in their own season (`season`). Worth breeding to move a hive's output
+    // around the year. They don't change the main breeding chain.
+    {
+      id: 'blossom', name: 'Blossom Bee', good: 'clover', secs: 14, tier: 2, rarity: 'Uncommon', season: 'spring',
+      body: '#f8b8d0', stripe: '#8a3a5a', wing: '#fff0f6', mark: 'flower',
+      shape: { rx: 4.6, ry: 3.4, wing: 'round', stripes: 'double' },
+      flavor: 'Wakes with the cherry trees. In spring it works 80% harder than usual.',
+      hint: 'A clover bee and a scout bee, when the blossom is out.',
+    },
+    {
+      id: 'sunflower', name: 'Sunflower Bee', good: 'orange', secs: 20, tier: 3, rarity: 'Uncommon', season: 'summer',
+      body: '#ffd23a', stripe: '#7a4a10', wing: '#fff8d8', mark: 'star',
+      shape: { rx: 5.2, ry: 3.8, stripes: 'triple' },
+      flavor: 'Follows the sun across the garden all afternoon. 80% harder-working in summer.',
+      hint: 'A citrus bee and a scout bee, on a long hot day.',
+    },
+    {
+      id: 'harvest', name: 'Harvest Bee', good: 'jelly', secs: 34, tier: 5, rarity: 'Rare', season: 'autumn',
+      body: '#e8762a', stripe: '#4a2410', wing: '#ffe8d0', mark: 'leaf',
+      shape: { rx: 5.4, ry: 3.9, wing: 'small', stripes: 'double' },
+      flavor: 'Stocks up for winter like its life depends on it. 80% harder-working in autumn.',
+      hint: 'Royalty and citrus, when the leaves turn.',
+    },
+    {
+      id: 'frost', name: 'Frost Bee', good: 'moon', secs: 42, tier: 6, rarity: 'Epic', season: 'winter',
+      body: '#d8f0ff', stripe: '#3a5a8a', wing: '#ffffff', mark: 'gem',
+      shape: { rx: 4.8, ry: 3.4, wing: 'angular', stripes: 'single', feathery: true },
+      flavor: 'Its wings sparkle with frost. The only bee that loves winter: 80% harder-working then.',
+      hint: 'A moonmoth and a nurse bee, huddled together against the cold.',
+    },
   ];
 
   // ---------------------------------------------------------------------------
@@ -162,6 +195,11 @@
     { a: 'royal', b: 'moonmoth', out: 'golden', p: 0.3 },
     { a: 'moonmoth', b: 'golden', out: 'crystal', p: 0.25 },
     { a: 'crystal', b: 'golden', out: 'star', p: 0.2 },
+    // The seasonal family (side branches).
+    { a: 'clover', b: 'scout', out: 'blossom', p: 0.4 },
+    { a: 'citrus', b: 'scout', out: 'sunflower', p: 0.4 },
+    { a: 'royal', b: 'citrus', out: 'harvest', p: 0.35 },
+    { a: 'moonmoth', b: 'nurse', out: 'frost', p: 0.3 },
   ];
 
   // ---------------------------------------------------------------------------
@@ -393,10 +431,16 @@
     // SEASONAL SPECIALS (playtest 4): big, pricey decorations that can only be
     // BOUGHT during their season (you keep them forever once bought). They
     // soak up spare coins in the mid and late game.
-    { id: 'deco-blossom', cat: 'seasonal', season: 'spring', name: 'Blossom Tree Planter', cost: { coins: 25000 }, bonus: { customers: 0.08 } },
-    { id: 'deco-lemonade', cat: 'seasonal', season: 'summer', name: 'Lemonade Stand', cost: { coins: 150000 }, bonus: { customers: 0.1 } },
-    { id: 'deco-pumpkins', cat: 'seasonal', season: 'autumn', name: 'Pumpkin Patch', cost: { coins: 800000 }, bonus: { prod: 0.08 } },
-    { id: 'deco-tree', cat: 'seasonal', season: 'winter', name: 'Holiday Tree', cost: { coins: 4000000 }, bonus: { rep: 0.15 } },
+    // Two sets take turns, one per in-game year (`cycle` 0 or 1): year 1 sells
+    // set 0, year 2 sells set 1, year 3 set 0 again, and so on (playtest 6).
+    { id: 'deco-blossom', cat: 'seasonal', cycle: 0, season: 'spring', name: 'Blossom Tree Planter', cost: { coins: 25000 }, bonus: { customers: 0.08 } },
+    { id: 'deco-lemonade', cat: 'seasonal', cycle: 0, season: 'summer', name: 'Lemonade Stand', cost: { coins: 150000 }, bonus: { customers: 0.1 } },
+    { id: 'deco-pumpkins', cat: 'seasonal', cycle: 0, season: 'autumn', name: 'Pumpkin Patch', cost: { coins: 800000 }, bonus: { prod: 0.08 } },
+    { id: 'deco-tree', cat: 'seasonal', cycle: 0, season: 'winter', name: 'Holiday Tree', cost: { coins: 4000000 }, bonus: { rep: 0.15 } },
+    { id: 'deco-birdhouse', cat: 'seasonal', cycle: 1, season: 'spring', name: 'Birdhouse', cost: { coins: 60000 }, bonus: { prod: 0.05 } },
+    { id: 'deco-icecream', cat: 'seasonal', cycle: 1, season: 'summer', name: 'Ice Cream Cart', cost: { coins: 300000 }, bonus: { customers: 0.1 } },
+    { id: 'deco-scarecrow', cat: 'seasonal', cycle: 1, season: 'autumn', name: 'Scarecrow', cost: { coins: 1500000 }, bonus: { prod: 0.08 } },
+    { id: 'deco-snowman', cat: 'seasonal', cycle: 1, season: 'winter', name: 'Snowman', cost: { coins: 6000000 }, bonus: { rep: 0.15 } },
     // Hive styles (one at a time; changes how every hive looks)
     { id: 'hive-classic', cat: 'hiveStyle', name: 'Classic Boxes', default: true },
     { id: 'hive-painted', cat: 'hiveStyle', name: 'Painted Cottage', cost: { coins: 2000 } },

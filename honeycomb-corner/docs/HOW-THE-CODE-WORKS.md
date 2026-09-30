@@ -33,6 +33,7 @@ The rules never touch the screen directly. When something happens they post a no
 | `js/render.js` | Paints the scene 60 times a second, and works out what you tapped. |
 | `js/ui.js` | The menus, tabs, pop-ups, messages and tutorial text box. |
 | `js/audio.js` | Chiptune sound effects and music, synthesised live. |
+| `js/track.js` | Keeps private playtest notes (sessions, goal times, gem use) that "Send feedback" can include. |
 | `js/main.js` | Loads your save, fast-forwards time you were away, runs the game loop and autosaves. |
 | `css/style.css` | Colours, fonts and layout of the menus. |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Let the game install to a phone's home screen and play offline. |
@@ -93,6 +94,10 @@ All of these are edits to `js/data.js` unless noted. After a change, run the che
 
 **Change how prices are rounded.** `nice` in `js/util.js`.
 
+**Change the regulars.** `REGULARS` in `data.js`: name, favourite product, blurb and look. `REGULAR_GIFTS` sets what they give at each heart count, and `REGULAR_CHANCE` how often a customer is a regular.
+
+**Add a seasonal bee.** Give a species a `season` (see the seasonal family in `SPECIES`); it works 80% harder then. The 1.8 is in `sim.js → beeRate`.
+
 **Change reputation rules.** `REP` lists every reason reputation changes and by how much. The Reputation window reads it directly, so the explanation always matches.
 
 **Change the lunch rush, today's special or the food critic.** `EVENTS`: times are fractions of a day (0 = 6am, 0.25 = noon). `spawnMult` 0.35 means customers arrive in 35% of the usual time; `priceMult` 1.3 means +30%.
@@ -121,7 +126,7 @@ All of these are edits to `js/data.js` unless noted. After a change, run the che
 These need Node.js (a free program for running JavaScript outside a browser). Run them from the `honeycomb-corner` folder:
 
 ```bash
-node tools/test.js            # 39 automatic checks of the rules. Should say "39 passed".
+node tools/test.js            # 41 automatic checks of the rules. Should say "41 passed".
 node tools/balance.js 4 1 5   # plays 4 hours with a bot and prints when milestones happen
 node tools/smoke.js out/      # opens the real game in a hidden browser, clicks around, saves screenshots
 python3 tools/build.py        # bundles everything into one file: dist/honeycomb-corner.html

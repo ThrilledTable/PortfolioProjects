@@ -560,6 +560,10 @@
     if (P['deco-lemonade']) actors.push({ y: 156, draw: drawLemonade });
     if (P['deco-pumpkins']) actors.push({ y: 144, draw: drawPumpkins });
     if (P['deco-tree']) actors.push({ y: 84, draw: () => drawHolidayTree(t) });
+    if (P['deco-birdhouse']) actors.push({ y: 80, draw: () => drawBirdhouse(t) });
+    if (P['deco-icecream']) actors.push({ y: 158, draw: drawIceCream });
+    if (P['deco-scarecrow']) actors.push({ y: 30, draw: () => drawScarecrow(t) });
+    if (P['deco-snowman']) actors.push({ y: 157, draw: drawSnowman });
     actors.push({ y: L.board.y + 3, draw: () => drawBoard(s) });
     actors.sort((a, b) => a.y - b.y);
     for (const a of actors) a.draw();
@@ -708,6 +712,48 @@
     r(192, 57, 3, 3, '#ffd23a'); // star on top
     const on = Math.floor(t * 2) % 2;
     for (const [x, y, c] of [[190, 66, '#f07898'], [195, 70, '#8ad0f0'], [189, 74, '#ffd23a'], [197, 76, '#f07898'], [193, 72, '#fff8e0']]) r(x, y, 1, 1, on ? c : '#fff8e0');
+  }
+
+  // ---- Seasonal specials, second set (alternate years) --------------------
+  // Spring: a birdhouse on a post between the pond and the fountain.
+  function drawBirdhouse(t) {
+    const r = (x, y, w, h, c) => rect(ctx, x, y, w, h, c);
+    r(92, 70, 2, 10, INK); r(92, 70, 1, 10, '#8a5a2a'); // post
+    r(88, 62, 10, 8, INK); r(89, 63, 8, 6, '#6ab0d8'); // box
+    r(87, 60, 12, 3, INK); r(88, 60, 10, 2, '#c84a4a'); // roof
+    r(92, 65, 2, 2, INK); // hole
+    if (Math.floor(t * 0.7) % 3 === 0) { r(95, 58, 2, 2, '#8a5a2a'); r(97, 58, 1, 1, '#f2b230'); } // a little bird on the roof
+  }
+  // Summer: an ice cream cart on the street, below the bench (with a flag
+  // on a pole rather than an umbrella, so it doesn't cover the bench).
+  function drawIceCream() {
+    const r = (x, y, w, h, c) => rect(ctx, x, y, w, h, c);
+    r(78, 136, 1, 11, INK); // flag pole beside the bench
+    r(79, 136, 6, 4, INK); r(79, 137, 5, 2, '#f07898');
+    r(58, 147, 22, 8, INK); r(59, 148, 20, 6, '#f4f0e8'); r(59, 150, 20, 1, '#8ad0f0'); // cart
+    r(61, 155, 4, 4, INK); r(73, 155, 4, 4, INK); // wheels
+    r(64, 144, 3, 4, '#c88a4a'); r(64, 142, 3, 2, '#f8b8d0'); // cones on top
+    r(70, 144, 3, 4, '#c88a4a'); r(70, 142, 3, 2, '#fff0a0');
+  }
+  // Autumn: a scarecrow at the top of the garden, between the first hives.
+  function drawScarecrow(t) {
+    const r = (x, y, w, h, c) => rect(ctx, x, y, w, h, c);
+    const sway = Math.round(Math.sin(t * 1.5));
+    r(39, 12, 2, 18, '#8a5a2a'); // pole
+    r(33 + sway, 13, 14, 2, '#8a5a2a'); // arms
+    r(36, 14, 8, 8, INK); r(37, 15, 6, 6, '#c86a3a'); // patched shirt
+    r(38, 7, 5, 6, INK); r(39, 8, 3, 4, '#f2dfb4'); // head
+    r(36, 5, 9, 3, INK); r(37, 5, 7, 2, '#d8b060'); // straw hat
+    r(33 + sway, 15, 2, 2, '#f2d060'); r(45 + sway, 15, 2, 2, '#f2d060'); // straw hands
+  }
+  // Winter: a snowman at the street edge by the lamp post.
+  function drawSnowman() {
+    const r = (x, y, w, h, c) => rect(ctx, x, y, w, h, c);
+    r(86, 147, 12, 10, INK); r(87, 148, 10, 8, '#f8fbff'); // bottom
+    r(88, 140, 8, 8, INK); r(89, 141, 6, 6, '#f8fbff'); // head
+    r(90, 143, 1, 1, INK); r(93, 143, 1, 1, INK); r(91, 145, 2, 1, '#f08a3a'); // face and carrot
+    r(88, 147, 8, 2, '#c84a4a'); // scarf
+    r(88, 136, 8, 2, INK); r(89, 133, 6, 3, INK); // top hat
   }
 
   function drawChalkboard() {
@@ -966,6 +1012,10 @@
     'deco-lemonade': [1, 133, 31, 24, drawLemonade],
     'deco-pumpkins': [32, 130, 16, 13, drawPumpkins],
     'deco-tree': [186, 56, 14, 29, () => drawHolidayTree(0)],
+    'deco-birdhouse': [85, 56, 16, 25, () => drawBirdhouse(0)],
+    'deco-icecream': [56, 134, 30, 26, drawIceCream],
+    'deco-scarecrow': [31, 3, 18, 28, () => drawScarecrow(0)],
+    'deco-snowman': [84, 131, 16, 27, drawSnowman],
   };
   function drawLightsOnly() {
     for (let x = 114; x < 158; x += 6) {

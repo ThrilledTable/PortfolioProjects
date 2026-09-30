@@ -1034,15 +1034,36 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     // The browser's built-in save space ("localStorage"). Some browsers block
     // it (private windows, strict settings), so every use is wrapped in
     // try/catch: if saving fails, the game keeps running instead of crashing.
+    // Saving. In a browser this is localStorage. Inside the phone app
+    // (Capacitor, see native/README.md) every save is ALSO copied to the
+    // app's own storage (the Preferences plugin), because iPhones can wipe a
+    // web page's storage. On start-up, restoreNative() brings that copy back
+    // if the browser copy has gone missing.
     store: {
       get(k) {
         try { return window.localStorage.getItem(k); } catch (e) { return null; }
       },
       set(k, v) {
-        try { window.localStorage.setItem(k, v); return true; } catch (e) { return false; }
+        const prefs = nativePrefs();
+        if (prefs) prefs.set({ key: k, value: v }).catch(() => {});
+        try { window.localStorage.setItem(k, v); return true; } catch (e) { return !!prefs; }
       },
       del(k) {
+        const prefs = nativePrefs();
+        if (prefs) prefs.remove({ key: k }).catch(() => {});
         try { window.localStorage.removeItem(k); } catch (e) { /* ignore */ }
+      },
+      // Returns a promise. Only does anything inside the phone app.
+      restoreNative(k) {
+        const prefs = nativePrefs();
+        if (!prefs) return Promise.resolve();
+        return prefs.get({ key: k }).then((r) => {
+          let have = null;
+          try { have = window.localStorage.getItem(k); } catch (e) { /* ignore */ }
+          if (r && r.value && !have) {
+            try { window.localStorage.setItem(k, r.value); } catch (e) { /* ignore */ }
+          }
+        }).catch(() => {});
       },
     },
   };
@@ -1065,6 +1086,12 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       (handlers['*'] || []).forEach((fn) => fn(evt, payload));
     },
   };
+
+  // The phone app's storage plugin, or null in an ordinary browser.
+  function nativePrefs() {
+    const cap = window.Capacitor;
+    return cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins && cap.Plugins.Preferences ? cap.Plugins.Preferences : null;
+  }
 
   HC.util = util;
 })();
@@ -1129,6 +1156,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
   //   aura   - a special effect while it lives in a hive (see Scout and Nurse)
   //   flavor - the description in the Field Guide once discovered
   //   hint   - the clue shown before it's discovered
+  //   season - (seasonal family) works 80% harder in this season
   // ---------------------------------------------------------------------------
   const SPECIES = [
     {
@@ -1216,6 +1244,38 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       flavor: 'Appears on clear nights. Old keepers say it followed a comet down.',
       hint: 'Crystal clarity and a golden heart.',
     },
+    // ---- THE SEASONAL FAMILY (playtest 6) ----------------------------------
+    // Four side-branch bees that make existing products but work 80% harder
+    // in their own season (`season`). Worth breeding to move a hive's output
+    // around the year. They don't change the main breeding chain.
+    {
+      id: 'blossom', name: 'Blossom Bee', good: 'clover', secs: 14, tier: 2, rarity: 'Uncommon', season: 'spring',
+      body: '#f8b8d0', stripe: '#8a3a5a', wing: '#fff0f6', mark: 'flower',
+      shape: { rx: 4.6, ry: 3.4, wing: 'round', stripes: 'double' },
+      flavor: 'Wakes with the cherry trees. In spring it works 80% harder than usual.',
+      hint: 'A clover bee and a scout bee, when the blossom is out.',
+    },
+    {
+      id: 'sunflower', name: 'Sunflower Bee', good: 'orange', secs: 20, tier: 3, rarity: 'Uncommon', season: 'summer',
+      body: '#ffd23a', stripe: '#7a4a10', wing: '#fff8d8', mark: 'star',
+      shape: { rx: 5.2, ry: 3.8, stripes: 'triple' },
+      flavor: 'Follows the sun across the garden all afternoon. 80% harder-working in summer.',
+      hint: 'A citrus bee and a scout bee, on a long hot day.',
+    },
+    {
+      id: 'harvest', name: 'Harvest Bee', good: 'jelly', secs: 34, tier: 5, rarity: 'Rare', season: 'autumn',
+      body: '#e8762a', stripe: '#4a2410', wing: '#ffe8d0', mark: 'leaf',
+      shape: { rx: 5.4, ry: 3.9, wing: 'small', stripes: 'double' },
+      flavor: 'Stocks up for winter like its life depends on it. 80% harder-working in autumn.',
+      hint: 'Royalty and citrus, when the leaves turn.',
+    },
+    {
+      id: 'frost', name: 'Frost Bee', good: 'moon', secs: 42, tier: 6, rarity: 'Epic', season: 'winter',
+      body: '#d8f0ff', stripe: '#3a5a8a', wing: '#ffffff', mark: 'gem',
+      shape: { rx: 4.8, ry: 3.4, wing: 'angular', stripes: 'single', feathery: true },
+      flavor: 'Its wings sparkle with frost. The only bee that loves winter: 80% harder-working then.',
+      hint: 'A moonmoth and a nurse bee, huddled together against the cold.',
+    },
   ];
 
   // ---------------------------------------------------------------------------
@@ -1235,6 +1295,11 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     { a: 'royal', b: 'moonmoth', out: 'golden', p: 0.3 },
     { a: 'moonmoth', b: 'golden', out: 'crystal', p: 0.25 },
     { a: 'crystal', b: 'golden', out: 'star', p: 0.2 },
+    // The seasonal family (side branches).
+    { a: 'clover', b: 'scout', out: 'blossom', p: 0.4 },
+    { a: 'citrus', b: 'scout', out: 'sunflower', p: 0.4 },
+    { a: 'royal', b: 'citrus', out: 'harvest', p: 0.35 },
+    { a: 'moonmoth', b: 'nurse', out: 'frost', p: 0.3 },
   ];
 
   // ---------------------------------------------------------------------------
@@ -1466,10 +1531,16 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     // SEASONAL SPECIALS (playtest 4): big, pricey decorations that can only be
     // BOUGHT during their season (you keep them forever once bought). They
     // soak up spare coins in the mid and late game.
-    { id: 'deco-blossom', cat: 'seasonal', season: 'spring', name: 'Blossom Tree Planter', cost: { coins: 25000 }, bonus: { customers: 0.08 } },
-    { id: 'deco-lemonade', cat: 'seasonal', season: 'summer', name: 'Lemonade Stand', cost: { coins: 150000 }, bonus: { customers: 0.1 } },
-    { id: 'deco-pumpkins', cat: 'seasonal', season: 'autumn', name: 'Pumpkin Patch', cost: { coins: 800000 }, bonus: { prod: 0.08 } },
-    { id: 'deco-tree', cat: 'seasonal', season: 'winter', name: 'Holiday Tree', cost: { coins: 4000000 }, bonus: { rep: 0.15 } },
+    // Two sets take turns, one per in-game year (`cycle` 0 or 1): year 1 sells
+    // set 0, year 2 sells set 1, year 3 set 0 again, and so on (playtest 6).
+    { id: 'deco-blossom', cat: 'seasonal', cycle: 0, season: 'spring', name: 'Blossom Tree Planter', cost: { coins: 25000 }, bonus: { customers: 0.08 } },
+    { id: 'deco-lemonade', cat: 'seasonal', cycle: 0, season: 'summer', name: 'Lemonade Stand', cost: { coins: 150000 }, bonus: { customers: 0.1 } },
+    { id: 'deco-pumpkins', cat: 'seasonal', cycle: 0, season: 'autumn', name: 'Pumpkin Patch', cost: { coins: 800000 }, bonus: { prod: 0.08 } },
+    { id: 'deco-tree', cat: 'seasonal', cycle: 0, season: 'winter', name: 'Holiday Tree', cost: { coins: 4000000 }, bonus: { rep: 0.15 } },
+    { id: 'deco-birdhouse', cat: 'seasonal', cycle: 1, season: 'spring', name: 'Birdhouse', cost: { coins: 60000 }, bonus: { prod: 0.05 } },
+    { id: 'deco-icecream', cat: 'seasonal', cycle: 1, season: 'summer', name: 'Ice Cream Cart', cost: { coins: 300000 }, bonus: { customers: 0.1 } },
+    { id: 'deco-scarecrow', cat: 'seasonal', cycle: 1, season: 'autumn', name: 'Scarecrow', cost: { coins: 1500000 }, bonus: { prod: 0.08 } },
+    { id: 'deco-snowman', cat: 'seasonal', cycle: 1, season: 'winter', name: 'Snowman', cost: { coins: 6000000 }, bonus: { rep: 0.15 } },
     // Hive styles (one at a time; changes how every hive looks)
     { id: 'hive-classic', cat: 'hiveStyle', name: 'Classic Boxes', default: true },
     { id: 'hive-painted', cat: 'hiveStyle', name: 'Painted Cottage', cost: { coins: 2000 } },
@@ -2126,6 +2197,11 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       const len = D.DAY_LENGTH * D.SEASON_DAYS;
       return D.SEASONS[Math.floor(s.time / len) % 4];
     },
+    // Which in-game year it is (0, 1, 2...). Seasonal specials alternate sets
+    // by year: even years sell `cycle: 0` items, odd years `cycle: 1`.
+    year: (s) => Math.floor(s.time / (D.DAY_LENGTH * D.SEASON_DAYS * 4)),
+    // Can this seasonal special be bought right now?
+    inSeason: (s, item) => f.season(s).id === item.season && f.year(s) % 2 === (item.cycle || 0),
     seasonLeft(s) {
       const len = D.DAY_LENGTH * D.SEASON_DAYS;
       return len - (s.time % len);
@@ -2217,6 +2293,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
         if (t.day && !night) r *= 1 + t.day;
       }
       if (sp.nightBonus && night) r *= 1 + sp.nightBonus;
+      if (sp.season && f.season(s).id === sp.season) r *= 1.8; // seasonal family: +80% in their season
       return r;
     },
     // Ids of bees currently raising an egg. They rest instead of working.
@@ -4319,7 +4396,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       if (!item) return fail('Unknown item.');
       if (s.cos.owned[id]) return fail('You already own that.');
       // Seasonal specials can only be bought during their season.
-      if (item.season && f().season(s).id !== item.season) return fail(item.name + ' is only sold in ' + D.SEASONS.find((x) => x.id === item.season).name + '.');
+      if (item.season && !f().inSeason(s, item)) return fail(item.name + ' is only sold in ' + D.SEASONS.find((x) => x.id === item.season).name + (item.cycle ? ' of every other year' : '') + '.');
       const cost = item.cost || {};
       if (cost.coins && s.coins < cost.coins) return fail('Not enough coins.');
       if (cost.gems && s.gems < cost.gems) return fail('Not enough gems.');
@@ -5666,6 +5743,10 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     if (P['deco-lemonade']) actors.push({ y: 156, draw: drawLemonade });
     if (P['deco-pumpkins']) actors.push({ y: 144, draw: drawPumpkins });
     if (P['deco-tree']) actors.push({ y: 84, draw: () => drawHolidayTree(t) });
+    if (P['deco-birdhouse']) actors.push({ y: 80, draw: () => drawBirdhouse(t) });
+    if (P['deco-icecream']) actors.push({ y: 158, draw: drawIceCream });
+    if (P['deco-scarecrow']) actors.push({ y: 30, draw: () => drawScarecrow(t) });
+    if (P['deco-snowman']) actors.push({ y: 157, draw: drawSnowman });
     actors.push({ y: L.board.y + 3, draw: () => drawBoard(s) });
     actors.sort((a, b) => a.y - b.y);
     for (const a of actors) a.draw();
@@ -5814,6 +5895,48 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     r(192, 57, 3, 3, '#ffd23a'); // star on top
     const on = Math.floor(t * 2) % 2;
     for (const [x, y, c] of [[190, 66, '#f07898'], [195, 70, '#8ad0f0'], [189, 74, '#ffd23a'], [197, 76, '#f07898'], [193, 72, '#fff8e0']]) r(x, y, 1, 1, on ? c : '#fff8e0');
+  }
+
+  // ---- Seasonal specials, second set (alternate years) --------------------
+  // Spring: a birdhouse on a post between the pond and the fountain.
+  function drawBirdhouse(t) {
+    const r = (x, y, w, h, c) => rect(ctx, x, y, w, h, c);
+    r(92, 70, 2, 10, INK); r(92, 70, 1, 10, '#8a5a2a'); // post
+    r(88, 62, 10, 8, INK); r(89, 63, 8, 6, '#6ab0d8'); // box
+    r(87, 60, 12, 3, INK); r(88, 60, 10, 2, '#c84a4a'); // roof
+    r(92, 65, 2, 2, INK); // hole
+    if (Math.floor(t * 0.7) % 3 === 0) { r(95, 58, 2, 2, '#8a5a2a'); r(97, 58, 1, 1, '#f2b230'); } // a little bird on the roof
+  }
+  // Summer: an ice cream cart on the street, below the bench (with a flag
+  // on a pole rather than an umbrella, so it doesn't cover the bench).
+  function drawIceCream() {
+    const r = (x, y, w, h, c) => rect(ctx, x, y, w, h, c);
+    r(78, 136, 1, 11, INK); // flag pole beside the bench
+    r(79, 136, 6, 4, INK); r(79, 137, 5, 2, '#f07898');
+    r(58, 147, 22, 8, INK); r(59, 148, 20, 6, '#f4f0e8'); r(59, 150, 20, 1, '#8ad0f0'); // cart
+    r(61, 155, 4, 4, INK); r(73, 155, 4, 4, INK); // wheels
+    r(64, 144, 3, 4, '#c88a4a'); r(64, 142, 3, 2, '#f8b8d0'); // cones on top
+    r(70, 144, 3, 4, '#c88a4a'); r(70, 142, 3, 2, '#fff0a0');
+  }
+  // Autumn: a scarecrow at the top of the garden, between the first hives.
+  function drawScarecrow(t) {
+    const r = (x, y, w, h, c) => rect(ctx, x, y, w, h, c);
+    const sway = Math.round(Math.sin(t * 1.5));
+    r(39, 12, 2, 18, '#8a5a2a'); // pole
+    r(33 + sway, 13, 14, 2, '#8a5a2a'); // arms
+    r(36, 14, 8, 8, INK); r(37, 15, 6, 6, '#c86a3a'); // patched shirt
+    r(38, 7, 5, 6, INK); r(39, 8, 3, 4, '#f2dfb4'); // head
+    r(36, 5, 9, 3, INK); r(37, 5, 7, 2, '#d8b060'); // straw hat
+    r(33 + sway, 15, 2, 2, '#f2d060'); r(45 + sway, 15, 2, 2, '#f2d060'); // straw hands
+  }
+  // Winter: a snowman at the street edge by the lamp post.
+  function drawSnowman() {
+    const r = (x, y, w, h, c) => rect(ctx, x, y, w, h, c);
+    r(86, 147, 12, 10, INK); r(87, 148, 10, 8, '#f8fbff'); // bottom
+    r(88, 140, 8, 8, INK); r(89, 141, 6, 6, '#f8fbff'); // head
+    r(90, 143, 1, 1, INK); r(93, 143, 1, 1, INK); r(91, 145, 2, 1, '#f08a3a'); // face and carrot
+    r(88, 147, 8, 2, '#c84a4a'); // scarf
+    r(88, 136, 8, 2, INK); r(89, 133, 6, 3, INK); // top hat
   }
 
   function drawChalkboard() {
@@ -6072,6 +6195,10 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     'deco-lemonade': [1, 133, 31, 24, drawLemonade],
     'deco-pumpkins': [32, 130, 16, 13, drawPumpkins],
     'deco-tree': [186, 56, 14, 29, () => drawHolidayTree(0)],
+    'deco-birdhouse': [85, 56, 16, 25, () => drawBirdhouse(0)],
+    'deco-icecream': [56, 134, 30, 26, drawIceCream],
+    'deco-scarecrow': [31, 3, 18, 28, () => drawScarecrow(0)],
+    'deco-snowman': [84, 131, 16, 27, drawSnowman],
   };
   function drawLightsOnly() {
     for (let x = 114; x < 158; x += 6) {
@@ -6854,7 +6981,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     const look = spr.keeperLook(s);
     const sections = D.STORE_SECTIONS.map((sec) => {
       const items = D.CATALOG.filter((it) => it.cat === sec.cat).map((it) => storeCard(s, it, sec)).join('');
-      const note = sec.cat === 'seasonal' ? ` <span class="muted small">(each is only sold in its own season, and you keep it forever: ${esc(f().season(s).name)} now)</span>` : sec.cat === 'hiveStyle' ? ' <span class="muted small">(“Use” restyles every hive; to style one hive, tap Style on it in the Apiary tab)</span>' : sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>';
+      const note = sec.cat === 'seasonal' ? ` <span class="muted small">(each is only sold in its own season, and the set changes every year; you keep what you buy: ${esc(f().season(s).name)} of year ${f().year(s) + 1} now)</span>` : sec.cat === 'hiveStyle' ? ' <span class="muted small">(“Use” restyles every hive; to style one hive, tap Style on it in the Apiary tab)</span>' : sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>';
       return `<h3 class="store-sec">${sec.name}${note}</h3><div class="store-cards">${items}</div>`;
     }).join('');
     return `
@@ -6882,10 +7009,11 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     const owned = !!s.cos.owned[it.id];
     const inUse = sec.pick ? s.cos.equip[it.cat] === it.id : !!s.cos.placed[it.id];
     let action;
-    const offSeason = it.season && f().season(s).id !== it.season;
+    const offSeason = it.season && !f().inSeason(s, it);
     if (!owned && offSeason) {
-      // Seasonal specials can only be bought in their own season.
-      action = `<span class="chip">Only in ${D.SEASONS.find((x) => x.id === it.season).name}</span>`;
+      // Seasonal specials can only be bought in their own season (and year).
+      const sameSeasonNow = f().season(s).id === it.season;
+      action = `<span class="chip">${sameSeasonNow ? 'Back next year' : 'Only in ' + D.SEASONS.find((x) => x.id === it.season).name}</span>`;
     } else if (!owned) {
       const c = it.cost || {};
       action = c.gems ? btn(`Buy ${gemPrice(c.gems)}`, 'buyItem', { id: it.id }, { gems: c.gems, cls: 'btn-sm btn-gem', need: 'Not enough gems.' })
@@ -7034,6 +7162,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       <div class="stat-row"><span>Trait</span><b>${trait ? trait.name + ' · <span class="muted">' + trait.desc + '</span>' : '—'}</b></div>
       ${sp.aura ? `<div class="stat-row"><span>Special</span><b>${sp.aura.hive ? '+' + sp.aura.hive * 100 + '% hive output' : '+' + sp.aura.customers * 100 + '% customers'}</b></div>` : ''}
       ${sp.nightBonus ? `<div class="stat-row"><span>Special</span><b>+${sp.nightBonus * 100}% at night</b></div>` : ''}
+      ${sp.season ? `<div class="stat-row"><span>Special</span><b>+80% in ${D.SEASONS.find((x) => x.id === sp.season).name}</b></div>` : ''}
       <div class="stat-row"><span>Generation</span><b>${bee.gen}</b></div>
       <div class="stat-row"><span>Lives in</span><b>${hi >= 0 ? 'Hive ' + (hi + 1) : 'Bee box'}</b></div>
     </div>`;
@@ -8368,7 +8497,10 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
 
   const hot = window.claude && window.claude.hot;
   if (hot && hot.ready) hot.ready(start);
-  else start((hot && hot.data) || {});
+  // In the phone app, first bring back the app's copy of the save if the
+  // browser storage was wiped (see util.store.restoreNative). Elsewhere this
+  // finishes instantly.
+  else HC.util.store.restoreNative(HC.data.SAVE_KEY).then(() => start((hot && hot.data) || {}));
 })();
 
 </script>

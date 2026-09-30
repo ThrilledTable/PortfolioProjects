@@ -56,6 +56,11 @@
       const len = D.DAY_LENGTH * D.SEASON_DAYS;
       return D.SEASONS[Math.floor(s.time / len) % 4];
     },
+    // Which in-game year it is (0, 1, 2...). Seasonal specials alternate sets
+    // by year: even years sell `cycle: 0` items, odd years `cycle: 1`.
+    year: (s) => Math.floor(s.time / (D.DAY_LENGTH * D.SEASON_DAYS * 4)),
+    // Can this seasonal special be bought right now?
+    inSeason: (s, item) => f.season(s).id === item.season && f.year(s) % 2 === (item.cycle || 0),
     seasonLeft(s) {
       const len = D.DAY_LENGTH * D.SEASON_DAYS;
       return len - (s.time % len);
@@ -147,6 +152,7 @@
         if (t.day && !night) r *= 1 + t.day;
       }
       if (sp.nightBonus && night) r *= 1 + sp.nightBonus;
+      if (sp.season && f.season(s).id === sp.season) r *= 1.8; // seasonal family: +80% in their season
       return r;
     },
     // Ids of bees currently raising an egg. They rest instead of working.

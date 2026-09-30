@@ -425,7 +425,7 @@
       if (!item) return fail('Unknown item.');
       if (s.cos.owned[id]) return fail('You already own that.');
       // Seasonal specials can only be bought during their season.
-      if (item.season && f().season(s).id !== item.season) return fail(item.name + ' is only sold in ' + D.SEASONS.find((x) => x.id === item.season).name + '.');
+      if (item.season && !f().inSeason(s, item)) return fail(item.name + ' is only sold in ' + D.SEASONS.find((x) => x.id === item.season).name + (item.cycle ? ' of every other year' : '') + '.');
       const cost = item.cost || {};
       if (cost.coins && s.coins < cost.coins) return fail('Not enough coins.');
       if (cost.gems && s.gems < cost.gems) return fail('Not enough gems.');

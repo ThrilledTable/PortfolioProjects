@@ -37,7 +37,7 @@ bees fill their hive ─► shopkeeper walks out, collects ─► storehouse ─
 - **Candles need a machine.** Waxwing Bees make raw Beeswax. The Candle Machine turns it into candles, but someone has to load the wax and carry the candles out.
 - **Everything is built over time.** Upgrades, new hives, hive upgrades and the machine are timed builds: about a minute early on, around 40 minutes for ₵1M upgrades, up to 8 hours at the very top. You have one builder, so one thing at a time. Only gems can finish a build early; coins never can. A second builder is planned as an optional paid unlock in a full release.
 - **Gems are rare** and earned in-game only, at notable moments: milestone goals (every fifth goal), discovering an uncommon-or-rarer species, a glowing food-critic review, the odd request or golden drip, and festivals. Each one gets a little celebration. Spend them to finish a timer early or buy special cosmetics. Expect roughly 10 in the first hour.
-- **Nursery:** pair two bees to raise an egg. The parents rest (no honey) until it hatches. There are 12 species and 10 recipes, plus vigor, traits and rare sparkle variants. A pity timer guarantees a recipe after 4 misses.
+- **Nursery:** pair two bees to raise an egg. The parents rest (no honey) until it hatches. There are 16 species (including a seasonal family that works 80% harder in its own season) and 14 recipes, plus vigor, traits and rare sparkle variants. A pity timer guarantees a recipe after 4 misses.
 - **The town:** townsfolk walk up to the board outside the shop and pin requests, which pay 2.5× market value and sometimes gems. A travelling merchant sometimes parks outside with a rare bee.
 - **Night:** the shop closes, no customers come, and most bees go to sleep (Moonmoths and Night Owls keep working). Whoever is on the Register restocks the shelves for the morning.
 - **Seasons:** each lasts 4 in-game days (32 minutes) and brings one twist, plus its own grass, flowers and weather.
@@ -45,6 +45,9 @@ bees fill their hive ─► shopkeeper walks out, collects ─► storehouse ─
 - **Helper training:** in Shop → Staff, spend coins to train each helper: *Quick feet* (+15% walking speed per level) and *Strong arms* (+6 jars per trip per level). Instant, and it doesn't use the builder.
 - **Shop Expansion** upgrade: every shelf holds 3 more items per level.
 - **Seasonal specials** in the Store: a Blossom Tree Planter (spring), Lemonade Stand (summer), Pumpkin Patch (autumn) and Holiday Tree (winter). Pricey, sold only in their season, yours forever.
+- **Regulars:** six named townsfolk with favourite products (Town tab). Stock their favourite and they tip 25% and grow fonder (one heart a day); gifts at 3 and 5 hearts.
+- **Seasonal specials rotate:** two sets of four take turns, one set per in-game year.
+- **Playtest notes and feedback:** the game keeps a few private numbers in the save (sessions, days played, goal times, gem use). ⚙ → Send feedback shows them and sends them with three short questions. Nothing is sent otherwise.
 - **Style each hive separately:** tap "Style" on a hive in the Apiary tab. (Choosing a style in the Store restyles every hive.)
 - **Prices are round numbers** (260, not 264).
 - **Hives grow as you upgrade them:** more boxes, a peaked roof, a flower box, then a gold pennant. **Flower Beds** plant visible beds in the garden.
@@ -93,14 +96,16 @@ See [docs/DESIGN.md](docs/DESIGN.md) for positioning, monetisation options and t
 | `js/render.js` | The scene, y-sorting, lighting, decorations, tap detection |
 | `js/ui.js` | Status bar, tabs, pop-ups, tutorial, live values |
 | `js/audio.js` | Synthesised chiptune effects and music |
+| `js/track.js` | Private playtest notes and the data behind "Send feedback" |
 | `js/main.js` | Start-up, fixed-step game loop, autosave |
+| `native/` | Capacitor project to wrap the game as an iPhone/Android app (see native/README.md) |
 
 The rules never touch the page; they post events on `HC.bus`. That's why the whole game runs headlessly under Node for tests and balance runs.
 
 ## Dev tools
 
 ```bash
-node tools/test.js                    # 39 mechanics tests (Node, no browser)
+node tools/test.js                    # 41 mechanics tests (Node, no browser)
 node tools/balance.js 4 1 5           # simulate 4h, 1 run, bot acting every 5s; prints milestones
 node tools/smoke.js out/              # headless browser: every flow, audio, festival, away report
 node tools/phone-walkthrough.js out/  # tap-only opening minutes at phone size, screenshots

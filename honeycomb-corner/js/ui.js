@@ -607,7 +607,7 @@
     const look = spr.keeperLook(s);
     const sections = D.STORE_SECTIONS.map((sec) => {
       const items = D.CATALOG.filter((it) => it.cat === sec.cat).map((it) => storeCard(s, it, sec)).join('');
-      const note = sec.cat === 'seasonal' ? ` <span class="muted small">(each is only sold in its own season, and you keep it forever: ${esc(f().season(s).name)} now)</span>` : sec.cat === 'hiveStyle' ? ' <span class="muted small">(“Use” restyles every hive; to style one hive, tap Style on it in the Apiary tab)</span>' : sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>';
+      const note = sec.cat === 'seasonal' ? ` <span class="muted small">(each is only sold in its own season, and the set changes every year; you keep what you buy: ${esc(f().season(s).name)} of year ${f().year(s) + 1} now)</span>` : sec.cat === 'hiveStyle' ? ' <span class="muted small">(“Use” restyles every hive; to style one hive, tap Style on it in the Apiary tab)</span>' : sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>';
       return `<h3 class="store-sec">${sec.name}${note}</h3><div class="store-cards">${items}</div>`;
     }).join('');
     return `
@@ -635,10 +635,11 @@
     const owned = !!s.cos.owned[it.id];
     const inUse = sec.pick ? s.cos.equip[it.cat] === it.id : !!s.cos.placed[it.id];
     let action;
-    const offSeason = it.season && f().season(s).id !== it.season;
+    const offSeason = it.season && !f().inSeason(s, it);
     if (!owned && offSeason) {
-      // Seasonal specials can only be bought in their own season.
-      action = `<span class="chip">Only in ${D.SEASONS.find((x) => x.id === it.season).name}</span>`;
+      // Seasonal specials can only be bought in their own season (and year).
+      const sameSeasonNow = f().season(s).id === it.season;
+      action = `<span class="chip">${sameSeasonNow ? 'Back next year' : 'Only in ' + D.SEASONS.find((x) => x.id === it.season).name}</span>`;
     } else if (!owned) {
       const c = it.cost || {};
       action = c.gems ? btn(`Buy ${gemPrice(c.gems)}`, 'buyItem', { id: it.id }, { gems: c.gems, cls: 'btn-sm btn-gem', need: 'Not enough gems.' })
@@ -787,6 +788,7 @@
       <div class="stat-row"><span>Trait</span><b>${trait ? trait.name + ' · <span class="muted">' + trait.desc + '</span>' : '—'}</b></div>
       ${sp.aura ? `<div class="stat-row"><span>Special</span><b>${sp.aura.hive ? '+' + sp.aura.hive * 100 + '% hive output' : '+' + sp.aura.customers * 100 + '% customers'}</b></div>` : ''}
       ${sp.nightBonus ? `<div class="stat-row"><span>Special</span><b>+${sp.nightBonus * 100}% at night</b></div>` : ''}
+      ${sp.season ? `<div class="stat-row"><span>Special</span><b>+80% in ${D.SEASONS.find((x) => x.id === sp.season).name}</b></div>` : ''}
       <div class="stat-row"><span>Generation</span><b>${bee.gen}</b></div>
       <div class="stat-row"><span>Lives in</span><b>${hi >= 0 ? 'Hive ' + (hi + 1) : 'Bee box'}</b></div>
     </div>`;

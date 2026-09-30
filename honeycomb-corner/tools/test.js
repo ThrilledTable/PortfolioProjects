@@ -543,6 +543,20 @@ test('regulars buy their favourite, tip, and gain a heart once a day', (HC) => {
   assert(st && st.hearts === 1, 'gained a heart');
 });
 
+test('seasonal specials alternate sets each year; seasonal bees boom in their season', (HC) => {
+  const s = HC.game;
+  s.coins = 1e8;
+  assert(!HC.act.buyItem('deco-birdhouse').ok, 'second set not sold in year 1');
+  s.time += HC.data.DAY_LENGTH * HC.data.SEASON_DAYS * 4; // a year later: spring of year 2
+  assert(HC.act.buyItem('deco-birdhouse').ok, 'second set sold in year 2');
+  assert(!HC.act.buyItem('deco-blossom').ok, 'first set rests in year 2');
+  const bee = HC.state.makeBee(s, 'blossom');
+  const h = s.hives[0];
+  const spring = HC.sim.f.beeRate(s, bee, h, false);
+  s.time += HC.data.DAY_LENGTH * HC.data.SEASON_DAYS; // summer
+  assert(spring > HC.sim.f.beeRate(s, bee, h, false) * 1.5, 'Blossom Bee works harder in spring');
+});
+
 test('there is one builder: a second build waits', (HC) => {
   const s = HC.game;
   s.coins = 1e5;
