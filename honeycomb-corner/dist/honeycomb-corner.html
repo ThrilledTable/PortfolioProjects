@@ -725,6 +725,39 @@ body.is-dragging { cursor: grabbing; -webkit-user-select: none; user-select: non
 body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2px dashed var(--amber); outline-offset: 2px; }
 .drop-over { outline: 3px solid var(--leaf) !important; outline-offset: 2px; background: #e6f6d8 !important; }
 
+/* ==== Added after playtest 3 =========================================== */
+
+/* GUIDED GOALS: the next thing to tap gets a slowly pulsing gold ring, and a
+   giant soft shadow around it dims the rest of the page. The dimming is only
+   visual; everything can still be tapped. The goal bar and text box stay lit
+   so you can read what to do. */
+.spotlight {
+  position: relative;
+  z-index: 40;
+  border-radius: 6px;
+  animation: spot-pulse 1.4s ease-in-out infinite;
+}
+@keyframes spot-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px #ffd23a, 0 0 0 100vmax rgba(12, 8, 16, 0.55); }
+  50% { box-shadow: 0 0 0 7px #ffd23a, 0 0 0 100vmax rgba(12, 8, 16, 0.55); }
+}
+body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; }
+@media (prefers-reduced-motion: reduce) {
+  .spotlight { animation: none; box-shadow: 0 0 0 5px #ffd23a, 0 0 0 100vmax rgba(12, 8, 16, 0.55); }
+}
+
+/* Goal progress bar ("412 / 1,000"). */
+.goal-progress { flex-basis: 100%; display: flex; align-items: center; gap: 8px; font-size: var(--step--1); font-variant-numeric: tabular-nums; }
+.goal-progress .bar { flex: 1; height: 10px; }
+.goal-progress .bar i { background: #8cd06a; }
+
+/* Per-hive style picker. */
+.style-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.style-pick .pick-row { flex-direction: column; text-align: center; }
+.hive-style-btn { display: grid; justify-items: center; gap: 2px; background: none; border: 2px dashed transparent; border-radius: 6px; padding: 2px 4px; cursor: pointer; font-size: 0.7rem; font-weight: 800; color: var(--ink-soft); }
+.hive-style-btn:hover { border-color: var(--amber); color: var(--ink); }
+.store-sec .muted { text-transform: none; letter-spacing: 0; font-weight: 600; }
+
 </style>
 <!-- Lets phones install the game to the home screen (see manifest.webmanifest and sw.js). -->
 <meta name="theme-color" content="#221a24">
@@ -909,6 +942,15 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
         out = (n >= 100 ? n.toFixed(0) : n >= 10 ? n.toFixed(1) : n.toFixed(2)) + SUFFIXES[i];
       }
       return (neg ? '-' : '') + out;
+    },
+
+    // Round a price to a "clean" number so it reads nicely (playtest 3):
+    //   under 100      → nearest 5       (37 → 35)
+    //   100 and above  → two leading digits (264 → 260, 1,375 → 1,400)
+    nice(n) {
+      if (n < 100) return Math.max(5, Math.round(n / 5) * 5);
+      const step = Math.pow(10, Math.floor(Math.log10(n)) - 1);
+      return Math.round(n / step) * step;
     },
 
     // A shorter format for the tiny pixel font inside the game picture, which
@@ -1169,7 +1211,9 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
   // ---------------------------------------------------------------------------
   const UPGRADES = [
     { id: 'shelf', name: 'Extra Shelf', base: 80, growth: 4.2, max: 7, desc: () => 'Adds a shelf for another product.' },
-    { id: 'basket', name: 'Bigger Basket', base: 150, growth: 2.4, max: 10, desc: () => 'Everyone carries 8 more jars per trip.' },
+    // Bigger Basket affects EVERYONE who carries things: the shopkeeper and
+    // every helper (collecting honey, restocking, the candle machine).
+    { id: 'basket', name: 'Bigger Basket', base: 150, growth: 2.4, max: 10, desc: (lv) => 'You and all your helpers carry 8 more jars per trip (now ' + (12 + 8 * lv) + ', next ' + (20 + 8 * lv) + '). Fewer trips for collecting, restocking and the candle machine.' },
     { id: 'samples', name: 'Tasting Samples', base: 120, growth: 2.5, max: 10, desc: () => 'Customers buy 10% more items.' },
     { id: 'sign', name: 'Painted Sign', base: 150, growth: 2.3, max: 20, desc: () => '+15% customer visits.' },
     { id: 'labels', name: 'Fancy Labels', base: 200, growth: 2.15, max: 25, desc: () => '+8% sale prices.' },
@@ -1205,25 +1249,27 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
   // below) that you can change at any time in the Shop tab. You can even give
   // the shopkeeper a duty.
   //   hire  one-off fee to take them on
-  //   wage  paid every morning. If you can't pay, the priciest helper quits.
+  //   wage  base pay every morning, PLUS each helper takes a share
+  //         (WAGE_SHARE) of what the shop earned the day before. So wages grow
+  //         as the shop gets richer. If you can't pay, the priciest helper quits.
   //   duty  the duty they start on when hired (you can change it)
   //   look  how they're drawn in the scene
   // ---------------------------------------------------------------------------
   const STAFF = [
     {
-      id: 'rosa', name: 'Rosa', hire: 250, wage: 30, duty: 'register',
+      id: 'rosa', name: 'Rosa', hire: 250, wage: 40, duty: 'register',
       look: { hair: ['#2a2222', '#161010'], skin: ['#e0a878', '#b87c50'], shirt: ['#c84a4a', '#8e2e2e'], hat: null, apron: '#f4ecd8' },
     },
     {
-      id: 'theo', name: 'Theo', hire: 600, wage: 50, duty: 'stock',
+      id: 'theo', name: 'Theo', hire: 600, wage: 80, duty: 'stock',
       look: { hair: ['#e8c060', '#b89040'], skin: ['#f4d4b8', '#d8ac88'], shirt: ['#3a8ab0', '#266080'], hat: 'cap', apron: null },
     },
     {
-      id: 'mabel', name: 'Mabel', hire: 1200, wage: 80, duty: 'collect',
+      id: 'mabel', name: 'Mabel', hire: 1200, wage: 150, duty: 'collect',
       look: { hair: ['#c0502a', '#8a3418'], skin: ['#f8c898', '#d89868'], shirt: ['#7a9a4a', '#56702e'], hat: 'straw', apron: null },
     },
     {
-      id: 'otis', name: 'Otis', hire: 3000, wage: 150, duty: 'candles',
+      id: 'otis', name: 'Otis', hire: 3000, wage: 300, duty: 'candles',
       look: { hair: ['#8a5a8a', '#5e3a5e'], skin: ['#b07850', '#86563a'], shirt: ['#e08a3a', '#a85e22'], hat: null, apron: '#6a4a2a' },
     },
   ];
@@ -1276,7 +1322,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
   const EVENTS = {
     rush: { from: 0.2, to: 0.3, spawnMult: 0.35 },
     special: { priceMult: 1.3, pickWeight: 4, minGoods: 2 }, // only once you sell 2+ products
-    critic: { chance: 0.6, earliest: 0.08, latest: 0.6, reward: 5 },
+    critic: { chance: 0.6, earliest: 0.08, latest: 0.6, reward: 3 },
   };
 
   // ---------------------------------------------------------------------------
@@ -1394,13 +1440,15 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
   // new species and golden drips, and spend them to finish timers early or
   // on special Store items. These are the amounts for each source.
   // ---------------------------------------------------------------------------
+  // Gem rewards were roughly halved after playtest 3 ("too many gems"), so a
+  // timer skip is a real choice rather than something you do every time.
   const GEMS = {
-    start: 15,
-    newSpecies: 5,
-    seasonChange: 3,
-    festival: 50,
-    orderChance: 0.3, orderMin: 1, orderMax: 3,
-    dripChance: 0.15,
+    start: 10,
+    newSpecies: 3,
+    seasonChange: 1,
+    festival: 30,
+    orderChance: 0.15, orderMin: 1, orderMax: 2,
+    dripChance: 0.08,
     secsPerGem: 120, // skipping a timer costs 1 gem per 2 minutes left
     // Extra builders are NOT sold for gems: you get one builder. A second
     // builder is planned as a paid unlock in the full version (see DESIGN.md).
@@ -1473,6 +1521,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     duty: byId(DUTIES),
     item: byId(CATALOG),
     DAY_LENGTH: 480, // real seconds in one in-game day (8 minutes)
+    WAGE_SHARE: 0.05, // each helper's cut of yesterday's earnings (5%), on top of their base wage
     SEASON_DAYS: 4,
     OFFLINE_CAP: 8 * 3600, // bees and shop keep going for at most 8h while you're away
     FESTIVAL_AT: 1e7, // coins earned in one run before a Honey Festival is possible
@@ -1523,6 +1572,8 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
       time: data.DAY_LENGTH * 0.12, // in-game time of day; starts in the morning
       clock: 0, // seconds the game has been running; timers count against this
       lastDay: 0, // which in-game day wages were last paid for
+      today: 0, // coins earned so far today (helpers get a share each morning)
+      yesterday: 0, // coins earned yesterday
       playTime: 0,
       // Each hive: its upgrade level, the bees living in it, and the honey
       // waiting inside it to be collected (by product, e.g. {wildflower: 7}).
@@ -1562,7 +1613,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
         collected: 0, candles: 0, decor: 0, skips: 0,
       },
       hints: {}, // tutorial messages already shown
-      settings: { sfx: true, music: false },
+      settings: { sfx: true, music: false, guide: true }, // guide: flash the next thing to tap (early goals)
       keepsake: null,
       goal: 0, // which goal in the goal chain you're on
     };
@@ -1637,7 +1688,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     const s = Object.assign(base, loaded);
     s.up = Object.assign({}, newGame().up, loaded.up || {});
     s.stats = Object.assign({}, base.stats, loaded.stats || {});
-    s.settings = Object.assign({ sfx: true, music: false }, loaded.settings || {});
+    s.settings = Object.assign({ sfx: true, music: false, guide: true }, loaded.settings || {});
     s.market = Object.assign({ meadow: 0, clover: 0 }, loaded.market || {});
     if (loaded.gems == null) s.gems = data.GEMS.start;
     if (loaded.clock == null) s.clock = loaded.playTime || 0;
@@ -1983,12 +2034,14 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     },
     hiveFull: (h) => f.honeyIn(h) >= f.honeyCap(h),
     hiveCost: (s) => D.HIVE_COSTS[s.hives.length],
-    hiveUpgradeCost: (s, i) => Math.ceil(100 * Math.pow(3, s.hives[i].level) * Math.pow(1 + i, 1.4)),
+    // All prices below go through util.nice so they're round numbers.
+    // Steeper for later hives and levels since playtest 3 (money piled up).
+    hiveUpgradeCost: (s, i) => util.nice(100 * Math.pow(3.6, s.hives[i].level) * Math.pow(1 + i, 2)),
 
     // -- Shop -------------------------------------------------------------------
     upgradeCost(s, id) {
       const u = D.upgrade[id];
-      return Math.ceil(u.base * Math.pow(u.growth, s.up[id] || 0));
+      return util.nice(u.base * Math.pow(u.growth, s.up[id] || 0));
     },
     storageCap: (s) => Math.floor(40 * (1 + 0.6 * s.up.storage)), // per product
     shelfCap: () => 6, // items per shelf
@@ -2102,14 +2155,14 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     },
     marketPrice(s, sp) {
       const n = s.market[sp] || 0;
-      return sp === 'meadow' ? Math.ceil(25 * Math.pow(1.2, n)) : Math.ceil(150 * Math.pow(1.22, n));
+      return util.nice(sp === 'meadow' ? 25 * Math.pow(1.2, n) : 150 * Math.pow(1.22, n));
     },
     beeValue: (bee) => 20 * Math.pow(3, D.species[bee.sp].tier) * bee.vigor * (bee.sparkle ? 5 : 1),
-    sellPrice: (bee) => Math.ceil(f.beeValue(bee) * 0.4),
+    sellPrice: (bee) => util.nice(f.beeValue(bee) * 0.4),
 
     // -- Breeding ---------------------------------------------------------------
     maxTier: (a, b) => Math.max(D.species[a.sp].tier, D.species[b.sp].tier),
-    breedCost: (a, b) => Math.ceil(40 * Math.pow(3.4, f.maxTier(a, b))),
+    breedCost: (a, b) => util.nice(40 * Math.pow(3.4, f.maxTier(a, b))),
     breedTime: (a, b) => Math.round(30 * Math.pow(1 + f.maxTier(a, b), 1.6)),
 
     // -- Timers and gems --------------------------------------------------------
@@ -2122,12 +2175,21 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
 
     // -- Candle Machine -----------------------------------------------------------
     machineCap: (s) => D.MACHINE.capacity(s.machine ? s.machine.level : 0),
-    machineUpgradeCost: (s) => Math.ceil(D.MACHINE.upgradeBase * Math.pow(D.MACHINE.upgradeGrowth, s.machine ? s.machine.level : 0)),
+    machineUpgradeCost: (s) => util.nice(D.MACHINE.upgradeBase * Math.pow(D.MACHINE.upgradeGrowth, s.machine ? s.machine.level : 0)),
 
     // -- Staff --------------------------------------------------------------------
+    // Base wages for everyone hired.
     wagesPerDay(s) {
       let w = 0;
       for (const id in s.staff) if (s.staff[id] && D.staff[id]) w += D.staff[id].wage;
+      return w;
+    },
+    // One helper's pay for a day: base wage + their share of `earned`.
+    wageOf: (s, id, earned) => D.staff[id].wage + Math.round(D.WAGE_SHARE * earned),
+    // What tomorrow morning's wages will be if today's earnings stay as they are.
+    wagesDue(s) {
+      let w = 0;
+      for (const id in s.staff) if (s.staff[id] && D.staff[id]) w += f.wageOf(s, id, s.today || 0);
       return w;
     },
 
@@ -2166,6 +2228,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
   // Add coins. If x/y are given, a floating "+amount" appears there.
   function earn(s, amt, x, y) {
     if (amt <= 0) return;
+    s.today = (s.today || 0) + amt; // today's earnings (helpers take a share)
     s.coins += amt;
     s.lifetime += amt;
     s.runEarned += amt;
@@ -2199,9 +2262,9 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     const item = s.repLog.items[key] || (s.repLog.items[key] = { n: 0, amt: 0 });
     item.n++;
     item.amt += real;
-    if (x != null && !rt.silent) {
-      rt.fx.push({ kind: 'text', x, y, text: (real >= 0 ? '+' : '-') + '*', t: 0, life: 1.4, color: real >= 0 ? '#fff08a' : '#ff7a6a' });
-    }
+    // Float a little face over the customer: a smiley with "+" when
+    // reputation went up, a frowny face with "-" when it went down.
+    if (x != null && !rt.silent) rt.fx.push({ kind: 'rep', x, y, happy: amt >= 0, t: 0, life: 1.6 });
     return real;
   }
   // Start a fresh log for a new day, keeping the last one as "yesterday".
@@ -2392,7 +2455,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
       who: util.pick(D.REQUESTERS),
       good: g.id,
       qty,
-      reward: Math.ceil(qty * f.price(s, g.id) * 2.5),
+      reward: util.nice(qty * f.price(s, g.id) * 2.5),
       gems: Math.random() < D.GEMS.orderChance ? util.randInt(D.GEMS.orderMin, D.GEMS.orderMax) : 0,
       left: util.rand(480, 900), // seconds until it expires
     };
@@ -2411,7 +2474,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
       sparkle: Math.random() < 0.08,
       trait: Math.random() < 0.5 ? util.pick(Object.keys(D.TRAITS)) : null,
     };
-    offer.price = Math.ceil(f.beeValue(offer) * 6);
+    offer.price = util.nice(f.beeValue(offer) * 6);
     return offer;
   }
 
@@ -2532,13 +2595,18 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     bus.emit('dirty');
   }
 
+  // Each helper gets their base wage plus a share of yesterday's earnings.
   function payWages(s) {
+    const earned = s.today || 0;
+    s.yesterday = earned;
+    s.today = 0;
+    const pay = (id) => f.wageOf(s, id, earned);
     const hired = Object.keys(s.staff).filter((id) => s.staff[id] && D.staff[id]).sort((a, b) => D.staff[b].wage - D.staff[a].wage);
-    let owed = hired.reduce((t, id) => t + D.staff[id].wage, 0);
+    let owed = hired.reduce((t, id) => t + pay(id), 0);
     for (const id of hired) {
       if (s.coins >= owed) break;
       delete s.staff[id];
-      owed -= D.staff[id].wage;
+      owed -= pay(id);
       if (HC.workers) HC.workers.sync(s);
       if (!rt.silent) bus.emit('staffQuit', D.staff[id]);
       bus.emit('dirty');
@@ -2766,7 +2834,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     if (s.coins < cost) return { ok: false, msg: 'Not enough coins.' };
     s.coins -= cost;
     const dur = f().buildTime(cost);
-    s.builds.push({ id: util.uid(), kind, key, label, end: s.clock + dur, dur });
+    s.builds.push({ id: util.uid(), kind, key, label, end: s.clock + dur, dur, cost });
     bus.emit('buildStart', { label, dur });
     bus.emit('dirty');
     return { ok: true, msg: 'Building ' + label + '. Ready in ' + util.fmtTime(dur) + '.' };
@@ -2825,7 +2893,22 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     return { ok: true, msg: b.label + ' finished.' };
   }
 
-  HC.builds = { start, finish, update, skip, find, left, freeBuilder };
+  // OVERTIME (playtest 3): finish a build with COINS instead of gems. You pay
+  // the builder twice the unfinished share of what the build cost, e.g. a
+  // ₵10,000 upgrade that's half done costs ₵10,000 to finish now. It gives
+  // spare coins a use once money piles up, without handing out gems.
+  const overtimeCost = (s, b) => util.nice(2 * (b.cost || 0) * (left(s, b) / b.dur));
+  function overtime(s, id) {
+    const b = s.builds.find((x) => x.id === id);
+    if (!b) return { ok: false, msg: 'That build already finished.' };
+    const cost = overtimeCost(s, b);
+    if (s.coins < cost) return { ok: false, msg: 'Not enough coins for overtime.' };
+    s.coins -= cost;
+    finish(s, b);
+    return { ok: true, msg: 'The builder worked overtime: ' + b.label + ' finished.' };
+  }
+
+  HC.builds = { start, finish, update, skip, overtime, overtimeCost, find, left, freeBuilder };
 })();
 
 </script>
@@ -3138,7 +3221,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
           s.stats.customers++;
           s.stats.best = Math.max(s.stats.best, c.total);
           if (c.critic) criticVerdict(s, c, true);
-          else sim().changeRep(s, 'served');
+          else sim().changeRep(s, 'served', 1, c.x, c.y - 26);
           if (f().isSpecial(s, c.bought.good)) sim().changeRep(s, 'special');
           rt().queue.shift();
           c.state = 'exit';
@@ -3188,6 +3271,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     const take = Math.min(unitsWanted(s, ctype), sh.qty);
     sh.qty -= take;
     const amt = f().price(s, sh.good, ctype.mult || 1) * take;
+    s.today = (s.today || 0) + amt; // counts towards helpers' share of the day
     s.coins += amt;
     s.lifetime += amt;
     s.runEarned += amt;
@@ -3906,6 +3990,11 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
       const r = HC.builds.skip(S(), id);
       return r.ok ? done(r.msg, 'discover') : fail(r.msg);
     },
+    // Finish a build now with coins (see "OVERTIME" in builds.js).
+    overtime(id) {
+      const r = HC.builds.overtime(S(), id);
+      return r.ok ? done(r.msg, 'coin') : fail(r.msg);
+    },
     // -------------------------------------------------------------------------
     // STAFF
     // -------------------------------------------------------------------------
@@ -4072,8 +4161,27 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
       const section = D.STORE_SECTIONS.find((x) => x.cat === item.cat);
       if (section.pick) s.cos.equip[item.cat] = id;
       else s.cos.placed[id] = quiet ? true : !s.cos.placed[id];
+      // Choosing a hive style in the Store restyles EVERY hive (clearing any
+      // hive's own style). To style one hive, use setHiveStyle below.
+      if (item.cat === 'hiveStyle') s.hives.forEach((h) => delete h.style);
       if (quiet) return { ok: true };
+      if (item.cat === 'hiveStyle') return done('All hives now use ' + item.name + '.', 'click');
       return done(section.pick ? item.name + ' equipped.' : item.name + (s.cos.placed[id] ? ' placed.' : ' put away.'), 'click');
+    },
+    // Give ONE hive its own style (playtest 3). `id` is a hive style you own,
+    // or null to go back to the shop-wide style.
+    setHiveStyle(i, id) {
+      const s = S();
+      const h = s.hives[i];
+      if (!h) return fail('No such hive.');
+      if (!id) {
+        delete h.style;
+        return done('Hive ' + (i + 1) + ' matches the others again.', 'click');
+      }
+      const item = D.item[id];
+      if (!item || item.cat !== 'hiveStyle' || !s.cos.owned[id]) return fail('Buy that style in the Store first.');
+      h.style = id;
+      return done('Hive ' + (i + 1) + ' is now ' + item.name + '.', 'click');
     },
 
     // -------------------------------------------------------------------------
@@ -4139,6 +4247,8 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
 //   reward - coins paid when claimed
 //   gems   - gems paid when claimed
 //   tip    - (optional) hint text
+//   guide  - (optional) what to flash on screen so new players know where to tap
+//   progress - (optional) for counting goals, shows a filling bar
 // =============================================================================
 (function () {
   const HC = window.HC;
@@ -4148,58 +4258,85 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
   // the species so the hint can show the right Field Guide clue.
   const disc = (sp) => Object.assign((s) => !!s.discovered[sp], { sp });
 
+  // GUIDES (playtest 3): the early goals point at exactly what to press.
+  //   guide.tab    which tab the button is on (the tab button flashes first)
+  //   guide.sel    the button to flash, as a CSS selector (or a function
+  //                that picks one from the save)
+  //   guide.scene  flash the game picture instead, with an arrow over a hive
+  // PROGRESS: goals with a count show a filling bar, e.g. "412 / 1,000".
+  //   progress(s) returns [how many so far, how many needed]
   const GOALS = [
-    { text: 'Collect honey from a hive', check: (s) => s.stats.collected > 0, reward: 20, gems: 2,
+    { text: 'Collect honey from a hive', check: (s) => s.stats.collected > 0, reward: 20, gems: 1,
+      guide: { scene: { hive: 0 } },
       tip: 'Tap a hive in the garden. The shopkeeper walks out, scoops up the honey and carries it to the storehouse.' },
-    { text: 'Sell 10 items', check: (s) => s.stats.sold >= 10, reward: 30, gems: 1,
+    { text: 'Sell 10 items', check: (s) => s.stats.sold >= 10, reward: 30, gems: 1, progress: (s) => [s.stats.sold, 10],
       tip: 'Customers only pay when someone is at the register, so keep the shopkeeper nearby while the line is long.' },
     { text: 'Buy another Meadow Bee', check: (s) => f().beeCount(s) >= 3, reward: 30, gems: 1,
+      guide: { tab: 'apiary', sel: '[data-act="buyBee"][data-sp="meadow"]' },
       tip: 'Open the Apiary tab and scroll down to the Bee Market.' },
-    { text: 'Build a second hive', check: (s) => s.hives.length >= 2, reward: 60, gems: 3,
+    { text: 'Build a second hive', check: (s) => s.hives.length >= 2, reward: 60, gems: 1,
+      guide: { tab: 'apiary', sel: '[data-act="buildHive"]' },
       tip: 'Apiary tab → "Build hive 2". Building takes a little while.' },
-    { text: 'Hire your first helper', check: (s) => Object.keys(s.staff).length >= 1, reward: 80, gems: 3,
+    { text: 'Hire your first helper', check: (s) => Object.keys(s.staff).length >= 1, reward: 80, gems: 1,
+      guide: { tab: 'shop', sel: '[data-act="hire"]' },
       tip: 'Shop tab → Staff. Rosa starts on the Register, so customers can pay while you collect honey.' },
-    { text: 'Buy a Clover Bee', check: disc('clover'), reward: 100, gems: 2 },
-    { text: 'Stock two different shelves', check: (s) => new Set(s.shelves.map((x) => x.good).filter(Boolean)).size >= 2, reward: 120, gems: 2,
-      tip: 'Build an Extra Shelf in the Shop tab, then tap a shelf to choose what it sells.' },
-    { text: 'Hatch an egg in the Nursery', check: (s) => s.stats.bred >= 1, reward: 150, gems: 3,
-      tip: 'Nursery tab → Pick parents. The parents rest while they raise the egg.' },
-    { text: 'Discover the Waxwing Bee', check: disc('waxwing'), reward: 250, gems: 3 },
-    { text: 'Build the Candle Machine', check: (s) => !!s.machine, reward: 300, gems: 4,
-      tip: 'Shop tab → Candle Machine. Waxwings make Beeswax; the machine turns it into candles.' },
-    { text: 'Make 10 candles', check: (s) => s.stats.candles >= 10, reward: 400, gems: 3,
-      tip: 'Tap the Candle Machine (behind the counter) to have the shopkeeper load wax and unload candles.' },
-    { text: 'Fill a request from the board', check: (s) => s.stats.orders >= 1, reward: 300, gems: 3,
-      tip: 'Townsfolk pin requests on the board outside the shop. Deliver them from the Town tab.' },
+    // Moved up from goal 13 (playtest 3): players reassign their first
+    // helper almost straight away, so the goal teaches it right then.
     // Any helper (not the shopkeeper) assigned to the Collect honey duty.
-    { text: 'Assign a helper to collect honey', check: (s) => Object.values(s.staff).some((x) => x && x.duty === 'collect'), reward: 500, gems: 4,
-      tip: 'Shop tab → Staff. Tap a duty button under a helper to change their job. Collectors bring honey in on their own, even while you are away.' },
-    { text: 'Reach 3 stars of reputation', check: (s) => s.rep >= 3, reward: 500, gems: 4,
+    { text: 'Assign a helper to collect honey', check: (s) => Object.values(s.staff).some((x) => x && x.duty === 'collect'), reward: 100, gems: 2,
+      guide: { tab: 'shop', sel: (s) => `[data-act="setDuty"][data-who="${Object.keys(s.staff)[0]}"][data-duty="collect"]` },
+      tip: 'Shop tab → Staff. Tap "Hives" under your helper. The shopkeeper stays at the register while they bring honey in, even while you are away.' },
+    { text: 'Buy a Clover Bee', check: disc('clover'), reward: 100, gems: 1,
+      guide: { tab: 'apiary', sel: '[data-act="buyBee"][data-sp="clover"]' } },
+    { text: 'Stock two different shelves', check: (s) => new Set(s.shelves.map((x) => x.good).filter(Boolean)).size >= 2, reward: 120, gems: 1,
+      // First build the extra shelf, then tap the empty shelf to fill it.
+      guide: { tab: 'shop', sel: (s) => (s.shelves.length < 2 ? '[data-act="upgrade"][data-id="shelf"]' : '.shelf-tile:has(.shelf-empty)') },
+      tip: 'Build an Extra Shelf in the Shop tab, then tap a shelf to choose what it sells.' },
+    { text: 'Hatch an egg in the Nursery', check: (s) => s.stats.bred >= 1, reward: 150, gems: 2,
+      guide: { tab: 'nursery', sel: '[data-act="hatch"], [data-act="breed"]' },
+      tip: 'Nursery tab → Pick parents. The parents rest while they raise the egg.' },
+    { text: 'Discover the Waxwing Bee', check: disc('waxwing'), reward: 250, gems: 2,
+      guide: { tab: 'nursery', sel: '[data-act="hatch"], [data-act="breed"]' } },
+    { text: 'Build the Candle Machine', check: (s) => !!s.machine, reward: 300, gems: 2,
+      guide: { tab: 'shop', sel: '[data-act="buildMachine"]' },
+      tip: 'Shop tab → Candle Machine. Waxwings make Beeswax; the machine turns it into candles.' },
+    { text: 'Make 10 candles', check: (s) => s.stats.candles >= 10, reward: 400, gems: 2, progress: (s) => [s.stats.candles, 10],
+      guide: { tab: 'shop', sel: '[data-act="tendMachine"]' },
+      tip: 'Tap the Candle Machine (behind the counter) to have the shopkeeper load wax and unload candles.' },
+    { text: 'Fill a request from the board', check: (s) => s.stats.orders >= 1, reward: 300, gems: 2,
+      guide: { tab: 'town', sel: '[data-act="deliver"]' },
+      tip: 'Townsfolk pin requests on the board outside the shop. Deliver them from the Town tab.' },
+    { text: 'Reach 3 stars of reputation', check: (s) => s.rep >= 3, reward: 500, gems: 2, progress: (s) => [Math.floor(s.rep * 10) / 10, 3],
       tip: 'Keep shelves stocked and the line moving. Requests give a big boost.' },
-    { text: 'Buy a decoration from the Store', check: (s) => s.stats.decor >= 1, reward: 200, gems: 5,
+    { text: 'Buy a decoration from the Store', check: (s) => s.stats.decor >= 1, reward: 200, gems: 3,
+      guide: { tab: 'store', sel: '.store-card [data-act="buyItem"]:not(.cant)' },
       tip: 'Store tab. Many decorations come with a small bonus.' },
-    { text: 'Build a third hive', check: (s) => s.hives.length >= 3, reward: 600, gems: 4 },
-    { text: 'Discover the Citrus Bee', check: disc('citrus'), reward: 1000, gems: 4 },
-    { text: 'Upgrade any hive to level 3', check: (s) => s.hives.some((h) => h.level >= 2), reward: 1500, gems: 5 },
-    { text: 'Discover the Lavender Bee', check: disc('lavender'), reward: 3000, gems: 5 },
-    { text: 'Sell 1,000 items', check: (s) => s.stats.sold >= 1000, reward: 5000, gems: 5 },
-    { text: 'Discover the Scout Bee', check: disc('scout'), reward: 6000, gems: 5 },
-    { text: 'Build a fourth hive', check: (s) => s.hives.length >= 4, reward: 8000, gems: 6 },
-    { text: 'Discover the Royal Bee', check: disc('royal'), reward: 15000, gems: 6 },
-    { text: 'Discover the Moonmoth Bee', check: disc('moonmoth'), reward: 30000, gems: 8 },
-    { text: 'Build a fifth hive', check: (s) => s.hives.length >= 5, reward: 40000, gems: 8 },
-    { text: 'Discover the Nurse Bee', check: disc('nurse'), reward: 60000, gems: 8 },
-    { text: 'Discover the Golden Bee', check: disc('golden'), reward: 120000, gems: 10 },
-    { text: 'Reach 4.5 stars of reputation', check: (s) => s.rep >= 4.5, reward: 150000, gems: 10 },
-    { text: 'Hatch a sparkle bee', check: (s) => Object.keys(s.sparkleSeen).length > 0, reward: 250000, gems: 15 },
-    { text: 'Build all six hives', check: (s) => s.hives.length >= 6, reward: 400000, gems: 12 },
-    { text: 'Discover the Crystal Bee', check: disc('crystal'), reward: 800000, gems: 15 },
-    { text: 'Discover the Starlight Bee', check: disc('star'), reward: 3000000, gems: 25 },
-    { text: 'Hold a Honey Festival', check: (s) => s.festivals >= 1, reward: 1000, gems: 30 },
+    { text: 'Build a third hive', check: (s) => s.hives.length >= 3, reward: 600, gems: 2 },
+    { text: 'Discover the Citrus Bee', check: disc('citrus'), reward: 1000, gems: 2 },
+    { text: 'Upgrade any hive to level 3', check: (s) => s.hives.some((h) => h.level >= 2), reward: 1500, gems: 3 },
+    { text: 'Discover the Lavender Bee', check: disc('lavender'), reward: 3000, gems: 3 },
+    { text: 'Sell 1,000 items', check: (s) => s.stats.sold >= 1000, reward: 5000, gems: 2, progress: (s) => [s.stats.sold, 1000] },
+    { text: 'Discover the Scout Bee', check: disc('scout'), reward: 6000, gems: 3 },
+    { text: 'Build a fourth hive', check: (s) => s.hives.length >= 4, reward: 8000, gems: 3 },
+    { text: 'Discover the Royal Bee', check: disc('royal'), reward: 15000, gems: 3 },
+    { text: 'Discover the Moonmoth Bee', check: disc('moonmoth'), reward: 30000, gems: 4 },
+    { text: 'Build a fifth hive', check: (s) => s.hives.length >= 5, reward: 40000, gems: 4 },
+    { text: 'Discover the Nurse Bee', check: disc('nurse'), reward: 60000, gems: 4 },
+    { text: 'Discover the Golden Bee', check: disc('golden'), reward: 120000, gems: 5 },
+    { text: 'Reach 4.5 stars of reputation', check: (s) => s.rep >= 4.5, reward: 150000, gems: 3, progress: (s) => [Math.floor(s.rep * 10) / 10, 4.5] },
+    { text: 'Hatch a sparkle bee', check: (s) => Object.keys(s.sparkleSeen).length > 0, reward: 250000, gems: 8 },
+    { text: 'Build all six hives', check: (s) => s.hives.length >= 6, reward: 400000, gems: 6 },
+    { text: 'Discover the Crystal Bee', check: disc('crystal'), reward: 800000, gems: 8 },
+    { text: 'Discover the Starlight Bee', check: disc('star'), reward: 3000000, gems: 13 },
+    { text: 'Hold a Honey Festival', check: (s) => s.festivals >= 1, reward: 1000, gems: 15 },
   ];
 
   // Discovery goals remember their species so the hint can use its clue.
   for (const g of GOALS) if (g.check.sp) g.sp = g.check.sp;
+
+  // How many goals use the flashing guide. After these, players know their
+  // way around and the goal bar just shows the text.
+  const GUIDED = 15;
 
   // The goal you're currently on (or null once they're all done).
   function current(s) {
@@ -4220,7 +4357,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     return { ok: true, msg: 'Goal complete: +₵' + HC.util.fmt(g.reward) + (g.gems ? ' and ' + g.gems + ' 💎' : '') };
   }
 
-  HC.goals = { GOALS, current, claim };
+  HC.goals = { GOALS, GUIDED, current, claim };
 })();
 
 </script>
@@ -5036,10 +5173,11 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
 
   function drawHives(s, t) {
     const winterNow = f().season(s).id === 'winter';
-    const style = s.cos.equip.hiveStyle || 'hive-classic';
+    const shopStyle = s.cos.equip.hiveStyle || 'hive-classic';
     L.hiveSlots.forEach(([cx, cy], i) => {
       const x = cx * 16, y = cy * 16;
       const h = s.hives[i];
+      const style = (h && h.style) || shopStyle; // a hive can have its own style
       const build = HC.builds.find(s, 'hive', i);
       if (h) {
         const img = spr.hive(h.level, style);
@@ -5581,8 +5719,34 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     rect(ctx, x - 1, y - 1, 1, 2, '#fff4c0');
   }
 
+  // A 7×7 face for reputation changes: yellow smiley or red frown, with a
+  // "+" or "-" beside it. (Playtest 3: the old star looked like a plus.)
+  function drawRepFace(e) {
+    const k = e.t / e.life;
+    const x = Math.round(e.x - 2), y = Math.round(e.y - k * 12);
+    ctx.globalAlpha = k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
+    const face = e.happy ? '#ffd23a' : '#ff7a6a';
+    rect(ctx, x, y + 1, 7, 5, INK); // dark outline
+    rect(ctx, x + 1, y, 5, 7, INK);
+    rect(ctx, x + 1, y + 1, 5, 5, face);
+    rect(ctx, x + 2, y + 2, 1, 1, INK); // eyes
+    rect(ctx, x + 4, y + 2, 1, 1, INK);
+    if (e.happy) {
+      rect(ctx, x + 2, y + 4, 3, 1, INK); // smile: corners up
+      rect(ctx, x + 1, y + 3, 1, 1, INK);
+      rect(ctx, x + 5, y + 3, 1, 1, INK);
+    } else {
+      rect(ctx, x + 2, y + 4, 3, 1, INK); // frown: corners down
+      rect(ctx, x + 1, y + 5, 1, 1, INK);
+      rect(ctx, x + 5, y + 5, 1, 1, INK);
+    }
+    spr.drawText(ctx, e.happy ? '+' : '-', x - 3, y + 1, e.happy ? '#fff08a' : '#ff7a6a');
+    ctx.globalAlpha = 1;
+  }
+
   function drawFx() {
     for (const e of HC.sim.rt.fx) {
+      if (e.kind === 'rep') drawRepFace(e);
       if (e.kind !== 'text') continue;
       const k = e.t / e.life;
       ctx.globalAlpha = k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
@@ -5611,6 +5775,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     drawLighting(s, t);
     drawDrip(t);
     drawFx();
+    drawGuideArrow(t);
   }
 
   // ---------------------------------------------------------------------------
@@ -5689,7 +5854,25 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     return thumbCache[id];
   }
 
-  HC.render = { init, draw, hitTest, lightLevels, decorThumb };
+  // The guide arrow (playtest 3): when an early goal says "tap a hive", a
+  // bouncing arrow points at it. ui.js sets HC.render.guide = { hive: i }.
+  function drawGuideArrow(t) {
+    const g = HC.render.guide;
+    if (!g || g.hive == null || !L.hiveSlots[g.hive]) return;
+    if (Math.floor(t * 2.5) % 3 === 2) return; // slow blink
+    // Beside the hive (the top row of hives is right at the top edge of the
+    // picture, so an arrow above would be cut off), pointing left at it.
+    const [cx, cy] = L.hiveSlots[g.hive];
+    const x = cx * 16 + 20 + Math.round(Math.sin(t * 5) * 2), y = cy * 16 + 4;
+    for (let k = 0; k < 5; k++) {
+      rect(ctx, x + k, y - k - 1, 1, 2 * k + 3, INK); // arrow head outline
+      if (k) rect(ctx, x + k, y - k, 1, 2 * k + 1, '#ffd23a');
+    }
+    rect(ctx, x + 5, y - 3, 7, 7, INK); // shaft
+    rect(ctx, x + 5, y - 2, 6, 5, '#ffd23a');
+  }
+
+  HC.render = { init, draw, hitTest, lightLevels, decorThumb, guide: null };
 })();
 
 </script>
@@ -5904,7 +6087,8 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
   function buildingChip(b) {
     return `<span class="building">${icon('hammer', 12)}<span data-live="${L(() => util.fmtTime(HC.builds.left(S(), b)))}"></span>
       ${bar(() => 1 - HC.builds.left(S(), b) / b.dur, 'mini')}
-      <button class="btn btn-sm btn-gem" data-act="skipBuild" data-id="${b.id}" data-afford="${L(() => S().gems >= f().gemsToSkip(HC.builds.left(S(), b)))}" data-need="Not enough gems.">Finish ${gem()}<span data-live="${L(() => f().gemsToSkip(HC.builds.left(S(), b)))}"></span></button></span>`;
+      <button class="btn btn-sm btn-gem" data-act="skipBuild" data-id="${b.id}" data-afford="${L(() => S().gems >= f().gemsToSkip(HC.builds.left(S(), b)))}" data-need="Not enough gems.">Finish ${gem()}<span data-live="${L(() => f().gemsToSkip(HC.builds.left(S(), b)))}"></span></button>
+      ${b.cost ? `<button class="btn btn-sm" data-act="overtime" data-id="${b.id}" title="Pay the builder overtime to finish now" data-afford="${L(() => S().coins >= HC.builds.overtimeCost(S(), b))}" data-need="Not enough coins for overtime.">Overtime ${coin()}<span data-live="${L(() => fmt(HC.builds.overtimeCost(S(), b)))}"></span></button>` : ''}</span>`;
   }
 
   // ---------------------------------------------------------------------------
@@ -6019,8 +6203,14 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     if (!g) return '<span class="goal-text">Every goal complete. The town is proud of you.</span>';
     const ok = g.check(s);
     const reward = price(g.reward) + (g.gems ? ' ' + gemPrice(g.gems) : '');
+    // Counting goals (sell 1,000 items...) get a filling progress bar.
+    let prog = '';
+    if (g.progress && !ok) {
+      const [have, need] = g.progress(s);
+      prog = `<span class="goal-progress"><span class="bar"><i style="width:${Math.round(util.clamp(have / need, 0, 1) * 100)}%"></i></span><b>${fmt(have)} / ${fmt(need)}</b></span>`;
+    }
     return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span><button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
-      (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${reward}</button>` : `<span class="goal-reward">${reward}</span>`);
+      (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${reward}</button>` : `<span class="goal-reward">${reward}</span>`) + prog;
   }
   // "Open", "Lunch rush!" or "Closed for the night".
   function openHtml() {
@@ -6083,7 +6273,6 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
   panels.apiary = function () {
     const s = S();
     const rates = f().goodRates(s);
-    const style = s.cos.equip.hiveStyle;
     const hiveCards = s.hives.map((h, i) => {
       const cap = f().hiveCap(h);
       const slots = [];
@@ -6096,7 +6285,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
         : '<span class="chip">Max level</span>';
       return `<article class="card hive-card" id="hive-${i}" data-drop-hive="${i}">
         <header class="card-head">
-          <img class="px hive-ico" src="${spr.hiveURL(h.level, style)}" alt="" width="27" height="48">
+          <button class="hive-style-btn" data-act="hiveStyle" data-i="${i}" title="Change this hive's look"><img class="px hive-ico" src="${spr.hiveURL(h.level, h.style || s.cos.equip.hiveStyle)}" alt="" width="27" height="48"><span>Style</span></button>
           <div class="grow"><h3>Hive ${i + 1}</h3><p class="muted">Level ${h.level + 1} · ${h.bees.length}/${cap} bees · ${util.pct(f().hiveMult(s, h))} output</p></div>
           ${upgrade}
         </header>
@@ -6195,7 +6384,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
       const duty = HC.workers.dutyOf(s, st.id);
       staff += `<div class="row-item staff-row">
         <img class="px person" src="${spr.personURL(st.look)}" alt="" width="32" height="40">
-        <div class="grow"><b>${st.name}</b> <span class="chip">${D.duty[duty].name}</span> <span class="muted small">₵${st.wage}/day</span>
+        <div class="grow"><b>${st.name}</b> <span class="chip">${D.duty[duty].name}</span> <span class="muted small">₵${st.wage}/day + ${Math.round(D.WAGE_SHARE * 100)}% of sales</span>
           ${workerNow(st.id)}
           ${dutyButtons(st.id, duty)}
         </div>
@@ -6207,7 +6396,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
       staff += `<div class="row-item staff-row hire-row">
         <img class="px person" src="${spr.personURL(nextHire.look)}" alt="" width="32" height="40">
         <div class="grow"><b>${nextHire.name}</b> <span class="chip">looking for work</span>
-          <p class="muted">Wage ₵${nextHire.wage} each morning. Starts on ${D.duty[nextHire.duty].name}; you can reassign them any time.</p></div>
+          <p class="muted">Wage ₵${nextHire.wage} each morning plus ${Math.round(D.WAGE_SHARE * 100)}% of the day's earnings. Starts on ${D.duty[nextHire.duty].name}; you can reassign them any time.</p></div>
         ${btn(`Hire ${price(nextHire.hire)}`, 'hire', { id: nextHire.id }, { cost: nextHire.hire, cls: 'btn-sm' })}
       </div>`;
     }
@@ -6270,8 +6459,8 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
 
     return `
       <section class="win" id="staff">
-        <div class="win-head"><h2>Staff</h2><span class="muted">${wages ? 'Wages ₵' + fmt(wages) + ' each morning' : 'No helpers yet'}</span></div>
-        <p class="muted small">Give everyone a duty and they get on with it by themselves, even while you're away. Two people on the Register ring customers up faster. If you can't pay the morning wages, someone quits.</p>
+        <div class="win-head"><h2>Staff</h2><span class="muted">${wages ? `Tomorrow's wages about ₵<b data-live="${L(() => fmt(f().wagesDue(S())))}"></b>` : 'No helpers yet'}</span></div>
+        <p class="muted small">Give everyone a duty and they get on with it by themselves, even while you're away. Two people on the Register ring customers up faster. Each helper is paid a base wage every morning <b>plus ${Math.round(D.WAGE_SHARE * 100)}% of what the shop earned the day before</b>, so keep enough coins aside: if you can't pay, someone quits.</p>
         <div class="pills">${cover}</div>
         ${noRegister ? '<p class="warn small">Nobody is on the Register: customers will wait in line and may walk out.</p>' : ''}
         <div class="list">${staff}</div>
@@ -6383,7 +6572,8 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     const look = spr.keeperLook(s);
     const sections = D.STORE_SECTIONS.map((sec) => {
       const items = D.CATALOG.filter((it) => it.cat === sec.cat).map((it) => storeCard(s, it, sec)).join('');
-      return `<h3 class="store-sec">${sec.name}${sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>'}</h3><div class="store-cards">${items}</div>`;
+      const note = sec.cat === 'hiveStyle' ? ' <span class="muted small">(“Use” restyles every hive; to style one hive, tap Style on it in the Apiary tab)</span>' : sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>';
+      return `<h3 class="store-sec">${sec.name}${note}</h3><div class="store-cards">${items}</div>`;
     }).join('');
     return `
       <section class="win">
@@ -6495,7 +6685,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
     return `
       <section class="win">
         <div class="win-head"><h2>Settings</h2>${btn('Back to the game', 'tab', { tab: 'apiary' }, { cls: 'btn-sm btn-ghost' })}</div>
-        <div class="stack">${tog('sfx', 'Sound effects')}${tog('music', 'Music')}</div>
+        <div class="stack">${tog('sfx', 'Sound effects')}${tog('music', 'Music')}${tog('guide', 'Guided goals (flash the next thing to tap for the first goals)')}</div>
       </section>
       <section class="win">
         <div class="win-head"><h2>Save</h2><span class="muted">Saves automatically every few seconds on this device</span></div>
@@ -6645,6 +6835,32 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
           closeModal();
           setTab('apiary');
           requestAnimationFrame(() => $('#market')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+          return true;
+        }
+      },
+    });
+  }
+
+  // Pick a look for one hive from the hive styles you own (playtest 3).
+  function hiveStyleModal(i) {
+    openModal({
+      render: () => {
+        const s = S();
+        const h = s.hives[i];
+        const owned = D.CATALOG.filter((it) => it.cat === 'hiveStyle' && s.cos.owned[it.id]);
+        const current = h.style || null;
+        const cells = [`<button class="pick-row ${!current ? 'selected' : ''}" data-act="pickHiveStyle" data-id=""><img class="px" src="${spr.hiveURL(h.level, s.cos.equip.hiveStyle)}" alt="" width="27" height="48"><b>Same as the rest</b></button>`]
+          .concat(owned.map((it) => `<button class="pick-row ${current === it.id ? 'selected' : ''}" data-act="pickHiveStyle" data-id="${it.id}"><img class="px" src="${spr.hiveURL(h.level, it.id)}" alt="" width="27" height="48"><b>${it.name}</b></button>`));
+        const more = D.CATALOG.filter((it) => it.cat === 'hiveStyle' && !s.cos.owned[it.id]).length;
+        return `<h2>Hive ${i + 1}: style</h2><p class="muted">Give this hive its own look. ${more ? 'More styles are in the Store.' : ''}</p>
+          <div class="style-pick">${cells.join('')}</div>
+          <div class="btn-row end">${btn('Close', 'closeModal', {}, { cls: 'btn-ghost' })}</div>`;
+      },
+      onAct: (act, ds) => {
+        if (act === 'pickHiveStyle') {
+          const r = HC.act.setHiveStyle(i, ds.id || null);
+          closeModal();
+          if (r.ok) toast(r.msg);
           return true;
         }
       },
@@ -6838,7 +7054,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
           ${s.repPrev ? `<h3 class="sub">Day ${s.repPrev.day}</h3>${logRows(s.repPrev)}` : ''}
           <h3 class="sub">How it changes</h3>
           <div class="stats">${rules}</div>
-          <p class="muted small">* A happy customer counts for less the closer you are to 5 stars${decor ? `, and your decorations add +${Math.round(decor * 100)}%` : '. Decorations like String Lights make it count for more'}. Watch the scene: a red star floats up whenever reputation drops.</p>
+          <p class="muted small">* A happy customer counts for less the closer you are to 5 stars${decor ? `, and your decorations add +${Math.round(decor * 100)}%` : '. Decorations like String Lights make it count for more'}. Watch the scene: a smiley face with a + floats up when a customer leaves happy, and a frowny face with a − when reputation drops.</p>
           <div class="btn-row end">${btn('Close', 'closeModal', {}, { cls: 'btn-go' })}</div>`;
       },
     });
@@ -6964,6 +7180,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
       case 'upgradeMachine': r = HC.act.upgradeMachine(); break;
       case 'tendMachine': r = HC.act.tendMachine(); break;
       case 'skipBuild': r = HC.act.skipBuild(ds.id); break;
+      case 'overtime': r = HC.act.overtime(ds.id); break;
       case 'setDuty': r = HC.act.setDuty(ds.who, ds.duty); break;
       case 'rep': return repModal();
       case 'collect': r = HC.act.collect(Number(ds.i)); break;
@@ -6981,6 +7198,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
       case 'bee': return beeModal(ds.id);
       case 'addToHive': return addToHiveModal(Number(ds.i));
       case 'shelf': return shelfModal(Number(ds.i));
+      case 'hiveStyle': return hiveStyleModal(Number(ds.i));
       case 'breed': return breedModal(Number(ds.slot));
       case 'hatch': r = HC.act.hatch(Number(ds.slot)); break;
       case 'skipEgg': r = HC.act.skipEgg(Number(ds.slot)); break;
@@ -7265,6 +7483,47 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
   }
 
   // ---------------------------------------------------------------------------
+  // GUIDED GOALS (playtest 3)
+  // For the first goals, the thing you need to press flashes with a gold ring
+  // and everything else dims (you can still tap anything; the dimming is
+  // just a pointer). If the button is on another tab, the tab flashes first.
+  // Once a goal is done, the Claim button flashes. It can be turned off in
+  // Settings ("Guided goals").
+  // ---------------------------------------------------------------------------
+  let spotEl = null;
+  function guideTarget() {
+    const s = S();
+    HC.render.guide = null;
+    if (modal || s.settings.guide === false || (s.goal || 0) >= HC.goals.GUIDED) return null;
+    const g = HC.goals.current(s);
+    if (!g) return null;
+    if (g.check(s)) return $('#goalbar [data-act="claimGoal"]');
+    const gd = g.guide;
+    if (!gd) return null;
+    if (gd.scene) {
+      HC.render.guide = gd.scene; // the bouncing arrow over the hive
+      return $('.screen');
+    }
+    if (gd.tab && tab !== gd.tab) return el.tabs.querySelector(`[data-tab="${gd.tab}"]`);
+    const sel = typeof gd.sel === 'function' ? gd.sel(s) : gd.sel;
+    return sel ? el.panel.querySelector(sel) : null;
+  }
+  function updateSpotlight() {
+    const target = guideTarget();
+    if (target === spotEl) return;
+    if (spotEl) spotEl.classList.remove('spotlight');
+    spotEl = target;
+    document.body.classList.toggle('guiding', !!target);
+    if (!target) return;
+    target.classList.add('spotlight');
+    // Bring a button in the tab's content into view if it's off screen.
+    if (el.panel.contains(target)) {
+      const r = target.getBoundingClientRect();
+      if (r.top < 0 || r.bottom > window.innerHeight) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // TUTORIAL HINTS: shown once each, the first time their condition is true.
   // ---------------------------------------------------------------------------
   const HINTS = [
@@ -7398,7 +7657,12 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
       toast('Lunch rush! Customers are pouring in.', 'good');
       HC.audio.play('bell');
     });
-    bus.on('nightfall', () => toast('Night falls. The shop closes and the bees go to sleep.'));
+    bus.on('nightfall', () => {
+      toast('Night falls. The shop closes and the bees go to sleep.');
+      // Warn in time if there isn't enough put aside for the morning wages.
+      const due = f().wagesDue(S());
+      if (due > S().coins) toast('Heads up: wages in the morning are about ₵' + fmt(due) + ". Keep enough coins, or someone will quit.", 'bad');
+    });
     bus.on('morning', () => toast('Good morning! The shop is open.', 'good'));
     bus.on('special', (g) => toast("Today's special: " + g.name + ' sells for ' + Math.round((D.EVENTS.special.priceMult - 1) * 100) + '% more.', 'good'));
     bus.on('criticArrived', () => {
@@ -7432,6 +7696,7 @@ body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2
         refreshLive();
         updateBadges();
       }
+      updateSpotlight();
     }, 250);
     setInterval(checkHints, 1000);
     // The keeper's errand list changes often; redraw the strip when it does.

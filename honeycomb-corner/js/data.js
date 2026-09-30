@@ -184,7 +184,9 @@
   // ---------------------------------------------------------------------------
   const UPGRADES = [
     { id: 'shelf', name: 'Extra Shelf', base: 80, growth: 4.2, max: 7, desc: () => 'Adds a shelf for another product.' },
-    { id: 'basket', name: 'Bigger Basket', base: 150, growth: 2.4, max: 10, desc: () => 'Everyone carries 8 more jars per trip.' },
+    // Bigger Basket affects EVERYONE who carries things: the shopkeeper and
+    // every helper (collecting honey, restocking, the candle machine).
+    { id: 'basket', name: 'Bigger Basket', base: 150, growth: 2.4, max: 10, desc: (lv) => 'You and all your helpers carry 8 more jars per trip (now ' + (12 + 8 * lv) + ', next ' + (20 + 8 * lv) + '). Fewer trips for collecting, restocking and the candle machine.' },
     { id: 'samples', name: 'Tasting Samples', base: 120, growth: 2.5, max: 10, desc: () => 'Customers buy 10% more items.' },
     { id: 'sign', name: 'Painted Sign', base: 150, growth: 2.3, max: 20, desc: () => '+15% customer visits.' },
     { id: 'labels', name: 'Fancy Labels', base: 200, growth: 2.15, max: 25, desc: () => '+8% sale prices.' },
@@ -220,25 +222,27 @@
   // below) that you can change at any time in the Shop tab. You can even give
   // the shopkeeper a duty.
   //   hire  one-off fee to take them on
-  //   wage  paid every morning. If you can't pay, the priciest helper quits.
+  //   wage  base pay every morning, PLUS each helper takes a share
+  //         (WAGE_SHARE) of what the shop earned the day before. So wages grow
+  //         as the shop gets richer. If you can't pay, the priciest helper quits.
   //   duty  the duty they start on when hired (you can change it)
   //   look  how they're drawn in the scene
   // ---------------------------------------------------------------------------
   const STAFF = [
     {
-      id: 'rosa', name: 'Rosa', hire: 250, wage: 30, duty: 'register',
+      id: 'rosa', name: 'Rosa', hire: 250, wage: 40, duty: 'register',
       look: { hair: ['#2a2222', '#161010'], skin: ['#e0a878', '#b87c50'], shirt: ['#c84a4a', '#8e2e2e'], hat: null, apron: '#f4ecd8' },
     },
     {
-      id: 'theo', name: 'Theo', hire: 600, wage: 50, duty: 'stock',
+      id: 'theo', name: 'Theo', hire: 600, wage: 80, duty: 'stock',
       look: { hair: ['#e8c060', '#b89040'], skin: ['#f4d4b8', '#d8ac88'], shirt: ['#3a8ab0', '#266080'], hat: 'cap', apron: null },
     },
     {
-      id: 'mabel', name: 'Mabel', hire: 1200, wage: 80, duty: 'collect',
+      id: 'mabel', name: 'Mabel', hire: 1200, wage: 150, duty: 'collect',
       look: { hair: ['#c0502a', '#8a3418'], skin: ['#f8c898', '#d89868'], shirt: ['#7a9a4a', '#56702e'], hat: 'straw', apron: null },
     },
     {
-      id: 'otis', name: 'Otis', hire: 3000, wage: 150, duty: 'candles',
+      id: 'otis', name: 'Otis', hire: 3000, wage: 300, duty: 'candles',
       look: { hair: ['#8a5a8a', '#5e3a5e'], skin: ['#b07850', '#86563a'], shirt: ['#e08a3a', '#a85e22'], hat: null, apron: '#6a4a2a' },
     },
   ];
@@ -291,7 +295,7 @@
   const EVENTS = {
     rush: { from: 0.2, to: 0.3, spawnMult: 0.35 },
     special: { priceMult: 1.3, pickWeight: 4, minGoods: 2 }, // only once you sell 2+ products
-    critic: { chance: 0.6, earliest: 0.08, latest: 0.6, reward: 5 },
+    critic: { chance: 0.6, earliest: 0.08, latest: 0.6, reward: 3 },
   };
 
   // ---------------------------------------------------------------------------
@@ -409,13 +413,15 @@
   // new species and golden drips, and spend them to finish timers early or
   // on special Store items. These are the amounts for each source.
   // ---------------------------------------------------------------------------
+  // Gem rewards were roughly halved after playtest 3 ("too many gems"), so a
+  // timer skip is a real choice rather than something you do every time.
   const GEMS = {
-    start: 15,
-    newSpecies: 5,
-    seasonChange: 3,
-    festival: 50,
-    orderChance: 0.3, orderMin: 1, orderMax: 3,
-    dripChance: 0.15,
+    start: 10,
+    newSpecies: 3,
+    seasonChange: 1,
+    festival: 30,
+    orderChance: 0.15, orderMin: 1, orderMax: 2,
+    dripChance: 0.08,
     secsPerGem: 120, // skipping a timer costs 1 gem per 2 minutes left
     // Extra builders are NOT sold for gems: you get one builder. A second
     // builder is planned as a paid unlock in the full version (see DESIGN.md).
@@ -488,6 +494,7 @@
     duty: byId(DUTIES),
     item: byId(CATALOG),
     DAY_LENGTH: 480, // real seconds in one in-game day (8 minutes)
+    WAGE_SHARE: 0.05, // each helper's cut of yesterday's earnings (5%), on top of their base wage
     SEASON_DAYS: 4,
     OFFLINE_CAP: 8 * 3600, // bees and shop keep going for at most 8h while you're away
     FESTIVAL_AT: 1e7, // coins earned in one run before a Honey Festival is possible

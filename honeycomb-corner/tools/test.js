@@ -209,10 +209,12 @@ test('wages are paid each morning; staff quit if you cannot pay', (HC) => {
   HC.act.hire('rosa');
   HC.act.hire('theo');
   const after = s.coins;
+  s.today = 1000; // the shop earned 1,000 today: each helper also takes 5%
   s.time = (s.lastDay + 1) * HC.data.DAY_LENGTH + 1; // next morning
   advance(HC, 0.1);
-  assert.strictEqual(s.coins, after - 80, 'paid 30 + 50');
-  s.coins = 40;
+  assert.strictEqual(s.coins, after - (40 + 50) - (80 + 50), 'base wages + 5% share each');
+  s.coins = 60;
+  s.today = 0;
   s.time = (s.lastDay + 1) * HC.data.DAY_LENGTH + 1;
   advance(HC, 0.1);
   assert(!s.staff.theo, 'Theo (the pricier helper) quit');
@@ -468,6 +470,27 @@ test('reputation changes are logged by reason', (HC) => {
   assert.strictEqual(items.walkout.n, 2);
   assert(Math.abs(items.walkout.amt + 0.12) < 1e-9);
   assert(Math.abs(items.order.amt - 0.15) < 1e-9);
+});
+
+test('prices are round numbers', (HC) => {
+  const s = HC.game;
+  s.hives.push({ level: 0, bees: [], stock: {} });
+  assert.strictEqual(HC.util.nice(264), 260);
+  for (let i = 0; i < 5; i++) {
+    const c = HC.sim.f.hiveUpgradeCost(s, 1);
+    assert.strictEqual(c, HC.util.nice(c), 'hive upgrade ' + c);
+    s.hives[1].level++;
+  }
+});
+
+test('a hive can have its own style', (HC) => {
+  const s = HC.game;
+  s.cos.owned['hive-skep'] = true;
+  assert(HC.act.setHiveStyle(0, 'hive-skep').ok);
+  assert.strictEqual(s.hives[0].style, 'hive-skep');
+  assert(!HC.act.setHiveStyle(0, 'hive-royal').ok, 'must own it');
+  HC.act.useItem('hive-classic');
+  assert(!s.hives[0].style, 'Store "Use" restyles every hive');
 });
 
 test('there is one builder: a second build waits', (HC) => {

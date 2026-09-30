@@ -114,6 +114,15 @@
       return (neg ? '-' : '') + out;
     },
 
+    // Round a price to a "clean" number so it reads nicely (playtest 3):
+    //   under 100      → nearest 5       (37 → 35)
+    //   100 and above  → two leading digits (264 → 260, 1,375 → 1,400)
+    nice(n) {
+      if (n < 100) return Math.max(5, Math.round(n / 5) * 5);
+      const step = Math.pow(10, Math.floor(Math.log10(n)) - 1);
+      return Math.round(n / step) * step;
+    },
+
     // A shorter format for the tiny pixel font inside the game picture, which
     // only knows digits, '.', and the letters K, M, B and T.
     fmtShort(n) {

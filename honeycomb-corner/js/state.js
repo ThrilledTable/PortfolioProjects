@@ -34,6 +34,8 @@
       time: data.DAY_LENGTH * 0.12, // in-game time of day; starts in the morning
       clock: 0, // seconds the game has been running; timers count against this
       lastDay: 0, // which in-game day wages were last paid for
+      today: 0, // coins earned so far today (helpers get a share each morning)
+      yesterday: 0, // coins earned yesterday
       playTime: 0,
       // Each hive: its upgrade level, the bees living in it, and the honey
       // waiting inside it to be collected (by product, e.g. {wildflower: 7}).
@@ -73,7 +75,7 @@
         collected: 0, candles: 0, decor: 0, skips: 0,
       },
       hints: {}, // tutorial messages already shown
-      settings: { sfx: true, music: false },
+      settings: { sfx: true, music: false, guide: true }, // guide: flash the next thing to tap (early goals)
       keepsake: null,
       goal: 0, // which goal in the goal chain you're on
     };
@@ -148,7 +150,7 @@
     const s = Object.assign(base, loaded);
     s.up = Object.assign({}, newGame().up, loaded.up || {});
     s.stats = Object.assign({}, base.stats, loaded.stats || {});
-    s.settings = Object.assign({ sfx: true, music: false }, loaded.settings || {});
+    s.settings = Object.assign({ sfx: true, music: false, guide: true }, loaded.settings || {});
     s.market = Object.assign({ meadow: 0, clover: 0 }, loaded.market || {});
     if (loaded.gems == null) s.gems = data.GEMS.start;
     if (loaded.clock == null) s.clock = loaded.playTime || 0;

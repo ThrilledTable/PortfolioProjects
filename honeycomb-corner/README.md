@@ -25,7 +25,8 @@ bees fill their hive ─► shopkeeper walks out, collects ─► storehouse ─
 - **Hives fill up.** Each hive holds a limited amount of honey (16 jars, +12 per level). When it's full, its bees stop working until someone collects.
 - **You carry the honey.** Tap a hive and the shopkeeper walks out through the door, down the garden path, scoops the honey, and carries it to the storeroom. They also carry stock from the storeroom to the shelves.
 - **The register needs a person.** Customers can only pay while someone stands at the register. While the shopkeeper is out, the line waits. Customers who wait too long put their items back and walk out, and reputation drops.
-- **Helpers with duties.** Hire up to four helpers (Rosa, Theo, Mabel, Otis) for a daily wage paid each morning (miss a payday and someone quits). Nobody is locked into one job: in **Shop → Staff**, tap a duty button to assign each person, including the shopkeeper:
+- **Guided start.** For the first 15 goals, the button you need flashes with a gold ring and the rest of the page dims (the tab first, if it's on another tab). Counting goals ("Sell 1,000 items") show a progress bar. Turn the guide off in Settings.
+- **Helpers with duties.** Hire up to four helpers (Rosa, Theo, Mabel, Otis). Each is paid a base wage every morning **plus 5% of what the shop earned the day before** (miss a payday and someone quits). Nobody is locked into one job: in **Shop → Staff**, tap a duty button to assign each person, including the shopkeeper:
   - **Register:** stays at the register. Two people on the Register ring up faster. At night, restocks the shelves.
   - **Stock shelves:** keeps the shelves full.
   - **Collect honey:** fetches honey from the hives, including while you're away.
@@ -34,13 +35,15 @@ bees fill their hive ─► shopkeeper walks out, collects ─► storehouse ─
 - **Reputation is explained.** Tap the stars in the status bar for every rule that raises or lowers it, and a log of today's changes by reason. A red star floats up in the scene whenever it drops.
 - **Move bees by dragging.** In the Apiary tab, long-press a bee and drag it onto another hive, onto another bee (they swap), or into the Bee box.
 - **Candles need a machine.** Waxwing Bees make raw Beeswax. The Candle Machine turns it into candles, but someone has to load the wax and carry the candles out.
-- **Everything is built over time.** Upgrades, new hives, hive upgrades and the machine are timed builds: under a minute early on, up to 4 hours late in the game. You have one builder, so one thing at a time. (A second builder is planned as an optional paid unlock in a full release.)
+- **Everything is built over time.** Upgrades, new hives, hive upgrades and the machine are timed builds: under a minute early on, up to 4 hours late in the game. You have one builder, so one thing at a time. Finish early with gems, or pay the builder **overtime** in coins (twice the unfinished share of the build's price). A second builder is planned as an optional paid unlock in a full release.
 - **Gems** are earned in-game only: from goals, requests, new species, seasons, festivals and golden drips. Spend them to finish a timer early or buy special cosmetics.
 - **Nursery:** pair two bees to raise an egg. The parents rest (no honey) until it hatches. There are 12 species and 10 recipes, plus vigor, traits and rare sparkle variants. A pity timer guarantees a recipe after 4 misses.
 - **The town:** townsfolk walk up to the board outside the shop and pin requests, which pay 2.5× market value and sometimes gems. A travelling merchant sometimes parks outside with a rare bee.
 - **Night:** the shop closes, no customers come, and most bees go to sleep (Moonmoths and Night Owls keep working). Whoever is on the Register restocks the shelves for the morning.
 - **Seasons:** each lasts 4 in-game days (32 minutes) and brings one twist, plus its own grass, flowers and weather.
 - **Store:** hats, hair, shirts and aprons for your shopkeeper. Shop and garden decorations that appear in the scene, many with a small bonus. Wallpaper, floors, and hive styles.
+- **Style each hive separately:** tap "Style" on a hive in the Apiary tab. (Choosing a style in the Store restyles every hive.)
+- **Prices are round numbers** (260, not 264).
 - **Hives grow as you upgrade them:** more boxes, a peaked roof, a flower box, then a gold pennant. **Flower Beds** plant visible beds in the garden.
 - **Goals:** a chain of 33 goals that teaches the loop and pays coins and gems.
 - **Honey Festival** (prestige): after ₵10M earned in a run, start fresh for permanent ribbons (+10% sale prices each) and gems. You keep cosmetics, gems, the Field Guide and one keepsake bee.
@@ -52,13 +55,14 @@ These come from `tools/balance.js`, a bot playing the real game. A human will be
 
 | Milestone | Bot time |
 |---|---|
-| First Clover Bee, first helper | about 15–30 min |
-| First five goals done | about 25–34 min |
-| Candle Machine built | about 29–50 min |
-| Third helper (collection hands-off) | about 30–53 min |
-| Lavender | about 65–75 min |
-| Royal | about 2.3–2.6 h |
-| Starlight (last species) | about 3.8–4.0 h |
+| First Clover Bee, first helper | about 15–27 min |
+| First five goals done | about 28–35 min |
+| Candle Machine built | about 21–33 min |
+| Lavender | about 50–77 min |
+| Royal | about 2.1–2.7 h |
+| Starlight (last species) | about 3.5–4.0 h |
+
+The bot also prints how much money sits unspent. After playtest 3 it stays around 2–20% of everything earned (it was 60–80% after the first hour).
 
 ## Design notes
 
@@ -92,7 +96,7 @@ The rules never touch the page; they post events on `HC.bus`. That's why the who
 ## Dev tools
 
 ```bash
-node tools/test.js                    # 34 mechanics tests (Node, no browser)
+node tools/test.js                    # 36 mechanics tests (Node, no browser)
 node tools/balance.js 4 1 5           # simulate 4h, 1 run, bot acting every 5s; prints milestones
 node tools/smoke.js out/              # headless browser: every flow, audio, festival, away report
 node tools/phone-walkthrough.js out/  # tap-only opening minutes at phone size, screenshots

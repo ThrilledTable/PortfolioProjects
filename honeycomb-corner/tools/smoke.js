@@ -58,6 +58,9 @@ const target = process.env.TARGET || 'file://' + path.join(root, 'index.html');
       return !document.querySelector('#textbox').hidden && b.top < a.bottom - 1;
     });
     if (overlap) errors.push('[desktop] the text box covers the scene');
+    // Guided goals: goal 1 flashes the game picture.
+    await page.waitForTimeout(400);
+    if (!(await page.locator('.screen.spotlight').count())) errors.push('[desktop] goal 1 guide spotlight missing');
     await closeAll(page);
 
     // Tap hive 1 in the scene: the keeper should walk out and collect.
@@ -141,6 +144,17 @@ const target = process.env.TARGET || 'file://' + path.join(root, 'index.html');
     const movedTo = await page.evaluate((id) => HC.sim.f.hiveOf(HC.game, id), beeId);
     if (movedTo !== 1) errors.push('[desktop] long-press drag did not move the bee (hive ' + movedTo + ')');
     if (await page.locator('#modal:not([hidden])').count()) errors.push('[desktop] drag also opened the bee details');
+    await closeAll(page);
+
+    // Give hive 2 its own style from the Apiary tab.
+    await page.evaluate(() => { HC.game.cos.owned['hive-skep'] = true; HC.ui.markDirty(); });
+    await page.waitForTimeout(400);
+    await page.click('[data-act="hiveStyle"][data-i="1"]');
+    await page.waitForTimeout(300);
+    await shot(page, 'desktop-hive-style.png');
+    await page.click('#modalBody [data-act="pickHiveStyle"][data-id="hive-skep"]');
+    await page.waitForTimeout(300);
+    if (await page.evaluate(() => HC.game.hives[1].style) !== 'hive-skep') errors.push('[desktop] per-hive style not applied');
     await closeAll(page);
 
     // Reputation window from the status bar.

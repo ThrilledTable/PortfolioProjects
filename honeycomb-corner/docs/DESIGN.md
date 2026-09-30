@@ -38,6 +38,16 @@ Hiring a cashier used to remove the main tension. Now:
 - **A daily rhythm.** Morning: today's special (rearrange shelves). Midday: lunch rush (have shelves full, double up the Register). Some days: a food critic (keep everything stocked). Night: bees sleep and the shop restocks.
 - **Readable reputation.** Every change is logged with its reason, so players know what to fix.
 
+## Economy (playtest 3: "too many gems, too much money")
+
+The bot showed that after about 90 minutes, 60–80% of all coins earned sat unspent. Late upgrades take 20–40 minutes each and there's one builder, so money had nowhere to go. Changes:
+- **Wages scale with success:** base wage + 5% of yesterday's earnings per helper (up to 20% with four helpers). A dusk warning appears if you can't cover the morning wages.
+- **Overtime:** any build can be finished with coins (2× the unfinished share of its price). Spare money buys time instead of piling up, and gems stay scarce.
+- **Fewer gems:** start 10 (was 15), roughly half the gems from goals, species, seasons, requests, drips, the critic and festivals.
+- **Steeper hive upgrades** for later hives and levels.
+
+Result: unspent money stays around 2–20% of earnings, with overall pacing about the same.
+
 ## Balance targets (from `tools/balance.js`)
 
 After the first playtest the loop was deliberately slowed. Honey has to be collected by hand, the register needs a person, upgrades are timed, and the shop closes at night. After the second, most bees also sleep at night, which slowed the early game by roughly a third. An attentive bot now reaches:

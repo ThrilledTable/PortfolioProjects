@@ -306,7 +306,7 @@
           s.stats.customers++;
           s.stats.best = Math.max(s.stats.best, c.total);
           if (c.critic) criticVerdict(s, c, true);
-          else sim().changeRep(s, 'served');
+          else sim().changeRep(s, 'served', 1, c.x, c.y - 26);
           if (f().isSpecial(s, c.bought.good)) sim().changeRep(s, 'special');
           rt().queue.shift();
           c.state = 'exit';
@@ -356,6 +356,7 @@
     const take = Math.min(unitsWanted(s, ctype), sh.qty);
     sh.qty -= take;
     const amt = f().price(s, sh.good, ctype.mult || 1) * take;
+    s.today = (s.today || 0) + amt; // counts towards helpers' share of the day
     s.coins += amt;
     s.lifetime += amt;
     s.runEarned += amt;

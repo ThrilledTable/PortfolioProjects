@@ -254,10 +254,11 @@
 
   function drawHives(s, t) {
     const winterNow = f().season(s).id === 'winter';
-    const style = s.cos.equip.hiveStyle || 'hive-classic';
+    const shopStyle = s.cos.equip.hiveStyle || 'hive-classic';
     L.hiveSlots.forEach(([cx, cy], i) => {
       const x = cx * 16, y = cy * 16;
       const h = s.hives[i];
+      const style = (h && h.style) || shopStyle; // a hive can have its own style
       const build = HC.builds.find(s, 'hive', i);
       if (h) {
         const img = spr.hive(h.level, style);
@@ -799,8 +800,34 @@
     rect(ctx, x - 1, y - 1, 1, 2, '#fff4c0');
   }
 
+  // A 7×7 face for reputation changes: yellow smiley or red frown, with a
+  // "+" or "-" beside it. (Playtest 3: the old star looked like a plus.)
+  function drawRepFace(e) {
+    const k = e.t / e.life;
+    const x = Math.round(e.x - 2), y = Math.round(e.y - k * 12);
+    ctx.globalAlpha = k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
+    const face = e.happy ? '#ffd23a' : '#ff7a6a';
+    rect(ctx, x, y + 1, 7, 5, INK); // dark outline
+    rect(ctx, x + 1, y, 5, 7, INK);
+    rect(ctx, x + 1, y + 1, 5, 5, face);
+    rect(ctx, x + 2, y + 2, 1, 1, INK); // eyes
+    rect(ctx, x + 4, y + 2, 1, 1, INK);
+    if (e.happy) {
+      rect(ctx, x + 2, y + 4, 3, 1, INK); // smile: corners up
+      rect(ctx, x + 1, y + 3, 1, 1, INK);
+      rect(ctx, x + 5, y + 3, 1, 1, INK);
+    } else {
+      rect(ctx, x + 2, y + 4, 3, 1, INK); // frown: corners down
+      rect(ctx, x + 1, y + 5, 1, 1, INK);
+      rect(ctx, x + 5, y + 5, 1, 1, INK);
+    }
+    spr.drawText(ctx, e.happy ? '+' : '-', x - 3, y + 1, e.happy ? '#fff08a' : '#ff7a6a');
+    ctx.globalAlpha = 1;
+  }
+
   function drawFx() {
     for (const e of HC.sim.rt.fx) {
+      if (e.kind === 'rep') drawRepFace(e);
       if (e.kind !== 'text') continue;
       const k = e.t / e.life;
       ctx.globalAlpha = k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
@@ -829,6 +856,7 @@
     drawLighting(s, t);
     drawDrip(t);
     drawFx();
+    drawGuideArrow(t);
   }
 
   // ---------------------------------------------------------------------------
@@ -907,5 +935,23 @@
     return thumbCache[id];
   }
 
-  HC.render = { init, draw, hitTest, lightLevels, decorThumb };
+  // The guide arrow (playtest 3): when an early goal says "tap a hive", a
+  // bouncing arrow points at it. ui.js sets HC.render.guide = { hive: i }.
+  function drawGuideArrow(t) {
+    const g = HC.render.guide;
+    if (!g || g.hive == null || !L.hiveSlots[g.hive]) return;
+    if (Math.floor(t * 2.5) % 3 === 2) return; // slow blink
+    // Beside the hive (the top row of hives is right at the top edge of the
+    // picture, so an arrow above would be cut off), pointing left at it.
+    const [cx, cy] = L.hiveSlots[g.hive];
+    const x = cx * 16 + 20 + Math.round(Math.sin(t * 5) * 2), y = cy * 16 + 4;
+    for (let k = 0; k < 5; k++) {
+      rect(ctx, x + k, y - k - 1, 1, 2 * k + 3, INK); // arrow head outline
+      if (k) rect(ctx, x + k, y - k, 1, 2 * k + 1, '#ffd23a');
+    }
+    rect(ctx, x + 5, y - 3, 7, 7, INK); // shaft
+    rect(ctx, x + 5, y - 2, 6, 5, '#ffd23a');
+  }
+
+  HC.render = { init, draw, hitTest, lightLevels, decorThumb, guide: null };
 })();

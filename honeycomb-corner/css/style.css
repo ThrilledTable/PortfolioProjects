@@ -703,3 +703,36 @@ textarea {
 body.is-dragging { cursor: grabbing; -webkit-user-select: none; user-select: none; }
 body.is-dragging [data-drop-hive], body.is-dragging [data-drop-box] { outline: 2px dashed var(--amber); outline-offset: 2px; }
 .drop-over { outline: 3px solid var(--leaf) !important; outline-offset: 2px; background: #e6f6d8 !important; }
+
+/* ==== Added after playtest 3 =========================================== */
+
+/* GUIDED GOALS: the next thing to tap gets a slowly pulsing gold ring, and a
+   giant soft shadow around it dims the rest of the page. The dimming is only
+   visual; everything can still be tapped. The goal bar and text box stay lit
+   so you can read what to do. */
+.spotlight {
+  position: relative;
+  z-index: 40;
+  border-radius: 6px;
+  animation: spot-pulse 1.4s ease-in-out infinite;
+}
+@keyframes spot-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px #ffd23a, 0 0 0 100vmax rgba(12, 8, 16, 0.55); }
+  50% { box-shadow: 0 0 0 7px #ffd23a, 0 0 0 100vmax rgba(12, 8, 16, 0.55); }
+}
+body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; }
+@media (prefers-reduced-motion: reduce) {
+  .spotlight { animation: none; box-shadow: 0 0 0 5px #ffd23a, 0 0 0 100vmax rgba(12, 8, 16, 0.55); }
+}
+
+/* Goal progress bar ("412 / 1,000"). */
+.goal-progress { flex-basis: 100%; display: flex; align-items: center; gap: 8px; font-size: var(--step--1); font-variant-numeric: tabular-nums; }
+.goal-progress .bar { flex: 1; height: 10px; }
+.goal-progress .bar i { background: #8cd06a; }
+
+/* Per-hive style picker. */
+.style-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.style-pick .pick-row { flex-direction: column; text-align: center; }
+.hive-style-btn { display: grid; justify-items: center; gap: 2px; background: none; border: 2px dashed transparent; border-radius: 6px; padding: 2px 4px; cursor: pointer; font-size: 0.7rem; font-weight: 800; color: var(--ink-soft); }
+.hive-style-btn:hover { border-color: var(--amber); color: var(--ink); }
+.store-sec .muted { text-transform: none; letter-spacing: 0; font-weight: 600; }

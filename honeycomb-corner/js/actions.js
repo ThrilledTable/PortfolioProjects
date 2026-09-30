@@ -262,6 +262,11 @@
       const r = HC.builds.skip(S(), id);
       return r.ok ? done(r.msg, 'discover') : fail(r.msg);
     },
+    // Finish a build now with coins (see "OVERTIME" in builds.js).
+    overtime(id) {
+      const r = HC.builds.overtime(S(), id);
+      return r.ok ? done(r.msg, 'coin') : fail(r.msg);
+    },
     // -------------------------------------------------------------------------
     // STAFF
     // -------------------------------------------------------------------------
@@ -428,8 +433,27 @@
       const section = D.STORE_SECTIONS.find((x) => x.cat === item.cat);
       if (section.pick) s.cos.equip[item.cat] = id;
       else s.cos.placed[id] = quiet ? true : !s.cos.placed[id];
+      // Choosing a hive style in the Store restyles EVERY hive (clearing any
+      // hive's own style). To style one hive, use setHiveStyle below.
+      if (item.cat === 'hiveStyle') s.hives.forEach((h) => delete h.style);
       if (quiet) return { ok: true };
+      if (item.cat === 'hiveStyle') return done('All hives now use ' + item.name + '.', 'click');
       return done(section.pick ? item.name + ' equipped.' : item.name + (s.cos.placed[id] ? ' placed.' : ' put away.'), 'click');
+    },
+    // Give ONE hive its own style (playtest 3). `id` is a hive style you own,
+    // or null to go back to the shop-wide style.
+    setHiveStyle(i, id) {
+      const s = S();
+      const h = s.hives[i];
+      if (!h) return fail('No such hive.');
+      if (!id) {
+        delete h.style;
+        return done('Hive ' + (i + 1) + ' matches the others again.', 'click');
+      }
+      const item = D.item[id];
+      if (!item || item.cat !== 'hiveStyle' || !s.cos.owned[id]) return fail('Buy that style in the Store first.');
+      h.style = id;
+      return done('Hive ' + (i + 1) + ' is now ' + item.name + '.', 'click');
     },
 
     // -------------------------------------------------------------------------

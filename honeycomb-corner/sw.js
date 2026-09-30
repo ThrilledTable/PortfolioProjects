@@ -9,11 +9,11 @@
 // Strategy: answer from the saved copy straight away if there is one, and
 // quietly fetch a fresh copy for next time.
 //
-// IMPORTANT when changing the game: bump the version in CACHE below (v3 → v4)
+// IMPORTANT when changing the game: bump the version in CACHE below (v4 → v5)
 // so phones throw away their old copies and download the new files. Also
 // add any new .js file to the SHELL list.
 // =============================================================================
-const CACHE = 'honeycomb-corner-v3';
+const CACHE = 'honeycomb-corner-v4';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/style.css',
   './js/util.js', './js/data.js', './js/state.js', './js/nav.js', './js/sim.js', './js/builds.js', './js/customers.js',

@@ -24,6 +24,8 @@ function boot() {
   return ctx.HC;
 }
 
+const fmtT = (t) => (t / 60).toFixed(1) + 'm';
+
 function run(hours) {
   const HC = boot();
   const { sim, act, data: D } = HC;
@@ -36,6 +38,10 @@ function run(hours) {
   const mark = (k, t) => { if (!(k in milestones)) milestones[k] = t; };
   const dt = 0.1;
   let t = 0, nextBot = 0;
+  // Economy snapshots: how much money and gems are sitting unspent at set
+  // times. A healthy economy keeps "banked" (unspent / earned) fairly low.
+  const snaps = [];
+  const snapAt = [10, 20, 30, 45, 60, 90, 120, 180, 240].map((m) => m * 60);
 
   function bot() {
     const s = HC.game;
@@ -82,6 +88,9 @@ function run(hours) {
       if (s.staff[id] && s.staff[id].duty !== duty && (duty !== 'candles' || s.machine)) act.setDuty(id, duty);
     });
     if (s.discovered.waxwing && !s.machine) act.buildMachine();
+    // Pay overtime when coins are piling up (more than 3x the overtime price
+    // on top of the wage reserve).
+    for (const b of s.builds) if (s.coins - f.wagesDue(s) * 1.2 > HC.builds.overtimeCost(s, b) * 3) act.overtime(b.id);
     // Use gems only on nearly-finished builds (a thrifty player).
     for (const b of s.builds) if (f.gemsToSkip(HC.builds.left(s, b)) <= 2 && s.gems > 20) act.skipBuild(b.id);
     // Spend: the cheapest useful thing.
@@ -99,7 +108,9 @@ function run(hours) {
       options.push([f.marketPrice(s, 'meadow') * (f.marketUnlocked(s, 'clover') ? 4 : 1), () => act.buyBee('meadow')]);
     }
     options.sort((a, b) => a[0] - b[0]);
-    if (options.length && s.coins >= options[0][0] * 1.25) options[0][1]();
+    // Keep tomorrow's wages aside, like a sensible player.
+    const reserve = f.wagesDue(s) * 1.2;
+    if (options.length && s.coins - reserve >= options[0][0] * 1.25) options[0][1]();
   }
 
   while (t < hours * 3600) {
@@ -115,19 +126,23 @@ function run(hours) {
     mark('hive' + s.hives.length, t);
     for (const st of Object.keys(s.staff)) if (s.staff[st]) mark('hire:' + st, t);
     if (s.machine) mark('machine', t);
+    if (snapAt.length && t >= snapAt[0]) {
+      snapAt.shift();
+      snaps.push(`${fmtT(t).padStart(6)}  coins ${HC.util.fmt(Math.floor(s.coins)).padStart(7)}  earned ${HC.util.fmt(Math.floor(s.lifetime)).padStart(7)}  banked ${Math.round((100 * s.coins) / Math.max(1, s.lifetime))}%  gems ${s.gems}  wages/day ${f.wagesPerDay(s)}`);
+    }
     mark('goal' + s.goal, t);
   }
-  return { milestones, s: HC.game, rate: sim.incomePerMin() };
+  return { milestones, s: HC.game, rate: sim.incomePerMin(), snaps };
 }
 
 const hours = Number(process.argv[2] || 3);
 const runs = Number(process.argv[3] || 1);
-const fmtT = (t) => (t / 60).toFixed(1) + 'm';
 for (let r = 0; r < runs; r++) {
-  const { milestones, s, rate } = run(hours);
+  const { milestones, s, rate, snaps } = run(hours);
   console.log('--- run', r + 1, `(${hours}h, bot every ${BOT_EVERY}s)`);
   const keys = Object.entries(milestones).filter(([k]) => !/^goal/.test(k) || [5, 10, 15, 20, 25, 30].includes(Number(k.slice(4))));
   console.log(keys.sort((a, b) => a[1] - b[1]).map(([k, t]) => `${k.padEnd(16)} ${fmtT(t)}`).join('\n'));
   console.log('coins', Math.floor(s.coins), 'gems', s.gems, 'lifetime', Math.floor(s.lifetime), 'rep', s.rep.toFixed(2), 'income/min', Math.floor(rate), 'goal', s.goal);
   console.log('stats', JSON.stringify(s.stats));
+  console.log('economy:\n' + snaps.join('\n'));
 }

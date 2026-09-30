@@ -72,12 +72,14 @@
     },
     hiveFull: (h) => f.honeyIn(h) >= f.honeyCap(h),
     hiveCost: (s) => D.HIVE_COSTS[s.hives.length],
-    hiveUpgradeCost: (s, i) => Math.ceil(100 * Math.pow(3, s.hives[i].level) * Math.pow(1 + i, 1.4)),
+    // All prices below go through util.nice so they're round numbers.
+    // Steeper for later hives and levels since playtest 3 (money piled up).
+    hiveUpgradeCost: (s, i) => util.nice(100 * Math.pow(3.6, s.hives[i].level) * Math.pow(1 + i, 2)),
 
     // -- Shop -------------------------------------------------------------------
     upgradeCost(s, id) {
       const u = D.upgrade[id];
-      return Math.ceil(u.base * Math.pow(u.growth, s.up[id] || 0));
+      return util.nice(u.base * Math.pow(u.growth, s.up[id] || 0));
     },
     storageCap: (s) => Math.floor(40 * (1 + 0.6 * s.up.storage)), // per product
     shelfCap: () => 6, // items per shelf
@@ -191,14 +193,14 @@
     },
     marketPrice(s, sp) {
       const n = s.market[sp] || 0;
-      return sp === 'meadow' ? Math.ceil(25 * Math.pow(1.2, n)) : Math.ceil(150 * Math.pow(1.22, n));
+      return util.nice(sp === 'meadow' ? 25 * Math.pow(1.2, n) : 150 * Math.pow(1.22, n));
     },
     beeValue: (bee) => 20 * Math.pow(3, D.species[bee.sp].tier) * bee.vigor * (bee.sparkle ? 5 : 1),
-    sellPrice: (bee) => Math.ceil(f.beeValue(bee) * 0.4),
+    sellPrice: (bee) => util.nice(f.beeValue(bee) * 0.4),
 
     // -- Breeding ---------------------------------------------------------------
     maxTier: (a, b) => Math.max(D.species[a.sp].tier, D.species[b.sp].tier),
-    breedCost: (a, b) => Math.ceil(40 * Math.pow(3.4, f.maxTier(a, b))),
+    breedCost: (a, b) => util.nice(40 * Math.pow(3.4, f.maxTier(a, b))),
     breedTime: (a, b) => Math.round(30 * Math.pow(1 + f.maxTier(a, b), 1.6)),
 
     // -- Timers and gems --------------------------------------------------------
@@ -211,12 +213,21 @@
 
     // -- Candle Machine -----------------------------------------------------------
     machineCap: (s) => D.MACHINE.capacity(s.machine ? s.machine.level : 0),
-    machineUpgradeCost: (s) => Math.ceil(D.MACHINE.upgradeBase * Math.pow(D.MACHINE.upgradeGrowth, s.machine ? s.machine.level : 0)),
+    machineUpgradeCost: (s) => util.nice(D.MACHINE.upgradeBase * Math.pow(D.MACHINE.upgradeGrowth, s.machine ? s.machine.level : 0)),
 
     // -- Staff --------------------------------------------------------------------
+    // Base wages for everyone hired.
     wagesPerDay(s) {
       let w = 0;
       for (const id in s.staff) if (s.staff[id] && D.staff[id]) w += D.staff[id].wage;
+      return w;
+    },
+    // One helper's pay for a day: base wage + their share of `earned`.
+    wageOf: (s, id, earned) => D.staff[id].wage + Math.round(D.WAGE_SHARE * earned),
+    // What tomorrow morning's wages will be if today's earnings stay as they are.
+    wagesDue(s) {
+      let w = 0;
+      for (const id in s.staff) if (s.staff[id] && D.staff[id]) w += f.wageOf(s, id, s.today || 0);
       return w;
     },
 
@@ -255,6 +266,7 @@
   // Add coins. If x/y are given, a floating "+amount" appears there.
   function earn(s, amt, x, y) {
     if (amt <= 0) return;
+    s.today = (s.today || 0) + amt; // today's earnings (helpers take a share)
     s.coins += amt;
     s.lifetime += amt;
     s.runEarned += amt;
@@ -288,9 +300,9 @@
     const item = s.repLog.items[key] || (s.repLog.items[key] = { n: 0, amt: 0 });
     item.n++;
     item.amt += real;
-    if (x != null && !rt.silent) {
-      rt.fx.push({ kind: 'text', x, y, text: (real >= 0 ? '+' : '-') + '*', t: 0, life: 1.4, color: real >= 0 ? '#fff08a' : '#ff7a6a' });
-    }
+    // Float a little face over the customer: a smiley with "+" when
+    // reputation went up, a frowny face with "-" when it went down.
+    if (x != null && !rt.silent) rt.fx.push({ kind: 'rep', x, y, happy: amt >= 0, t: 0, life: 1.6 });
     return real;
   }
   // Start a fresh log for a new day, keeping the last one as "yesterday".
@@ -481,7 +493,7 @@
       who: util.pick(D.REQUESTERS),
       good: g.id,
       qty,
-      reward: Math.ceil(qty * f.price(s, g.id) * 2.5),
+      reward: util.nice(qty * f.price(s, g.id) * 2.5),
       gems: Math.random() < D.GEMS.orderChance ? util.randInt(D.GEMS.orderMin, D.GEMS.orderMax) : 0,
       left: util.rand(480, 900), // seconds until it expires
     };
@@ -500,7 +512,7 @@
       sparkle: Math.random() < 0.08,
       trait: Math.random() < 0.5 ? util.pick(Object.keys(D.TRAITS)) : null,
     };
-    offer.price = Math.ceil(f.beeValue(offer) * 6);
+    offer.price = util.nice(f.beeValue(offer) * 6);
     return offer;
   }
 
@@ -621,13 +633,18 @@
     bus.emit('dirty');
   }
 
+  // Each helper gets their base wage plus a share of yesterday's earnings.
   function payWages(s) {
+    const earned = s.today || 0;
+    s.yesterday = earned;
+    s.today = 0;
+    const pay = (id) => f.wageOf(s, id, earned);
     const hired = Object.keys(s.staff).filter((id) => s.staff[id] && D.staff[id]).sort((a, b) => D.staff[b].wage - D.staff[a].wage);
-    let owed = hired.reduce((t, id) => t + D.staff[id].wage, 0);
+    let owed = hired.reduce((t, id) => t + pay(id), 0);
     for (const id of hired) {
       if (s.coins >= owed) break;
       delete s.staff[id];
-      owed -= D.staff[id].wage;
+      owed -= pay(id);
       if (HC.workers) HC.workers.sync(s);
       if (!rt.silent) bus.emit('staffQuit', D.staff[id]);
       bus.emit('dirty');

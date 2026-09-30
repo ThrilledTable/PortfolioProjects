@@ -84,7 +84,8 @@
   function buildingChip(b) {
     return `<span class="building">${icon('hammer', 12)}<span data-live="${L(() => util.fmtTime(HC.builds.left(S(), b)))}"></span>
       ${bar(() => 1 - HC.builds.left(S(), b) / b.dur, 'mini')}
-      <button class="btn btn-sm btn-gem" data-act="skipBuild" data-id="${b.id}" data-afford="${L(() => S().gems >= f().gemsToSkip(HC.builds.left(S(), b)))}" data-need="Not enough gems.">Finish ${gem()}<span data-live="${L(() => f().gemsToSkip(HC.builds.left(S(), b)))}"></span></button></span>`;
+      <button class="btn btn-sm btn-gem" data-act="skipBuild" data-id="${b.id}" data-afford="${L(() => S().gems >= f().gemsToSkip(HC.builds.left(S(), b)))}" data-need="Not enough gems.">Finish ${gem()}<span data-live="${L(() => f().gemsToSkip(HC.builds.left(S(), b)))}"></span></button>
+      ${b.cost ? `<button class="btn btn-sm" data-act="overtime" data-id="${b.id}" title="Pay the builder overtime to finish now" data-afford="${L(() => S().coins >= HC.builds.overtimeCost(S(), b))}" data-need="Not enough coins for overtime.">Overtime ${coin()}<span data-live="${L(() => fmt(HC.builds.overtimeCost(S(), b)))}"></span></button>` : ''}</span>`;
   }
 
   // ---------------------------------------------------------------------------
@@ -199,8 +200,14 @@
     if (!g) return '<span class="goal-text">Every goal complete. The town is proud of you.</span>';
     const ok = g.check(s);
     const reward = price(g.reward) + (g.gems ? ' ' + gemPrice(g.gems) : '');
+    // Counting goals (sell 1,000 items...) get a filling progress bar.
+    let prog = '';
+    if (g.progress && !ok) {
+      const [have, need] = g.progress(s);
+      prog = `<span class="goal-progress"><span class="bar"><i style="width:${Math.round(util.clamp(have / need, 0, 1) * 100)}%"></i></span><b>${fmt(have)} / ${fmt(need)}</b></span>`;
+    }
     return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span><button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
-      (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${reward}</button>` : `<span class="goal-reward">${reward}</span>`);
+      (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${reward}</button>` : `<span class="goal-reward">${reward}</span>`) + prog;
   }
   // "Open", "Lunch rush!" or "Closed for the night".
   function openHtml() {
@@ -263,7 +270,6 @@
   panels.apiary = function () {
     const s = S();
     const rates = f().goodRates(s);
-    const style = s.cos.equip.hiveStyle;
     const hiveCards = s.hives.map((h, i) => {
       const cap = f().hiveCap(h);
       const slots = [];
@@ -276,7 +282,7 @@
         : '<span class="chip">Max level</span>';
       return `<article class="card hive-card" id="hive-${i}" data-drop-hive="${i}">
         <header class="card-head">
-          <img class="px hive-ico" src="${spr.hiveURL(h.level, style)}" alt="" width="27" height="48">
+          <button class="hive-style-btn" data-act="hiveStyle" data-i="${i}" title="Change this hive's look"><img class="px hive-ico" src="${spr.hiveURL(h.level, h.style || s.cos.equip.hiveStyle)}" alt="" width="27" height="48"><span>Style</span></button>
           <div class="grow"><h3>Hive ${i + 1}</h3><p class="muted">Level ${h.level + 1} · ${h.bees.length}/${cap} bees · ${util.pct(f().hiveMult(s, h))} output</p></div>
           ${upgrade}
         </header>
@@ -375,7 +381,7 @@
       const duty = HC.workers.dutyOf(s, st.id);
       staff += `<div class="row-item staff-row">
         <img class="px person" src="${spr.personURL(st.look)}" alt="" width="32" height="40">
-        <div class="grow"><b>${st.name}</b> <span class="chip">${D.duty[duty].name}</span> <span class="muted small">₵${st.wage}/day</span>
+        <div class="grow"><b>${st.name}</b> <span class="chip">${D.duty[duty].name}</span> <span class="muted small">₵${st.wage}/day + ${Math.round(D.WAGE_SHARE * 100)}% of sales</span>
           ${workerNow(st.id)}
           ${dutyButtons(st.id, duty)}
         </div>
@@ -387,7 +393,7 @@
       staff += `<div class="row-item staff-row hire-row">
         <img class="px person" src="${spr.personURL(nextHire.look)}" alt="" width="32" height="40">
         <div class="grow"><b>${nextHire.name}</b> <span class="chip">looking for work</span>
-          <p class="muted">Wage ₵${nextHire.wage} each morning. Starts on ${D.duty[nextHire.duty].name}; you can reassign them any time.</p></div>
+          <p class="muted">Wage ₵${nextHire.wage} each morning plus ${Math.round(D.WAGE_SHARE * 100)}% of the day's earnings. Starts on ${D.duty[nextHire.duty].name}; you can reassign them any time.</p></div>
         ${btn(`Hire ${price(nextHire.hire)}`, 'hire', { id: nextHire.id }, { cost: nextHire.hire, cls: 'btn-sm' })}
       </div>`;
     }
@@ -450,8 +456,8 @@
 
     return `
       <section class="win" id="staff">
-        <div class="win-head"><h2>Staff</h2><span class="muted">${wages ? 'Wages ₵' + fmt(wages) + ' each morning' : 'No helpers yet'}</span></div>
-        <p class="muted small">Give everyone a duty and they get on with it by themselves, even while you're away. Two people on the Register ring customers up faster. If you can't pay the morning wages, someone quits.</p>
+        <div class="win-head"><h2>Staff</h2><span class="muted">${wages ? `Tomorrow's wages about ₵<b data-live="${L(() => fmt(f().wagesDue(S())))}"></b>` : 'No helpers yet'}</span></div>
+        <p class="muted small">Give everyone a duty and they get on with it by themselves, even while you're away. Two people on the Register ring customers up faster. Each helper is paid a base wage every morning <b>plus ${Math.round(D.WAGE_SHARE * 100)}% of what the shop earned the day before</b>, so keep enough coins aside: if you can't pay, someone quits.</p>
         <div class="pills">${cover}</div>
         ${noRegister ? '<p class="warn small">Nobody is on the Register: customers will wait in line and may walk out.</p>' : ''}
         <div class="list">${staff}</div>
@@ -563,7 +569,8 @@
     const look = spr.keeperLook(s);
     const sections = D.STORE_SECTIONS.map((sec) => {
       const items = D.CATALOG.filter((it) => it.cat === sec.cat).map((it) => storeCard(s, it, sec)).join('');
-      return `<h3 class="store-sec">${sec.name}${sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>'}</h3><div class="store-cards">${items}</div>`;
+      const note = sec.cat === 'hiveStyle' ? ' <span class="muted small">(“Use” restyles every hive; to style one hive, tap Style on it in the Apiary tab)</span>' : sec.pick ? '' : ' <span class="muted small">(place as many as you like)</span>';
+      return `<h3 class="store-sec">${sec.name}${note}</h3><div class="store-cards">${items}</div>`;
     }).join('');
     return `
       <section class="win">
@@ -675,7 +682,7 @@
     return `
       <section class="win">
         <div class="win-head"><h2>Settings</h2>${btn('Back to the game', 'tab', { tab: 'apiary' }, { cls: 'btn-sm btn-ghost' })}</div>
-        <div class="stack">${tog('sfx', 'Sound effects')}${tog('music', 'Music')}</div>
+        <div class="stack">${tog('sfx', 'Sound effects')}${tog('music', 'Music')}${tog('guide', 'Guided goals (flash the next thing to tap for the first goals)')}</div>
       </section>
       <section class="win">
         <div class="win-head"><h2>Save</h2><span class="muted">Saves automatically every few seconds on this device</span></div>
@@ -825,6 +832,32 @@
           closeModal();
           setTab('apiary');
           requestAnimationFrame(() => $('#market')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+          return true;
+        }
+      },
+    });
+  }
+
+  // Pick a look for one hive from the hive styles you own (playtest 3).
+  function hiveStyleModal(i) {
+    openModal({
+      render: () => {
+        const s = S();
+        const h = s.hives[i];
+        const owned = D.CATALOG.filter((it) => it.cat === 'hiveStyle' && s.cos.owned[it.id]);
+        const current = h.style || null;
+        const cells = [`<button class="pick-row ${!current ? 'selected' : ''}" data-act="pickHiveStyle" data-id=""><img class="px" src="${spr.hiveURL(h.level, s.cos.equip.hiveStyle)}" alt="" width="27" height="48"><b>Same as the rest</b></button>`]
+          .concat(owned.map((it) => `<button class="pick-row ${current === it.id ? 'selected' : ''}" data-act="pickHiveStyle" data-id="${it.id}"><img class="px" src="${spr.hiveURL(h.level, it.id)}" alt="" width="27" height="48"><b>${it.name}</b></button>`));
+        const more = D.CATALOG.filter((it) => it.cat === 'hiveStyle' && !s.cos.owned[it.id]).length;
+        return `<h2>Hive ${i + 1}: style</h2><p class="muted">Give this hive its own look. ${more ? 'More styles are in the Store.' : ''}</p>
+          <div class="style-pick">${cells.join('')}</div>
+          <div class="btn-row end">${btn('Close', 'closeModal', {}, { cls: 'btn-ghost' })}</div>`;
+      },
+      onAct: (act, ds) => {
+        if (act === 'pickHiveStyle') {
+          const r = HC.act.setHiveStyle(i, ds.id || null);
+          closeModal();
+          if (r.ok) toast(r.msg);
           return true;
         }
       },
@@ -1018,7 +1051,7 @@
           ${s.repPrev ? `<h3 class="sub">Day ${s.repPrev.day}</h3>${logRows(s.repPrev)}` : ''}
           <h3 class="sub">How it changes</h3>
           <div class="stats">${rules}</div>
-          <p class="muted small">* A happy customer counts for less the closer you are to 5 stars${decor ? `, and your decorations add +${Math.round(decor * 100)}%` : '. Decorations like String Lights make it count for more'}. Watch the scene: a red star floats up whenever reputation drops.</p>
+          <p class="muted small">* A happy customer counts for less the closer you are to 5 stars${decor ? `, and your decorations add +${Math.round(decor * 100)}%` : '. Decorations like String Lights make it count for more'}. Watch the scene: a smiley face with a + floats up when a customer leaves happy, and a frowny face with a − when reputation drops.</p>
           <div class="btn-row end">${btn('Close', 'closeModal', {}, { cls: 'btn-go' })}</div>`;
       },
     });
@@ -1144,6 +1177,7 @@
       case 'upgradeMachine': r = HC.act.upgradeMachine(); break;
       case 'tendMachine': r = HC.act.tendMachine(); break;
       case 'skipBuild': r = HC.act.skipBuild(ds.id); break;
+      case 'overtime': r = HC.act.overtime(ds.id); break;
       case 'setDuty': r = HC.act.setDuty(ds.who, ds.duty); break;
       case 'rep': return repModal();
       case 'collect': r = HC.act.collect(Number(ds.i)); break;
@@ -1161,6 +1195,7 @@
       case 'bee': return beeModal(ds.id);
       case 'addToHive': return addToHiveModal(Number(ds.i));
       case 'shelf': return shelfModal(Number(ds.i));
+      case 'hiveStyle': return hiveStyleModal(Number(ds.i));
       case 'breed': return breedModal(Number(ds.slot));
       case 'hatch': r = HC.act.hatch(Number(ds.slot)); break;
       case 'skipEgg': r = HC.act.skipEgg(Number(ds.slot)); break;
@@ -1445,6 +1480,47 @@
   }
 
   // ---------------------------------------------------------------------------
+  // GUIDED GOALS (playtest 3)
+  // For the first goals, the thing you need to press flashes with a gold ring
+  // and everything else dims (you can still tap anything; the dimming is
+  // just a pointer). If the button is on another tab, the tab flashes first.
+  // Once a goal is done, the Claim button flashes. It can be turned off in
+  // Settings ("Guided goals").
+  // ---------------------------------------------------------------------------
+  let spotEl = null;
+  function guideTarget() {
+    const s = S();
+    HC.render.guide = null;
+    if (modal || s.settings.guide === false || (s.goal || 0) >= HC.goals.GUIDED) return null;
+    const g = HC.goals.current(s);
+    if (!g) return null;
+    if (g.check(s)) return $('#goalbar [data-act="claimGoal"]');
+    const gd = g.guide;
+    if (!gd) return null;
+    if (gd.scene) {
+      HC.render.guide = gd.scene; // the bouncing arrow over the hive
+      return $('.screen');
+    }
+    if (gd.tab && tab !== gd.tab) return el.tabs.querySelector(`[data-tab="${gd.tab}"]`);
+    const sel = typeof gd.sel === 'function' ? gd.sel(s) : gd.sel;
+    return sel ? el.panel.querySelector(sel) : null;
+  }
+  function updateSpotlight() {
+    const target = guideTarget();
+    if (target === spotEl) return;
+    if (spotEl) spotEl.classList.remove('spotlight');
+    spotEl = target;
+    document.body.classList.toggle('guiding', !!target);
+    if (!target) return;
+    target.classList.add('spotlight');
+    // Bring a button in the tab's content into view if it's off screen.
+    if (el.panel.contains(target)) {
+      const r = target.getBoundingClientRect();
+      if (r.top < 0 || r.bottom > window.innerHeight) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // TUTORIAL HINTS: shown once each, the first time their condition is true.
   // ---------------------------------------------------------------------------
   const HINTS = [
@@ -1578,7 +1654,12 @@
       toast('Lunch rush! Customers are pouring in.', 'good');
       HC.audio.play('bell');
     });
-    bus.on('nightfall', () => toast('Night falls. The shop closes and the bees go to sleep.'));
+    bus.on('nightfall', () => {
+      toast('Night falls. The shop closes and the bees go to sleep.');
+      // Warn in time if there isn't enough put aside for the morning wages.
+      const due = f().wagesDue(S());
+      if (due > S().coins) toast('Heads up: wages in the morning are about ₵' + fmt(due) + ". Keep enough coins, or someone will quit.", 'bad');
+    });
     bus.on('morning', () => toast('Good morning! The shop is open.', 'good'));
     bus.on('special', (g) => toast("Today's special: " + g.name + ' sells for ' + Math.round((D.EVENTS.special.priceMult - 1) * 100) + '% more.', 'good'));
     bus.on('criticArrived', () => {
@@ -1612,6 +1693,7 @@
         refreshLive();
         updateBadges();
       }
+      updateSpotlight();
     }, 250);
     setInterval(checkHints, 1000);
     // The keeper's errand list changes often; redraw the strip when it does.

@@ -83,6 +83,14 @@ All of these are edits to `js/data.js` unless noted. After a change, run the che
 
 **Change staff wages or hiring fees.** In `STAFF`: `hire` and `wage`. Duties are in `DUTIES` just below.
 
+**Change the helpers' share of earnings.** `WAGE_SHARE` near the bottom of `data.js` (0.05 = 5% each).
+
+**Change the overtime price.** In `js/builds.js`, `overtimeCost`: the `2 *` is the multiplier.
+
+**Change which goals flash a guide.** In `js/goals.js`, each goal's `guide` says which tab and button to flash; `GUIDED` is how many goals use it. `progress` adds a progress bar to a counting goal.
+
+**Change how prices are rounded.** `nice` in `js/util.js`.
+
 **Change reputation rules.** `REP` lists every reason reputation changes and by how much. The Reputation window reads it directly, so the explanation always matches.
 
 **Change the lunch rush, today's special or the food critic.** `EVENTS`: times are fractions of a day (0 = 6am, 0.25 = noon). `spawnMult` 0.35 means customers arrive in 35% of the usual time; `priceMult` 1.3 means +30%.
@@ -111,7 +119,7 @@ All of these are edits to `js/data.js` unless noted. After a change, run the che
 These need Node.js (a free program for running JavaScript outside a browser). Run them from the `honeycomb-corner` folder:
 
 ```bash
-node tools/test.js            # 34 automatic checks of the rules. Should say "34 passed".
+node tools/test.js            # 36 automatic checks of the rules. Should say "36 passed".
 node tools/balance.js 4 1 5   # plays 4 hours with a bot and prints when milestones happen
 node tools/smoke.js out/      # opens the real game in a hidden browser, clicks around, saves screenshots
 python3 tools/build.py        # bundles everything into one file: dist/honeycomb-corner.html
