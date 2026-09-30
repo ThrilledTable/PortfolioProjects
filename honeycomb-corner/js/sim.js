@@ -208,13 +208,17 @@
     // -- Breeding ---------------------------------------------------------------
     maxTier: (a, b) => Math.max(D.species[a.sp].tier, D.species[b.sp].tier),
     breedCost: (a, b) => util.nice(40 * Math.pow(3.4, f.maxTier(a, b))),
-    breedTime: (a, b) => Math.round(30 * Math.pow(1 + f.maxTier(a, b), 1.6)),
+    // Eggs take 1.5× as long as before playtest 5: 45s for Meadow pairs, about
+    // 20 minutes for the rarest.
+    breedTime: (a, b) => Math.round(45 * Math.pow(1 + f.maxTier(a, b), 1.6)),
 
     // -- Timers and gems --------------------------------------------------------
     // How long something that costs `cost` coins takes to build, in seconds.
-    // About 40s for cheap things, a few minutes mid-game, up to 4 hours for
-    // the priciest late-game upgrades.
-    buildTime: (cost) => util.clamp(Math.round(8 * Math.pow(Math.max(1, cost), 0.36)), 20, 4 * 3600),
+    // Made longer after playtest 5 ("timers are too fast"), roughly 2×:
+    //   ₵100 → about 1 min     ₵1,000 → about 3 min    ₵10,000 → about 7 min
+    //   ₵100K → about 16 min   ₵1M → about 38 min      ₵10M → about 1.5 h
+    // Never less than 45 seconds, never more than 8 hours.
+    buildTime: (cost) => util.clamp(Math.round(12 * Math.pow(Math.max(1, cost), 0.38)), 45, 8 * 3600),
     // Gems needed to finish a timer right now: 1 gem per 2 minutes left.
     gemsToSkip: (secsLeft) => Math.max(1, Math.ceil(secsLeft / D.GEMS.secsPerGem)),
 
@@ -285,6 +289,7 @@
   function gainGems(s, n, why) {
     if (n <= 0) return;
     s.gems += n;
+    s.stats.gemsEarned = (s.stats.gemsEarned || 0) + n; // lifetime total (for balancing)
     if (!rt.silent) bus.emit('gems', { n, why });
   }
 

@@ -49,6 +49,8 @@ The bot showed that after about 90 minutes, 60–80% of all coins earned sat uns
 
 Result: unspent money stays around 5–15% of earnings, with overall pacing about the same. (Part of the original 60–80% came from a bug in the balance bot, which stalled whenever its cheapest option needed the busy builder.)
 
+**Gems are rare (playtest 5).** Only milestone goals (every fifth), uncommon-or-rarer species (1–4 by rarity), a good critic review (2), 1-in-20 requests, 1-in-33 drips and festivals (15) pay gems; you start with 5. The bot earns about 10 in its first hour and 25 by hour two, while a 10-minute build costs 5 gems to skip. Timers were roughly doubled at the same time (`12·cost^0.38`, 45 s to 8 h; eggs ×1.5).
+
 **On a paid gem store.** Playtest 4 chose gems as the way to skip long builds, which makes a gem store the likely business model. The risk to watch: the market leader's reviews complain about monetisation pressure. Keep timers generous enough that waiting stays pleasant, never sell gems-only progression, and keep earning gems through play.
 
 ## Balance targets (from `tools/balance.js`)
@@ -64,7 +66,7 @@ After the first playtest the loop was deliberately slowed. Honey has to be colle
 | Starlight (last species) | about 3.8–4.0 h |
 | First festival available (₵10M) | about 3 h |
 
-The intended arc is **hands-on early, automated later**. For roughly the first half hour you walk out to the hives yourself and watch the register. Staff then take the chores over, and the game shifts to breeding, building and decorating. Timer lengths are tuned "medium": about 40 seconds early on, minutes by mid-game, up to 4 hours for the priciest upgrades.
+The intended arc is **hands-on early, automated later**. For roughly the first half hour you walk out to the hives yourself and watch the register. Staff then take the chores over, and the game shifts to breeding, building and decorating. Timers were lengthened after playtest 5: about a minute early on, tens of minutes by mid-game, up to 8 hours at the very top.
 
 ## Roadmap to a store build
 

@@ -35,8 +35,8 @@ bees fill their hive ─► shopkeeper walks out, collects ─► storehouse ─
 - **Reputation is explained.** Tap the stars in the status bar for every rule that raises or lowers it, and a log of today's changes by reason. A red star floats up in the scene whenever it drops.
 - **Move bees by dragging.** In the Apiary tab, long-press a bee and drag it onto another hive, onto another bee (they swap), or into the Bee box.
 - **Candles need a machine.** Waxwing Bees make raw Beeswax. The Candle Machine turns it into candles, but someone has to load the wax and carry the candles out.
-- **Everything is built over time.** Upgrades, new hives, hive upgrades and the machine are timed builds: under a minute early on, up to 4 hours late in the game. You have one builder, so one thing at a time. Only gems can finish a build early; coins never can. A second builder is planned as an optional paid unlock in a full release.
-- **Gems** are earned in-game only: from goals, requests, new species, seasons, festivals and golden drips. Spend them to finish a timer early or buy special cosmetics.
+- **Everything is built over time.** Upgrades, new hives, hive upgrades and the machine are timed builds: about a minute early on, around 40 minutes for ₵1M upgrades, up to 8 hours at the very top. You have one builder, so one thing at a time. Only gems can finish a build early; coins never can. A second builder is planned as an optional paid unlock in a full release.
+- **Gems are rare** and earned in-game only, at notable moments: milestone goals (every fifth goal), discovering an uncommon-or-rarer species, a glowing food-critic review, the odd request or golden drip, and festivals. Each one gets a little celebration. Spend them to finish a timer early or buy special cosmetics. Expect roughly 10 in the first hour.
 - **Nursery:** pair two bees to raise an egg. The parents rest (no honey) until it hatches. There are 12 species and 10 recipes, plus vigor, traits and rare sparkle variants. A pity timer guarantees a recipe after 4 misses.
 - **The town:** townsfolk walk up to the board outside the shop and pin requests, which pay 2.5× market value and sometimes gems. A travelling merchant sometimes parks outside with a rare bee.
 - **Night:** the shop closes, no customers come, and most bees go to sleep (Moonmoths and Night Owls keep working). Whoever is on the Register restocks the shelves for the morning.
@@ -58,12 +58,13 @@ These come from `tools/balance.js`, a bot playing the real game. A human will be
 
 | Milestone | Bot time |
 |---|---|
-| First Clover Bee, first helper | about 15–27 min |
-| First five goals done | about 28–35 min |
-| Candle Machine built | about 22–27 min |
-| Lavender | about 50–77 min |
-| Royal | about 2.1–2.7 h |
-| Starlight (last species) | about 3.5–4.0 h |
+| First Clover Bee, first helper | about 15–18 min |
+| First five goals done | about 25–45 min |
+| Candle Machine built | about 37–40 min |
+| Lavender | about 68–81 min |
+| Royal | about 3.1 h |
+| Starlight (last species) | beyond 4 h |
+| Gems earned | about 10 in hour 1, about 25 by hour 2 |
 
 The bot also prints how much money sits unspent. With training and seasonal specials to buy, it stays around 5–15% of everything earned.
 

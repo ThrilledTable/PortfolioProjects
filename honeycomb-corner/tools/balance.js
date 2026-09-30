@@ -133,7 +133,7 @@ function run(hours) {
     if (s.machine) mark('machine', t);
     if (snapAt.length && t >= snapAt[0]) {
       snapAt.shift();
-      snaps.push(`${fmtT(t).padStart(6)}  coins ${HC.util.fmt(Math.floor(s.coins)).padStart(7)}  earned ${HC.util.fmt(Math.floor(s.lifetime)).padStart(7)}  banked ${Math.round((100 * s.coins) / Math.max(1, s.lifetime))}%  gems ${s.gems}  wages/day ${f.wagesPerDay(s)}`);
+      snaps.push(`${fmtT(t).padStart(6)}  coins ${HC.util.fmt(Math.floor(s.coins)).padStart(7)}  earned ${HC.util.fmt(Math.floor(s.lifetime)).padStart(7)}  banked ${Math.round((100 * s.coins) / Math.max(1, s.lifetime))}%  gems ${s.gems} (earned ${s.stats.gemsEarned || 0})  wages/day ${f.wagesPerDay(s)}`);
     }
     mark('goal' + s.goal, t);
   }

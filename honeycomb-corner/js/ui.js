@@ -205,7 +205,8 @@
       const [have, need] = g.progress(s);
       prog = `<span class="goal-progress"><span class="bar"><i style="width:${Math.round(util.clamp(have / need, 0, 1) * 100)}%"></i></span><b>${fmt(have)} / ${fmt(need)}</b></span>`;
     }
-    return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span><button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
+    // Milestone goals (the only ones that pay gems) get a small gem badge.
+    return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span>${g.milestone ? '<span class="chip chip-gem">Milestone</span>' : ''}<button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
       (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${reward}</button>` : `<span class="goal-reward">${reward}</span>`) + prog;
   }
   // "Open", "Lunch rush!" or "Closed for the night".
@@ -1002,7 +1003,7 @@
           ${beeImg(bee.sp, bee.sparkle, 128, 'pop')}
           <h2>${esc(bee.name)} the ${sp.name}</h2>
           <p>${rarityChip(sp.rarity)} ${bee.sparkle ? '<span class="chip chip-sparkle">Sparkle</span>' : ''} vigor ${util.pct(bee.vigor)}${bee.trait ? ' · ' + D.TRAITS[bee.trait].name : ''}</p>
-          ${isNew ? `<p class="muted">${sp.flavor}</p><p>${good.raw ? `Makes <b>${good.name}</b>, which the Candle Machine turns into candles.` : `Makes <b>${good.name}</b>, sold at ₵${fmt(f().price(S(), sp.good))} each.`} You earned ${gemPrice(D.GEMS.newSpecies)} for the discovery.</p>` : ''}
+          ${isNew ? `<p class="muted">${sp.flavor}</p><p>${good.raw ? `Makes <b>${good.name}</b>, which the Candle Machine turns into candles.` : `Makes <b>${good.name}</b>, sold at ₵${fmt(f().price(S(), sp.good))} each.`}${D.GEMS.newSpecies[sp.rarity] ? ` A ${sp.rarity.toLowerCase()} find: you earned ${gemPrice(D.GEMS.newSpecies[sp.rarity])}!` : ''}</p>` : ''}
         </div>
         <div class="btn-row center">${btn('Meet them', 'viewBee', { id: bee.id })}${btn('Lovely', 'closeModal', {}, { cls: 'btn-go' })}</div>`,
       onAct: (act, ds) => {
@@ -1652,7 +1653,17 @@
       toast('A travelling merchant parked outside!', 'good');
       HC.audio.play('bell');
     });
-    bus.on('gems', (e) => toast('+' + e.n + ' 💎 from ' + e.why + '!', 'good'));
+    // Gems are rare, so earning one gets a moment: a big gem pops up in the
+    // middle of the screen with a chime, then floats away.
+    bus.on('gems', (e) => {
+      const b = document.createElement('div');
+      b.className = 'gem-burst';
+      b.setAttribute('role', 'status');
+      b.innerHTML = `${icon('gem', 48)}<b>+${e.n} gem${e.n > 1 ? 's' : ''}</b><span>for ${esc(e.why)}</span>`;
+      document.body.appendChild(b);
+      setTimeout(() => b.remove(), 2800);
+      HC.audio.play('discover');
+    });
     bus.on('built', (b) => {
       toast(b.label + ' is finished!', 'good');
       HC.audio.play('bell');

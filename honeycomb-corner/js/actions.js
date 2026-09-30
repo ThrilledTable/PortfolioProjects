@@ -52,9 +52,11 @@
     const s = S();
     return s.hives.some((h) => h.bees.length < f().hiveCap(h)) || s.box.length < f().boxCap(s);
   }
-  // First time you get a species: a few gems.
-  function newSpeciesReward(isNew) {
-    if (isNew) HC.sim.gainGems(S(), D.GEMS.newSpecies, 'a new species');
+  // First time you get a species: gems, more for rarer species (none for
+  // Common ones). See GEMS.newSpecies in data.js.
+  function newSpeciesReward(isNew, sp) {
+    const n = isNew ? D.GEMS.newSpecies[D.species[sp].rarity] || 0 : 0;
+    if (n) HC.sim.gainGems(S(), n, 'discovering the ' + D.species[sp].name);
   }
 
   const act = {
@@ -71,7 +73,7 @@
       const isNew = !s.discovered[sp];
       const bee = HC.state.makeBee(s, sp);
       const where = placeBee(bee);
-      newSpeciesReward(isNew);
+      newSpeciesReward(isNew, bee.sp);
       bus.emit('newBee', { bee, isNew, source: 'market' });
       return done(bee.name + ' the ' + D.species[sp].name + ' joined your ' + (where === 'hive' ? 'hive' : 'bee box') + '.');
     },
@@ -364,7 +366,7 @@
       placeBee(bee);
       s.nursery[slot] = null;
       s.stats.bred++;
-      newSpeciesReward(isNew);
+      newSpeciesReward(isNew, bee.sp);
       bus.emit('newBee', { bee, isNew, newSparkle, source: 'nursery' });
       return done(null, 'hatch');
     },
@@ -408,7 +410,7 @@
       const bee = HC.state.makeBee(s, o.sp, o);
       placeBee(bee);
       s.merchant = null;
-      newSpeciesReward(isNew);
+      newSpeciesReward(isNew, bee.sp);
       bus.emit('newBee', { bee, isNew, newSparkle, source: 'merchant' });
       return done(null, 'hatch');
     },

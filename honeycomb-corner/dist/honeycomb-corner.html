@@ -757,6 +757,29 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
 .hive-style-btn { display: grid; justify-items: center; gap: 2px; background: none; border: 2px dashed transparent; border-radius: 6px; padding: 2px 4px; cursor: pointer; font-size: 0.7rem; font-weight: 800; color: var(--ink-soft); }
 .hive-style-btn:hover { border-color: var(--amber); color: var(--ink); }
 .store-sec .muted { text-transform: none; letter-spacing: 0; font-weight: 600; }
+/* GEM CELEBRATION (playtest 5): gems are rare, so earning one pops a big
+   gem up in the middle of the screen, which then floats away. */
+.gem-burst {
+  position: fixed; left: 50%; top: 38%; z-index: 80; pointer-events: none;
+  display: grid; justify-items: center; gap: 2px;
+  background: var(--parch); color: var(--ink); border: 3px solid var(--ink); border-radius: 10px;
+  box-shadow: inset 0 0 0 2px var(--gem), 0 8px 0 rgba(0, 0, 0, 0.35);
+  padding: 10px 18px; text-align: center;
+  animation: gem-pop 2.8s ease-out forwards;
+}
+.gem-burst img { width: 48px; height: 48px; image-rendering: pixelated; }
+.gem-burst b { font-size: 1.3rem; color: #1a7aa0; }
+.gem-burst span { font-size: 0.85rem; color: var(--ink-soft); }
+@keyframes gem-pop {
+  0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+  12% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; }
+  20% { transform: translate(-50%, -50%) scale(1); }
+  75% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -110%) scale(0.9); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .gem-burst { animation: none; transform: translate(-50%, -50%); } }
+.chip-gem { background: #bfe8f8; }
+
 /* Helper training buttons (playtest 4). */
 .train-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 
@@ -1327,7 +1350,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
   const EVENTS = {
     rush: { from: 0.2, to: 0.3, spawnMult: 0.35 },
     special: { priceMult: 1.3, pickWeight: 4, minGoods: 2 }, // only once you sell 2+ products
-    critic: { chance: 0.6, earliest: 0.08, latest: 0.6, reward: 3 },
+    critic: { chance: 0.6, earliest: 0.08, latest: 0.6, reward: 2 },
   };
 
   // ---------------------------------------------------------------------------
@@ -1465,15 +1488,22 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
   // new species and golden drips, and spend them to finish timers early or
   // on special Store items. These are the amounts for each source.
   // ---------------------------------------------------------------------------
-  // Gem rewards were roughly halved after playtest 3 ("too many gems"), so a
-  // timer skip is a real choice rather than something you do every time.
+  // Gems are RARE on purpose (playtest 5: "tough but rewarding"). You still
+  // earn them by playing, but only at notable moments:
+  //   - milestone goals (every fifth goal; see goals.js)
+  //   - discovering an uncommon-or-rarer species (rarer = more gems)
+  //   - a glowing review from the food critic
+  //   - the odd request (1 in 20) or golden drip (1 in 33)
+  //   - holding a Honey Festival
+  // Seasons no longer give gems. Earning one gets a little celebration (ui.js).
   const GEMS = {
-    start: 10,
-    newSpecies: 3,
-    seasonChange: 1,
-    festival: 30,
-    orderChance: 0.15, orderMin: 1, orderMax: 2,
-    dripChance: 0.08,
+    start: 5,
+    // Gems for discovering a species, by its rarity.
+    newSpecies: { Common: 0, Uncommon: 1, Rare: 2, Epic: 3, Legendary: 4 },
+    seasonChange: 0,
+    festival: 15,
+    orderChance: 0.05, orderMin: 1, orderMax: 1,
+    dripChance: 0.03,
     secsPerGem: 120, // skipping a timer costs 1 gem per 2 minutes left
     // Extra builders are NOT sold for gems: you get one builder. A second
     // builder is planned as a paid unlock in the full version (see DESIGN.md).
@@ -2195,13 +2225,17 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     // -- Breeding ---------------------------------------------------------------
     maxTier: (a, b) => Math.max(D.species[a.sp].tier, D.species[b.sp].tier),
     breedCost: (a, b) => util.nice(40 * Math.pow(3.4, f.maxTier(a, b))),
-    breedTime: (a, b) => Math.round(30 * Math.pow(1 + f.maxTier(a, b), 1.6)),
+    // Eggs take 1.5× as long as before playtest 5: 45s for Meadow pairs, about
+    // 20 minutes for the rarest.
+    breedTime: (a, b) => Math.round(45 * Math.pow(1 + f.maxTier(a, b), 1.6)),
 
     // -- Timers and gems --------------------------------------------------------
     // How long something that costs `cost` coins takes to build, in seconds.
-    // About 40s for cheap things, a few minutes mid-game, up to 4 hours for
-    // the priciest late-game upgrades.
-    buildTime: (cost) => util.clamp(Math.round(8 * Math.pow(Math.max(1, cost), 0.36)), 20, 4 * 3600),
+    // Made longer after playtest 5 ("timers are too fast"), roughly 2×:
+    //   ₵100 → about 1 min     ₵1,000 → about 3 min    ₵10,000 → about 7 min
+    //   ₵100K → about 16 min   ₵1M → about 38 min      ₵10M → about 1.5 h
+    // Never less than 45 seconds, never more than 8 hours.
+    buildTime: (cost) => util.clamp(Math.round(12 * Math.pow(Math.max(1, cost), 0.38)), 45, 8 * 3600),
     // Gems needed to finish a timer right now: 1 gem per 2 minutes left.
     gemsToSkip: (secsLeft) => Math.max(1, Math.ceil(secsLeft / D.GEMS.secsPerGem)),
 
@@ -2272,6 +2306,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
   function gainGems(s, n, why) {
     if (n <= 0) return;
     s.gems += n;
+    s.stats.gemsEarned = (s.stats.gemsEarned || 0) + n; // lifetime total (for balancing)
     if (!rt.silent) bus.emit('gems', { n, why });
   }
 
@@ -3801,9 +3836,11 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     const s = S();
     return s.hives.some((h) => h.bees.length < f().hiveCap(h)) || s.box.length < f().boxCap(s);
   }
-  // First time you get a species: a few gems.
-  function newSpeciesReward(isNew) {
-    if (isNew) HC.sim.gainGems(S(), D.GEMS.newSpecies, 'a new species');
+  // First time you get a species: gems, more for rarer species (none for
+  // Common ones). See GEMS.newSpecies in data.js.
+  function newSpeciesReward(isNew, sp) {
+    const n = isNew ? D.GEMS.newSpecies[D.species[sp].rarity] || 0 : 0;
+    if (n) HC.sim.gainGems(S(), n, 'discovering the ' + D.species[sp].name);
   }
 
   const act = {
@@ -3820,7 +3857,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       const isNew = !s.discovered[sp];
       const bee = HC.state.makeBee(s, sp);
       const where = placeBee(bee);
-      newSpeciesReward(isNew);
+      newSpeciesReward(isNew, bee.sp);
       bus.emit('newBee', { bee, isNew, source: 'market' });
       return done(bee.name + ' the ' + D.species[sp].name + ' joined your ' + (where === 'hive' ? 'hive' : 'bee box') + '.');
     },
@@ -4113,7 +4150,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       placeBee(bee);
       s.nursery[slot] = null;
       s.stats.bred++;
-      newSpeciesReward(isNew);
+      newSpeciesReward(isNew, bee.sp);
       bus.emit('newBee', { bee, isNew, newSparkle, source: 'nursery' });
       return done(null, 'hatch');
     },
@@ -4157,7 +4194,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       const bee = HC.state.makeBee(s, o.sp, o);
       placeBee(bee);
       s.merchant = null;
-      newSpeciesReward(isNew);
+      newSpeciesReward(isNew, bee.sp);
       bus.emit('newBee', { bee, isNew, newSparkle, source: 'merchant' });
       return done(null, 'hatch');
     },
@@ -4360,6 +4397,15 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     { text: 'Hold a Honey Festival', check: (s) => s.festivals >= 1, reward: 1000, gems: 15 },
   ];
 
+  // GEMS FROM GOALS (playtest 5): only MILESTONE goals pay gems now, so each
+  // gem feels earned. Goal number → gems. Every other goal pays coins only
+  // (this overrides the `gems` written on each goal above).
+  const MILESTONE_GEMS = { 5: 2, 10: 3, 15: 3, 20: 4, 25: 4, 30: 5, 33: 8 };
+  GOALS.forEach((g, i) => {
+    g.gems = MILESTONE_GEMS[i + 1] || 0;
+    g.milestone = !!g.gems;
+  });
+
   // Discovery goals remember their species so the hint can use its clue.
   for (const g of GOALS) if (g.check.sp) g.sp = g.check.sp;
 
@@ -4379,7 +4425,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     if (!g || !g.check(s)) return { ok: false };
     s.goal = (s.goal || 0) + 1;
     HC.sim.earn(s, g.reward);
-    if (g.gems) s.gems += g.gems;
+    if (g.gems) HC.sim.gainGems(s, g.gems, 'a milestone goal'); // celebrated in ui.js
     bus.emit('sfx', 'order');
     bus.emit('goalClaimed', g);
     bus.emit('dirty');
@@ -6294,7 +6340,8 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       const [have, need] = g.progress(s);
       prog = `<span class="goal-progress"><span class="bar"><i style="width:${Math.round(util.clamp(have / need, 0, 1) * 100)}%"></i></span><b>${fmt(have)} / ${fmt(need)}</b></span>`;
     }
-    return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span><button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
+    // Milestone goals (the only ones that pay gems) get a small gem badge.
+    return `<span class="goal-label">Goal ${(s.goal || 0) + 1}</span>${g.milestone ? '<span class="chip chip-gem">Milestone</span>' : ''}<button class="goal-text" data-act="goalHint" title="Show a hint">${g.text}</button>` +
       (ok ? `<button class="btn btn-sm btn-go" data-act="claimGoal">Claim ${reward}</button>` : `<span class="goal-reward">${reward}</span>`) + prog;
   }
   // "Open", "Lunch rush!" or "Closed for the night".
@@ -7091,7 +7138,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
           ${beeImg(bee.sp, bee.sparkle, 128, 'pop')}
           <h2>${esc(bee.name)} the ${sp.name}</h2>
           <p>${rarityChip(sp.rarity)} ${bee.sparkle ? '<span class="chip chip-sparkle">Sparkle</span>' : ''} vigor ${util.pct(bee.vigor)}${bee.trait ? ' · ' + D.TRAITS[bee.trait].name : ''}</p>
-          ${isNew ? `<p class="muted">${sp.flavor}</p><p>${good.raw ? `Makes <b>${good.name}</b>, which the Candle Machine turns into candles.` : `Makes <b>${good.name}</b>, sold at ₵${fmt(f().price(S(), sp.good))} each.`} You earned ${gemPrice(D.GEMS.newSpecies)} for the discovery.</p>` : ''}
+          ${isNew ? `<p class="muted">${sp.flavor}</p><p>${good.raw ? `Makes <b>${good.name}</b>, which the Candle Machine turns into candles.` : `Makes <b>${good.name}</b>, sold at ₵${fmt(f().price(S(), sp.good))} each.`}${D.GEMS.newSpecies[sp.rarity] ? ` A ${sp.rarity.toLowerCase()} find: you earned ${gemPrice(D.GEMS.newSpecies[sp.rarity])}!` : ''}</p>` : ''}
         </div>
         <div class="btn-row center">${btn('Meet them', 'viewBee', { id: bee.id })}${btn('Lovely', 'closeModal', {}, { cls: 'btn-go' })}</div>`,
       onAct: (act, ds) => {
@@ -7741,7 +7788,17 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       toast('A travelling merchant parked outside!', 'good');
       HC.audio.play('bell');
     });
-    bus.on('gems', (e) => toast('+' + e.n + ' 💎 from ' + e.why + '!', 'good'));
+    // Gems are rare, so earning one gets a moment: a big gem pops up in the
+    // middle of the screen with a chime, then floats away.
+    bus.on('gems', (e) => {
+      const b = document.createElement('div');
+      b.className = 'gem-burst';
+      b.setAttribute('role', 'status');
+      b.innerHTML = `${icon('gem', 48)}<b>+${e.n} gem${e.n > 1 ? 's' : ''}</b><span>for ${esc(e.why)}</span>`;
+      document.body.appendChild(b);
+      setTimeout(() => b.remove(), 2800);
+      HC.audio.play('discover');
+    });
     bus.on('built', (b) => {
       toast(b.label + ' is finished!', 'good');
       HC.audio.play('bell');

@@ -97,6 +97,15 @@
     { text: 'Hold a Honey Festival', check: (s) => s.festivals >= 1, reward: 1000, gems: 15 },
   ];
 
+  // GEMS FROM GOALS (playtest 5): only MILESTONE goals pay gems now, so each
+  // gem feels earned. Goal number → gems. Every other goal pays coins only
+  // (this overrides the `gems` written on each goal above).
+  const MILESTONE_GEMS = { 5: 2, 10: 3, 15: 3, 20: 4, 25: 4, 30: 5, 33: 8 };
+  GOALS.forEach((g, i) => {
+    g.gems = MILESTONE_GEMS[i + 1] || 0;
+    g.milestone = !!g.gems;
+  });
+
   // Discovery goals remember their species so the hint can use its clue.
   for (const g of GOALS) if (g.check.sp) g.sp = g.check.sp;
 
@@ -116,7 +125,7 @@
     if (!g || !g.check(s)) return { ok: false };
     s.goal = (s.goal || 0) + 1;
     HC.sim.earn(s, g.reward);
-    if (g.gems) s.gems += g.gems;
+    if (g.gems) HC.sim.gainGems(s, g.gems, 'a milestone goal'); // celebrated in ui.js
     bus.emit('sfx', 'order');
     bus.emit('goalClaimed', g);
     bus.emit('dirty');

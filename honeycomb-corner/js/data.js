@@ -298,7 +298,7 @@
   const EVENTS = {
     rush: { from: 0.2, to: 0.3, spawnMult: 0.35 },
     special: { priceMult: 1.3, pickWeight: 4, minGoods: 2 }, // only once you sell 2+ products
-    critic: { chance: 0.6, earliest: 0.08, latest: 0.6, reward: 3 },
+    critic: { chance: 0.6, earliest: 0.08, latest: 0.6, reward: 2 },
   };
 
   // ---------------------------------------------------------------------------
@@ -436,15 +436,22 @@
   // new species and golden drips, and spend them to finish timers early or
   // on special Store items. These are the amounts for each source.
   // ---------------------------------------------------------------------------
-  // Gem rewards were roughly halved after playtest 3 ("too many gems"), so a
-  // timer skip is a real choice rather than something you do every time.
+  // Gems are RARE on purpose (playtest 5: "tough but rewarding"). You still
+  // earn them by playing, but only at notable moments:
+  //   - milestone goals (every fifth goal; see goals.js)
+  //   - discovering an uncommon-or-rarer species (rarer = more gems)
+  //   - a glowing review from the food critic
+  //   - the odd request (1 in 20) or golden drip (1 in 33)
+  //   - holding a Honey Festival
+  // Seasons no longer give gems. Earning one gets a little celebration (ui.js).
   const GEMS = {
-    start: 10,
-    newSpecies: 3,
-    seasonChange: 1,
-    festival: 30,
-    orderChance: 0.15, orderMin: 1, orderMax: 2,
-    dripChance: 0.08,
+    start: 5,
+    // Gems for discovering a species, by its rarity.
+    newSpecies: { Common: 0, Uncommon: 1, Rare: 2, Epic: 3, Legendary: 4 },
+    seasonChange: 0,
+    festival: 15,
+    orderChance: 0.05, orderMin: 1, orderMax: 1,
+    dripChance: 0.03,
     secsPerGem: 120, // skipping a timer costs 1 gem per 2 minutes left
     // Extra builders are NOT sold for gems: you get one builder. A second
     // builder is planned as a paid unlock in the full version (see DESIGN.md).

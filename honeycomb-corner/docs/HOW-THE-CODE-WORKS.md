@@ -77,7 +77,7 @@ All of these are edits to `js/data.js` unless noted. After a change, run the che
 
 **Make an upgrade cheaper or pricier.** In `UPGRADES`: `base` is the first level's price, and `growth` multiplies it each level (2.3 means each level costs 2.3× the previous one). `max` is the top level.
 
-**Make timers shorter or longer.** In `js/sim.js`, find `buildTime`. `8 * cost^0.36` sets the curve; change the `8` to scale every timer, or the `4 * 3600` to cap the longest one (in seconds). Breeding times are `breedTime`, just below `breedCost`.
+**Make timers shorter or longer.** In `js/sim.js`, find `buildTime`. `12 * cost^0.38` sets the curve; change the `12` to scale every timer, or the `8 * 3600` to cap the longest one (in seconds). Breeding times are `breedTime`, just below `breedCost`.
 
 **Change how much honey a hive holds.** In `js/sim.js`: `honeyCap: (h) => 16 + 12 * h.level`. That's 16 jars at level 1, plus 12 per level.
 
@@ -97,7 +97,7 @@ All of these are edits to `js/data.js` unless noted. After a change, run the che
 
 **Change the lunch rush, today's special or the food critic.** `EVENTS`: times are fractions of a day (0 = 6am, 0.25 = noon). `spawnMult` 0.35 means customers arrive in 35% of the usual time; `priceMult` 1.3 means +30%.
 
-**Change gem rewards.** The `GEMS` block: starting gems, gems per new species, per season, per festival, the chance a request pays gems, and how many seconds one gem skips (`secsPerGem`). Goal gem rewards are in `js/goals.js`.
+**Change gem rewards.** The `GEMS` block: starting gems, gems per new species (by rarity), per festival, the chance a request or drip pays a gem, and how many seconds one gem skips (`secsPerGem`). Goal gems are `MILESTONE_GEMS` in `js/goals.js` (goal number → gems).
 
 **Add a Store item.** Copy a line in `CATALOG` and give it a new `id`, a `name`, a `cat` (which Store section) and a `cost` like `{ coins: 500 }` or `{ gems: 10 }`.
 - **Hats** also need a `value` and a drawing in `sprites.js → drawHat`.
