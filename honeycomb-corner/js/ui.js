@@ -65,7 +65,7 @@
   function btn(label, act, args = {}, opts = {}) {
     const data = Object.entries(args).map(([k, v]) => `data-${k}="${esc(v)}"`).join(' ');
     let afford = '';
-    if (opts.cost != null) afford = `data-afford="${L(() => S().coins >= opts.cost && (!opts.build || HC.builds.freeBuilder(S())))}"`;
+    if (opts.cost != null) afford = `data-afford="${L(() => S().coins >= opts.cost && (!opts.build || HC.builds.freeBuilder(S())))}" data-cost="${opts.cost}"`;
     else if (opts.gems != null) afford = `data-afford="${L(() => S().gems >= opts.gems)}"`;
     const need = opts.need ? `data-need="${esc(opts.need)}"` : '';
     const dis = opts.disabled ? 'disabled' : '';
@@ -201,7 +201,13 @@
     const reward = price(g.reward) + (g.gems ? ' ' + gemPrice(g.gems) : '');
     // Counting goals (sell 1,000 items...) get a filling progress bar.
     let prog = '';
-    if (g.progress && !ok) {
+    // The guide is waiting for you to afford the next step (see updateSpotlight).
+    if (!ok && guideWait && guideWait.cost) {
+      prog = `<span class="goal-progress"><span class="lbl-save">Saving up</span><span class="bar"><i style="width:${Math.round(util.clamp(s.coins / guideWait.cost, 0, 1) * 100)}%"></i></span><b>₵${fmt(s.coins)} / ₵${fmt(guideWait.cost)}</b></span>`;
+    } else if (!ok && guideWait && guideWait.busy) {
+      prog = '<span class="goal-progress"><span class="lbl-save">Waiting for your builder to finish the current job</span></span>';
+    }
+    if (g.progress && !ok && !prog) {
       const [have, need] = g.progress(s);
       prog = `<span class="goal-progress"><span class="bar"><i style="width:${Math.round(util.clamp(have / need, 0, 1) * 100)}%"></i></span><b>${fmt(have)} / ${fmt(need)}</b></span>`;
     }
@@ -563,6 +569,7 @@
         <div class="stack">${orders || '<p class="muted empty-note">No requests pinned right now. Watch for someone walking up to the board outside the shop.</p>'}</div>
       </section>
       ${s.merchant ? `<section class="win"><div class="win-head"><h2>On the street</h2></div>${merchantCard()}</section>` : ''}
+      ${regularsSection(s)}
       <section class="win festival">
         <div class="win-head"><h2>Honey Festival</h2>${s.ribbons ? `<span class="muted">${s.ribbons} ribbons · +${s.ribbons * 10}% prices</span>` : ''}</div>
         <p>Once the shop has earned ₵${fmt(D.FESTIVAL_AT)} since the last festival, the town will throw you a Honey Festival. You start over with a fresh garden and keep your Field Guide, cosmetics, gems, ribbons and one keepsake bee. Every ribbon raises sale prices by 10% for good, and the festival pays ${D.GEMS.festival} gems.</p>
@@ -571,6 +578,28 @@
         ${progress >= 1 ? btn('Plan the festival', 'festival', {}, { cls: 'btn-go' }) : ''}
       </section>`;
   };
+
+  // The town's regulars: who they are, their favourite, and friendship hearts.
+  // Regulars you haven't met yet show as a silhouette with a hint.
+  function regularsSection(s) {
+    const rows = D.REGULARS.map((r) => {
+      const st = (s.regulars || {})[r.id];
+      const met = st && st.visits > 0;
+      const hearts = met ? '♥'.repeat(st.hearts) + '♡'.repeat(5 - st.hearts) : '';
+      const fav = D.good[r.fav];
+      const next = met && st.hearts < 5 ? Object.keys(D.REGULAR_GIFTS).map(Number).find((h) => h > st.hearts) : null;
+      return `<div class="row-item ${met ? '' : 'locked'}">
+        <img class="px person ${met ? '' : 'mystery'}" src="${spr.personURL(r.look)}" alt="" width="32" height="40">
+        <div class="grow"><b>${met ? r.name : '???'}</b> ${met ? `<span class="hearts" title="${st.hearts} of 5 hearts">${hearts}</span>` : ''}
+          <p class="muted">${met ? esc(r.blurb) : s.unlockedGoods[r.fav] ? 'Word is getting around. They might drop in any day now.' : `Might visit once you make ${fav.name}.`}</p>
+          ${met ? `<p class="small">Loves ${goodImg(r.fav, 14)} <b>${fav.name}</b>${next ? ` · gift at ${next} hearts` : st.hearts >= 5 ? ' · best friends!' : ''}</p>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    return `<section class="win"><div class="win-head"><h2>Regulars</h2><span class="muted">Keep their favourite on the shelves</span></div>
+      <p class="muted small">Regulars come back again and again. If their favourite is on a shelf they buy it, leave a 25% tip and grow fonder of the shop (one heart a day). At 3 hearts they bring a thank-you gift; at 5, a rare gem gift.</p>
+      <div class="list">${rows}</div></section>`;
+  }
 
   // ---- STORE ----------------------------------------------------------------
   panels.store = function () {
@@ -706,7 +735,7 @@
         <div class="win-head"><h2>About</h2></div>
         <p>Honeycomb Corner is a prototype idle game about a honey shop in a small town. Bees fill their hives, you carry the honey in, and townsfolk buy it. Staff keep things running while you're away (for up to 8 hours).</p>
         <p class="muted small">All art, music and characters are original and drawn in code. Tip: ${esc(util.pick(D.TIPS))}</p>
-        <div class="btn-row">${btn('Replay tutorial', 'tutorial', {}, { cls: 'btn-ghost' })}${btn('Start over', 'reset', {}, { cls: 'btn-danger' })}</div>
+        <div class="btn-row">${btn('Send feedback', 'feedback', {}, { cls: 'btn-go' })}${btn('Replay tutorial', 'tutorial', {}, { cls: 'btn-ghost' })}${btn('Start over', 'reset', {}, { cls: 'btn-danger' })}</div>
       </section>`;
   };
 
@@ -1070,6 +1099,56 @@
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // SEND FEEDBACK (playtest builds)
+  // A short form plus the playtest notes from track.js, shown to the player
+  // before sending. On the public playtest site (hosted on Netlify) it's
+  // sent to Netlify Forms, where the developer reads it. Anywhere else (the
+  // Claude preview, a local file) it can't be sent, so it offers to copy
+  // everything instead, to paste into a message.
+  // ---------------------------------------------------------------------------
+  const canSubmit = () => /\.netlify\.app$/.test(location.hostname) || !!document.querySelector('meta[name="feedback-endpoint"]');
+  function feedbackModal() {
+    const stats = HC.track ? HC.track.summary() : {};
+    let sent = false;
+    openModal({
+      render: () => sent ? `<h2>Thank you!</h2><p>Your feedback was sent. It really helps shape the game.</p><div class="btn-row end">${btn('Back to the shop', 'closeModal', {}, { cls: 'btn-go' })}</div>` : `
+        <h2>Send feedback</h2>
+        <p class="muted">Thanks for playtesting Honeycomb Corner! A few quick questions (all optional):</p>
+        <form class="feedback" data-form="feedback">
+          <label>What did you enjoy?<textarea name="enjoyed" rows="2"></textarea></label>
+          <label>When (if ever) did it get boring or feel slow?<textarea name="bored" rows="2"></textarea></label>
+          <label>Anything confusing?<textarea name="confused" rows="2"></textarea></label>
+          <fieldset><legend>Would you keep playing?</legend>
+            ${['Definitely', 'Probably', 'Not sure', 'Probably not', 'No'].map((t) => `<label class="radio"><input type="radio" name="keepPlaying" value="${t}"> ${t}</label>`).join('')}
+          </fieldset>
+          <label>Your name (optional)<input name="name" maxlength="40"></label>
+          <details><summary>What else gets sent (no personal info)</summary><pre class="fb-stats">${esc(JSON.stringify(stats, null, 1))}</pre></details>
+          <div class="btn-row end">${btn('Not now', 'closeModal', {}, { cls: 'btn-ghost' })}<button class="btn btn-go" type="submit">${canSubmit() ? 'Send' : 'Copy to send'}</button></div>
+        </form>`,
+      onSubmit: (form) => {
+        const data = Object.fromEntries(new FormData(form).entries());
+        data.stats = JSON.stringify(stats);
+        if (!canSubmit()) {
+          // Not on the playtest site: copy everything so it can be pasted.
+          const text = Object.entries(data).map(([k, v]) => k + ': ' + v).join('\n');
+          const done = () => toast('Copied! Paste it into a message to the developer.', 'good');
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => toast('Could not copy automatically.', 'bad'));
+          return;
+        }
+        const body = new URLSearchParams(Object.assign({ 'form-name': 'playtest-feedback' }, data)).toString();
+        fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body })
+          .then((r) => {
+            if (!r.ok) throw new Error(r.status);
+            sent = true;
+            if (HC.track) HC.track.notes().feedbackSent++;
+            renderModal();
+          })
+          .catch(() => toast('Could not send just now. Please try again in a moment.', 'bad'));
+      },
+    });
+  }
+
   function festivalModal() {
     let keep = null;
     openModal({
@@ -1193,6 +1272,7 @@
       case 'setDuty': r = HC.act.setDuty(ds.who, ds.duty); break;
       case 'train': r = HC.act.train(ds.id, ds.track); break;
       case 'rep': return repModal();
+      case 'feedback': return feedbackModal();
       case 'collect': r = HC.act.collect(Number(ds.i)); break;
       case 'collectAll': r = HC.act.collectAll(); break;
       case 'restockNow': r = HC.act.restockNow(); break;
@@ -1283,6 +1363,14 @@
 
   // One click listener for the whole page.
   function onClick(e) {
+    // Tapping somewhere other than the flashing guide target pauses the
+    // dimming for a minute (the goal bar keeps showing what to do).
+    if (spotEl && !spotEl.contains(e.target) && !e.target.closest('#goalbar, #textbox, #modal')) {
+      guideSnoozedUntil = Date.now() + 60000;
+      spotEl.classList.remove('spotlight');
+      spotEl = null;
+      document.body.classList.remove('guiding');
+    }
     if (drag.suppressClick) {
       // This click is the end of a bee drag, not a tap.
       drag.suppressClick = false;
@@ -1294,6 +1382,8 @@
     if (t.type === 'checkbox') return; // handled by onChange
     e.preventDefault();
     if (t.classList.contains('cant') && t.dataset.afford) {
+      // Wanted to skip a timer but couldn't afford it: a playtest signal.
+      if ((t.dataset.act === 'skipBuild' || t.dataset.act === 'skipEgg') && HC.track) HC.track.gemStarved();
       // Greyed-out button: explain why and give it a little shake.
       bus.emit('fail', t.dataset.need || 'Not enough coins.');
       t.classList.remove('shake');
@@ -1518,8 +1608,23 @@
     const sel = typeof gd.sel === 'function' ? gd.sel(s) : gd.sel;
     return sel ? el.panel.querySelector(sel) : null;
   }
+  // WAITING INSTEAD OF DIMMING (playtest 6): if the button the guide wants is
+  // greyed out (not enough coins yet, or the builder is busy), there's
+  // nothing to press, so the page stays in full colour and the goal bar shows
+  // a "Saving up" bar instead. The flashing comes back once it's affordable.
+  // Tapping anywhere away from the flashing thing also pauses the dimming
+  // for a minute, so it never gets in the way.
+  let guideWait = null; // { cost } while saving up, { busy: true } if the builder is busy
+  let guideSnoozedUntil = 0;
   function updateSpotlight() {
-    const target = guideTarget();
+    let target = guideTarget();
+    guideWait = null;
+    if (target && target.classList.contains('cant')) {
+      const cost = Number(target.dataset.cost || 0);
+      guideWait = S().coins < cost ? { cost } : { busy: true };
+      target = null;
+    }
+    if (Date.now() < guideSnoozedUntil) target = null;
     if (target === spotEl) return;
     if (spotEl) spotEl.classList.remove('spotlight');
     spotEl = target;
@@ -1554,6 +1659,8 @@
     { id: 'merchant', when: (s) => !!s.merchant, lines: ["A travelling merchant has parked outside. The bees are rare, and the wagon won't stay long."] },
     { id: 'drip', when: () => !!HC.sim.rt.drip, lines: ['A golden drip is glistening on one of your hives. Tap it before it drips away!'] },
     { id: 'boxfull', when: (s) => s.box.length >= f().boxCap(s), lines: ["Your bee box is full. Build or upgrade a hive, or sell bees you don't need."] },
+    // After 20 minutes of play, invite feedback once (the ⚙ menu has it too).
+    { id: 'feedback', when: (s) => s.playTime > 20 * 60, lines: ['Enjoying the shop? If you have a minute, tap ⚙ → Send feedback and tell us what you think. It really helps!'] },
     { id: 'festival', when: (s) => f().festivalRibbons(s) > 0, lines: ['The town wants to throw a Honey Festival in your honour! Take a look in the Town tab.'] },
   ];
   function checkHints() {
@@ -1685,6 +1792,11 @@
     });
     bus.on('morning', () => toast('Good morning! The shop is open.', 'good'));
     bus.on('special', (g) => toast("Today's special: " + g.name + ' sells for ' + Math.round((D.EVENTS.special.priceMult - 1) * 100) + '% more.', 'good'));
+    // A regular paid (see regularPaid in customers.js).
+    bus.on('regular', (e) => {
+      if (e.heart) toast(`${e.r.name} found their ${D.good[e.r.fav].name}! ♥ ${e.hearts}/5` + (e.gift && e.gift.coins ? ' They left a thank-you gift!' : ''), 'good');
+      else if (!e.gotFav) toastOnce('reg-' + e.r.id, 120, `${e.r.name} couldn't find their ${D.good[e.r.fav].name} today.`, 'bad');
+    });
     bus.on('criticArrived', () => {
       toast('A food critic just walked in!', 'good');
       HC.audio.play('bell');

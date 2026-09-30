@@ -24,6 +24,12 @@
 // Otherwise reputation drops. If they leave without buying, that counts as
 // a bad review too.
 //
+// REGULARS: now and then a new customer is one of the town's regulars (see
+// REGULARS in data.js). They head straight for their favourite product. If
+// it's on a shelf they buy it, tip 25% and gain a friendship heart (once per
+// day each); at 3 and 5 hearts they bring a gift. If it's missing they buy
+// something else, a little disappointed.
+//
 // Every reputation change goes through HC.sim.changeRep, which records the
 // reason so the Reputation window can explain it.
 //
@@ -94,9 +100,20 @@
   // ---------------------------------------------------------------------------
   // Creating people
   // ---------------------------------------------------------------------------
+  // A regular who could visit now: their favourite is a product you make,
+  // and they haven't already been in today. Returns one at random, or null.
+  function dueRegular(s) {
+    s.regulars = s.regulars || {};
+    const day = f().day(s);
+    const inShop = new Set(rt().customers.filter((c) => c.regular).map((c) => c.regular));
+    const due = D.REGULARS.filter((r) => s.unlockedGoods[r.fav] && !inShop.has(r.id) && (s.regulars[r.id] || {}).lastDay !== day);
+    return due.length ? util.pick(due) : null;
+  }
+
   // `forced` is a customer type to use instead of a random one (the critic).
   function spawnCustomer(s, forced) {
-    const ctype = forced || rollCustomerType(s);
+    const reg = !forced && Math.random() < D.REGULAR_CHANCE ? dueRegular(s) : null;
+    const ctype = forced || (reg ? D.customer.noble : rollCustomerType(s));
     const fromLeft = Math.random() < 0.5;
     rt().customers.push({
       id: util.uid(),
@@ -122,7 +139,13 @@
       wait: 0, // seconds spent waiting in line
       patience: util.rand(40, 70), // how long they'll wait before walking out
       critic: ctype.id === 'critic',
+      regular: reg ? reg.id : null,
     });
+    if (reg) {
+      const c = rt().customers[rt().customers.length - 1];
+      c.look = Object.assign({}, reg.look);
+      c.type = Object.assign({}, ctype, { offset: 99 }); // a regular will buy anything you stock
+    }
   }
 
   // A townsperson who walks to the board outside and pins request `order`.
@@ -176,6 +199,28 @@
     if (!rt().silent) bus.emit('walkout', c);
   }
 
+  // A regular paid. If they got their favourite: a tip and (once a day) a
+  // heart, plus a gift at certain heart counts.
+  function regularPaid(s, c) {
+    const r = D.regular[c.regular];
+    const st = (s.regulars[r.id] = s.regulars[r.id] || { hearts: 0, lastDay: 0, visits: 0 });
+    st.visits++;
+    const day = f().day(s);
+    const gotFav = c.bought.good === r.fav;
+    if (gotFav) sim().earn(s, Math.ceil(c.total * 0.25), c.x, c.y - 34); // the tip
+    let heart = false, gift = null;
+    if (gotFav && st.lastDay !== day && st.hearts < 5) {
+      st.hearts++;
+      heart = true;
+      gift = D.REGULAR_GIFTS[st.hearts] || null;
+      if (gift && gift.coins) sim().earn(s, gift.coins * f().price(s, r.fav));
+      if (gift && gift.gems) sim().gainGems(s, gift.gems, 'your friendship with ' + r.name);
+    }
+    st.lastDay = day;
+    if (!rt().silent) bus.emit('regular', { r, gotFav, heart, hearts: st.hearts, gift });
+    bus.emit('dirty');
+  }
+
   // The critic's review. `bought` is false if they left without buying.
   // A good review needs 3 of every 4 shelves stocked and a short wait.
   function criticVerdict(s, c, bought) {
@@ -226,6 +271,16 @@
       // -- Customers ------------------------------------------------------------
       case 'enter':
         if (nav.moveAlong(c, dt)) {
+          // Regulars go straight to their favourite, if it's on a shelf.
+          if (c.regular) {
+            const fav = D.regular[c.regular].fav;
+            const k = s.shelves.findIndex((sh) => sh.good === fav && sh.qty > 0);
+            if (k >= 0) {
+              goToShelf(c, k);
+              break;
+            }
+            c.missedFav = true;
+          }
           const idx = chooseShelf(s, c.type);
           if (idx < 0) leaveUnhappy(s, c);
           else goToShelf(c, idx);
@@ -305,6 +360,7 @@
           s.stats.sold += c.bought.qty;
           s.stats.customers++;
           s.stats.best = Math.max(s.stats.best, c.total);
+          if (c.regular) regularPaid(s, c);
           if (c.critic) criticVerdict(s, c, true);
           else sim().changeRep(s, 'served', 1, c.x, c.y - 26);
           if (f().isSpecial(s, c.bought.good)) sim().changeRep(s, 'special');

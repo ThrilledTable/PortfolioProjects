@@ -88,6 +88,7 @@
     const cost = f().gemsToSkip(left(s, b));
     if (s.gems < cost) return { ok: false, msg: 'Not enough gems. Goals, requests and festivals award more.' };
     s.gems -= cost;
+    if (HC.track) HC.track.gemSkip(cost); // playtest notes (track.js)
     s.stats.skips++;
     finish(s, b);
     return { ok: true, msg: b.label + ' finished.' };

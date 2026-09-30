@@ -45,7 +45,7 @@ const target = process.env.TARGET || 'file://' + path.join(root, 'index.html');
   const advance = (page, secs) => page.evaluate((secs) => { for (let i = 0; i < secs * 20; i++) HC.sim.update(HC.game, 0.05); }, secs);
   const closeAll = async (page) => {
     await page.keyboard.press('Escape');
-    await page.evaluate(() => { HC.game.hints = Object.fromEntries(['welcome', 'collect', 'line', 'full', 'night', 'clover', 'build', 'nursery', 'wax', 'order', 'merchant', 'drip', 'boxfull', 'festival', 'duties', 'rush', 'critic', 'drag'].map((k) => [k, true])); });
+    await page.evaluate(() => { HC.game.hints = Object.fromEntries(['welcome', 'collect', 'line', 'full', 'night', 'clover', 'build', 'nursery', 'wax', 'order', 'merchant', 'drip', 'boxfull', 'festival', 'duties', 'rush', 'critic', 'drag', 'feedback'].map((k) => [k, true])); });
     for (let i = 0; i < 6; i++) await page.click('#textbox', { force: true, timeout: 500 }).catch(() => {});
   };
 

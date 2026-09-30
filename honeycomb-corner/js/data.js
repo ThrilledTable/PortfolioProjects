@@ -475,6 +475,35 @@
     'Dr. Okafor', 'Harbor Inn', 'Little Library', 'Farmer Quill', 'Miss Delacroix', 'The Candle Guild',
   ];
 
+  // ---------------------------------------------------------------------------
+  // REGULARS (playtest 6): named townsfolk who come back to the shop. Each has
+  // a favourite product. When they visit and find it on a shelf, they buy it,
+  // tip 25% and gain a friendship heart. Hearts unlock rewards (REGULAR_GIFTS).
+  // A regular only starts visiting once you've made their favourite product.
+  //   fav   their favourite product
+  //   blurb a line about them, shown in the Town tab
+  //   look  how they're drawn (hair, skin, shirt, hat)
+  // ---------------------------------------------------------------------------
+  const REGULARS = [
+    { id: 'pemberton', name: 'Mrs. Pemberton', fav: 'wildflower', blurb: 'Has a spoonful in her tea every morning, and opinions about everything else.',
+      look: { hair: ['#d8d0c8', '#a8a098'], skin: ['#f4d4b8', '#d8ac88'], shirt: ['#d86aa0', '#a04878'], hat: null } },
+    { id: 'reyes', name: 'Coach Reyes', fav: 'clover', blurb: 'Swears clover honey is why the under-tens won the county cup.',
+      look: { hair: ['#2a2222', '#161010'], skin: ['#b07850', '#86563a'], shirt: ['#3a8ab0', '#266080'], hat: 'cap' } },
+    { id: 'hollis', name: 'Old Man Hollis', fav: 'candle', blurb: 'Reads by candlelight. Claims electricity is a passing fad.',
+      look: { hair: ['#d8d0c8', '#a8a098'], skin: ['#e0a878', '#b87c50'], shirt: ['#7a9a4a', '#56702e'], hat: 'straw' } },
+    { id: 'okafor', name: 'Dr. Okafor', fav: 'orange', blurb: 'Prescribes orange blossom honey for sore throats. Buys it for herself too.',
+      look: { hair: ['#2a2222', '#161010'], skin: ['#86563a', '#6a4028'], shirt: ['#f4f0e8', '#c8c0b0'], hat: null } },
+    { id: 'delacroix', name: 'Miss Delacroix', fav: 'lavender', blurb: 'Runs the tea room. Her lavender scones are famous two towns over.',
+      look: { hair: ['#8a5a8a', '#5e3a5e'], skin: ['#f8c898', '#d89868'], shirt: ['#5a6ab8', '#3a4888'], hat: 'beret' } },
+    { id: 'quill', name: 'Farmer Quill', fav: 'jelly', blurb: 'Feeds royal jelly to his prize pumpkins. Nobody asks.',
+      look: { hair: ['#c0502a', '#8a3418'], skin: ['#f4d4b8', '#d8ac88'], shirt: ['#e08a3a', '#a85e22'], hat: 'straw' } },
+  ];
+  // What a regular gives you as your friendship grows (at that many hearts).
+  //   coins  a thank-you worth this many of their favourite item at full price
+  //   gems   rare, so only at full friendship
+  const REGULAR_GIFTS = { 3: { coins: 20 }, 5: { gems: 2 } };
+  const REGULAR_CHANCE = 0.12; // chance a new customer is a regular (if one is due)
+
   // Random tips the shopkeeper says when you tap them.
   const TIPS = [
     'Hives stop making honey when they are full. Tap a hive to send me out to collect it.',
@@ -515,13 +544,14 @@
 
   HC.data = {
     SEASONS, GOODS, SPECIES, RECIPES, TRAITS, UPGRADES, HIVE_COSTS, HIVE_MAX_LEVEL, CUSTOMERS,
-    HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, TIPS, MACHINE, STAFF, TRAINING, DUTIES, REP, EVENTS, CATALOG, STORE_SECTIONS, GEMS,
+    HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, REGULARS, REGULAR_GIFTS, REGULAR_CHANCE, TIPS, MACHINE, STAFF, TRAINING, DUTIES, REP, EVENTS, CATALOG, STORE_SECTIONS, GEMS,
     good: byId(GOODS),
     species: byId(SPECIES),
     upgrade: byId(UPGRADES),
     customer: byId(CUSTOMERS),
     staff: byId(STAFF),
     duty: byId(DUTIES),
+    regular: byId(REGULARS),
     item: byId(CATALOG),
     DAY_LENGTH: 480, // real seconds in one in-game day (8 minutes)
     WAGE_SHARE: 0.05, // each helper's cut of yesterday's earnings (5%), on top of their base wage

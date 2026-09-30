@@ -65,6 +65,8 @@
       // (shown in the Reputation window): { day, items: { served: {n, amt} } }
       repLog: { day: 0, items: {} },
       repPrev: null,
+      // Regular customers: { pemberton: { hearts: 2, lastDay: 5, visits: 7 } }
+      regulars: {},
       machine: null, // the Candle Machine once built: {level, wax, candles, prog}
       builds: [], // upgrades under construction (see builds.js)
       builders: 1, // how many things can be built at once (always 1 for now; see DESIGN.md)

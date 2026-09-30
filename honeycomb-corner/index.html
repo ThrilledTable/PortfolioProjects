@@ -76,6 +76,13 @@
     <div id="modalBody"></div>
   </div>
 </div>
+<!-- Playtest feedback form. It stays hidden: it's only here so Netlify (the
+     web host) knows the form exists. The real form is the "Send feedback"
+     window in the game, which submits these same fields (see ui.js). -->
+<form name="playtest-feedback" data-netlify="true" netlify-honeypot="bot-field" hidden>
+  <input name="bot-field"><input name="name"><textarea name="enjoyed"></textarea><textarea name="bored"></textarea>
+  <textarea name="confused"></textarea><input name="keepPlaying"><textarea name="stats"></textarea>
+</form>
 <!-- Short messages that slide in at the bottom. -->
 <div id="toasts" class="toasts" aria-live="polite"></div>
 
@@ -88,7 +95,8 @@
     workers   shopkeeper and staff             actions   everything the player can do
     goals     the goal chain                   sprites   the pixel art
     render    drawing the picture              audio     sound effects and music
-    ui        menus and buttons                main      starts it all and runs the loop
+    ui        menus and buttons                track     playtest notes + feedback
+    main      starts it all and runs the loop
 -->
 <script src="js/util.js"></script>
 <script src="js/data.js"></script>
@@ -104,6 +112,7 @@
 <script src="js/render.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/track.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

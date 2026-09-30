@@ -783,6 +783,19 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
 /* Helper training buttons (playtest 4). */
 .train-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 
+/* Send feedback form (playtest 6). */
+.feedback { display: grid; gap: 10px; }
+.feedback label { display: grid; gap: 4px; font-weight: 700; font-size: var(--step--1); }
+.feedback textarea, .feedback input:not([type="radio"]) { font: inherit; font-weight: 500; padding: 6px 8px; border: 2px solid var(--ink); border-radius: 6px; background: #fffaf0; color: var(--ink); }
+.feedback fieldset { border: 2px solid var(--ink); border-radius: 6px; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.feedback legend { font-weight: 700; font-size: var(--step--1); padding: 0 4px; }
+.feedback .radio { display: inline-flex; flex-direction: row; align-items: center; gap: 4px; font-weight: 600; }
+.fb-stats { max-height: 160px; overflow: auto; font-size: 0.72rem; background: #f4ead2; padding: 6px; border-radius: 4px; white-space: pre-wrap; }
+.lbl-save { font-weight: 800; color: var(--honey); white-space: nowrap; }
+/* Regulars (playtest 6). */
+.hearts { color: #d8446a; letter-spacing: 1px; font-size: 0.9rem; }
+.row-item .person.mystery { filter: brightness(0) opacity(0.4); }
+
 </style>
 <!-- Lets phones install the game to the home screen (see manifest.webmanifest and sw.js). -->
 <meta name="theme-color" content="#221a24">
@@ -838,6 +851,13 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     <div id="modalBody"></div>
   </div>
 </div>
+<!-- Playtest feedback form. It stays hidden: it's only here so Netlify (the
+     web host) knows the form exists. The real form is the "Send feedback"
+     window in the game, which submits these same fields (see ui.js). -->
+<form name="playtest-feedback" data-netlify="true" netlify-honeypot="bot-field" hidden>
+  <input name="bot-field"><input name="name"><textarea name="enjoyed"></textarea><textarea name="bored"></textarea>
+  <textarea name="confused"></textarea><input name="keepPlaying"><textarea name="stats"></textarea>
+</form>
 <!-- Short messages that slide in at the bottom. -->
 <div id="toasts" class="toasts" aria-live="polite"></div>
 
@@ -850,7 +870,8 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     workers   shopkeeper and staff             actions   everything the player can do
     goals     the goal chain                   sprites   the pixel art
     render    drawing the picture              audio     sound effects and music
-    ui        menus and buttons                main      starts it all and runs the loop
+    ui        menus and buttons                track     playtest notes + feedback
+    main      starts it all and runs the loop
 -->
 <script>
 // =============================================================================
@@ -1527,6 +1548,35 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     'Dr. Okafor', 'Harbor Inn', 'Little Library', 'Farmer Quill', 'Miss Delacroix', 'The Candle Guild',
   ];
 
+  // ---------------------------------------------------------------------------
+  // REGULARS (playtest 6): named townsfolk who come back to the shop. Each has
+  // a favourite product. When they visit and find it on a shelf, they buy it,
+  // tip 25% and gain a friendship heart. Hearts unlock rewards (REGULAR_GIFTS).
+  // A regular only starts visiting once you've made their favourite product.
+  //   fav   their favourite product
+  //   blurb a line about them, shown in the Town tab
+  //   look  how they're drawn (hair, skin, shirt, hat)
+  // ---------------------------------------------------------------------------
+  const REGULARS = [
+    { id: 'pemberton', name: 'Mrs. Pemberton', fav: 'wildflower', blurb: 'Has a spoonful in her tea every morning, and opinions about everything else.',
+      look: { hair: ['#d8d0c8', '#a8a098'], skin: ['#f4d4b8', '#d8ac88'], shirt: ['#d86aa0', '#a04878'], hat: null } },
+    { id: 'reyes', name: 'Coach Reyes', fav: 'clover', blurb: 'Swears clover honey is why the under-tens won the county cup.',
+      look: { hair: ['#2a2222', '#161010'], skin: ['#b07850', '#86563a'], shirt: ['#3a8ab0', '#266080'], hat: 'cap' } },
+    { id: 'hollis', name: 'Old Man Hollis', fav: 'candle', blurb: 'Reads by candlelight. Claims electricity is a passing fad.',
+      look: { hair: ['#d8d0c8', '#a8a098'], skin: ['#e0a878', '#b87c50'], shirt: ['#7a9a4a', '#56702e'], hat: 'straw' } },
+    { id: 'okafor', name: 'Dr. Okafor', fav: 'orange', blurb: 'Prescribes orange blossom honey for sore throats. Buys it for herself too.',
+      look: { hair: ['#2a2222', '#161010'], skin: ['#86563a', '#6a4028'], shirt: ['#f4f0e8', '#c8c0b0'], hat: null } },
+    { id: 'delacroix', name: 'Miss Delacroix', fav: 'lavender', blurb: 'Runs the tea room. Her lavender scones are famous two towns over.',
+      look: { hair: ['#8a5a8a', '#5e3a5e'], skin: ['#f8c898', '#d89868'], shirt: ['#5a6ab8', '#3a4888'], hat: 'beret' } },
+    { id: 'quill', name: 'Farmer Quill', fav: 'jelly', blurb: 'Feeds royal jelly to his prize pumpkins. Nobody asks.',
+      look: { hair: ['#c0502a', '#8a3418'], skin: ['#f4d4b8', '#d8ac88'], shirt: ['#e08a3a', '#a85e22'], hat: 'straw' } },
+  ];
+  // What a regular gives you as your friendship grows (at that many hearts).
+  //   coins  a thank-you worth this many of their favourite item at full price
+  //   gems   rare, so only at full friendship
+  const REGULAR_GIFTS = { 3: { coins: 20 }, 5: { gems: 2 } };
+  const REGULAR_CHANCE = 0.12; // chance a new customer is a regular (if one is due)
+
   // Random tips the shopkeeper says when you tap them.
   const TIPS = [
     'Hives stop making honey when they are full. Tap a hive to send me out to collect it.',
@@ -1567,13 +1617,14 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
 
   HC.data = {
     SEASONS, GOODS, SPECIES, RECIPES, TRAITS, UPGRADES, HIVE_COSTS, HIVE_MAX_LEVEL, CUSTOMERS,
-    HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, TIPS, MACHINE, STAFF, TRAINING, DUTIES, REP, EVENTS, CATALOG, STORE_SECTIONS, GEMS,
+    HAIR, SHIRTS, SKIN, BEE_NAMES, REQUESTERS, REGULARS, REGULAR_GIFTS, REGULAR_CHANCE, TIPS, MACHINE, STAFF, TRAINING, DUTIES, REP, EVENTS, CATALOG, STORE_SECTIONS, GEMS,
     good: byId(GOODS),
     species: byId(SPECIES),
     upgrade: byId(UPGRADES),
     customer: byId(CUSTOMERS),
     staff: byId(STAFF),
     duty: byId(DUTIES),
+    regular: byId(REGULARS),
     item: byId(CATALOG),
     DAY_LENGTH: 480, // real seconds in one in-game day (8 minutes)
     WAGE_SHARE: 0.05, // each helper's cut of yesterday's earnings (5%), on top of their base wage
@@ -1658,6 +1709,8 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       // (shown in the Reputation window): { day, items: { served: {n, amt} } }
       repLog: { day: 0, items: {} },
       repPrev: null,
+      // Regular customers: { pemberton: { hearts: 2, lastDay: 5, visits: 7 } }
+      regulars: {},
       machine: null, // the Candle Machine once built: {level, wax, candles, prog}
       builds: [], // upgrades under construction (see builds.js)
       builders: 1, // how many things can be built at once (always 1 for now; see DESIGN.md)
@@ -2955,6 +3008,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     const cost = f().gemsToSkip(left(s, b));
     if (s.gems < cost) return { ok: false, msg: 'Not enough gems. Goals, requests and festivals award more.' };
     s.gems -= cost;
+    if (HC.track) HC.track.gemSkip(cost); // playtest notes (track.js)
     s.stats.skips++;
     finish(s, b);
     return { ok: true, msg: b.label + ' finished.' };
@@ -2992,6 +3046,12 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
 // stocked and they didn't wait long, reputation jumps and they leave gems.
 // Otherwise reputation drops. If they leave without buying, that counts as
 // a bad review too.
+//
+// REGULARS: now and then a new customer is one of the town's regulars (see
+// REGULARS in data.js). They head straight for their favourite product. If
+// it's on a shelf they buy it, tip 25% and gain a friendship heart (once per
+// day each); at 3 and 5 hearts they bring a gift. If it's missing they buy
+// something else, a little disappointed.
 //
 // Every reputation change goes through HC.sim.changeRep, which records the
 // reason so the Reputation window can explain it.
@@ -3063,9 +3123,20 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
   // ---------------------------------------------------------------------------
   // Creating people
   // ---------------------------------------------------------------------------
+  // A regular who could visit now: their favourite is a product you make,
+  // and they haven't already been in today. Returns one at random, or null.
+  function dueRegular(s) {
+    s.regulars = s.regulars || {};
+    const day = f().day(s);
+    const inShop = new Set(rt().customers.filter((c) => c.regular).map((c) => c.regular));
+    const due = D.REGULARS.filter((r) => s.unlockedGoods[r.fav] && !inShop.has(r.id) && (s.regulars[r.id] || {}).lastDay !== day);
+    return due.length ? util.pick(due) : null;
+  }
+
   // `forced` is a customer type to use instead of a random one (the critic).
   function spawnCustomer(s, forced) {
-    const ctype = forced || rollCustomerType(s);
+    const reg = !forced && Math.random() < D.REGULAR_CHANCE ? dueRegular(s) : null;
+    const ctype = forced || (reg ? D.customer.noble : rollCustomerType(s));
     const fromLeft = Math.random() < 0.5;
     rt().customers.push({
       id: util.uid(),
@@ -3091,7 +3162,13 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       wait: 0, // seconds spent waiting in line
       patience: util.rand(40, 70), // how long they'll wait before walking out
       critic: ctype.id === 'critic',
+      regular: reg ? reg.id : null,
     });
+    if (reg) {
+      const c = rt().customers[rt().customers.length - 1];
+      c.look = Object.assign({}, reg.look);
+      c.type = Object.assign({}, ctype, { offset: 99 }); // a regular will buy anything you stock
+    }
   }
 
   // A townsperson who walks to the board outside and pins request `order`.
@@ -3145,6 +3222,28 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     if (!rt().silent) bus.emit('walkout', c);
   }
 
+  // A regular paid. If they got their favourite: a tip and (once a day) a
+  // heart, plus a gift at certain heart counts.
+  function regularPaid(s, c) {
+    const r = D.regular[c.regular];
+    const st = (s.regulars[r.id] = s.regulars[r.id] || { hearts: 0, lastDay: 0, visits: 0 });
+    st.visits++;
+    const day = f().day(s);
+    const gotFav = c.bought.good === r.fav;
+    if (gotFav) sim().earn(s, Math.ceil(c.total * 0.25), c.x, c.y - 34); // the tip
+    let heart = false, gift = null;
+    if (gotFav && st.lastDay !== day && st.hearts < 5) {
+      st.hearts++;
+      heart = true;
+      gift = D.REGULAR_GIFTS[st.hearts] || null;
+      if (gift && gift.coins) sim().earn(s, gift.coins * f().price(s, r.fav));
+      if (gift && gift.gems) sim().gainGems(s, gift.gems, 'your friendship with ' + r.name);
+    }
+    st.lastDay = day;
+    if (!rt().silent) bus.emit('regular', { r, gotFav, heart, hearts: st.hearts, gift });
+    bus.emit('dirty');
+  }
+
   // The critic's review. `bought` is false if they left without buying.
   // A good review needs 3 of every 4 shelves stocked and a short wait.
   function criticVerdict(s, c, bought) {
@@ -3195,6 +3294,16 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       // -- Customers ------------------------------------------------------------
       case 'enter':
         if (nav.moveAlong(c, dt)) {
+          // Regulars go straight to their favourite, if it's on a shelf.
+          if (c.regular) {
+            const fav = D.regular[c.regular].fav;
+            const k = s.shelves.findIndex((sh) => sh.good === fav && sh.qty > 0);
+            if (k >= 0) {
+              goToShelf(c, k);
+              break;
+            }
+            c.missedFav = true;
+          }
           const idx = chooseShelf(s, c.type);
           if (idx < 0) leaveUnhappy(s, c);
           else goToShelf(c, idx);
@@ -3274,6 +3383,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
           s.stats.sold += c.bought.qty;
           s.stats.customers++;
           s.stats.best = Math.max(s.stats.best, c.total);
+          if (c.regular) regularPaid(s, c);
           if (c.critic) criticVerdict(s, c, true);
           else sim().changeRep(s, 'served', 1, c.x, c.y - 26);
           if (f().isSpecial(s, c.bought.good)) sim().changeRep(s, 'special');
@@ -4127,6 +4237,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       if (s.gems < cost) return fail('Not enough gems.');
       s.gems -= cost;
       s.stats.skips++;
+      if (HC.track) HC.track.gemSkip(cost); // playtest notes (track.js)
       n.t = n.dur;
       n.ready = true;
       return done('The egg is ready to hatch!', 'discover');
@@ -4273,6 +4384,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       s.cos = old.cos;
       s.gems = old.gems + D.GEMS.festival;
       s.keeperDuty = old.keeperDuty;
+      s.playtest = old.playtest; // playtest notes carry over (track.js)
       s.playTime = old.playTime;
       s.time = old.time;
       s.clock = old.clock;
@@ -6200,7 +6312,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
   function btn(label, act, args = {}, opts = {}) {
     const data = Object.entries(args).map(([k, v]) => `data-${k}="${esc(v)}"`).join(' ');
     let afford = '';
-    if (opts.cost != null) afford = `data-afford="${L(() => S().coins >= opts.cost && (!opts.build || HC.builds.freeBuilder(S())))}"`;
+    if (opts.cost != null) afford = `data-afford="${L(() => S().coins >= opts.cost && (!opts.build || HC.builds.freeBuilder(S())))}" data-cost="${opts.cost}"`;
     else if (opts.gems != null) afford = `data-afford="${L(() => S().gems >= opts.gems)}"`;
     const need = opts.need ? `data-need="${esc(opts.need)}"` : '';
     const dis = opts.disabled ? 'disabled' : '';
@@ -6336,7 +6448,13 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     const reward = price(g.reward) + (g.gems ? ' ' + gemPrice(g.gems) : '');
     // Counting goals (sell 1,000 items...) get a filling progress bar.
     let prog = '';
-    if (g.progress && !ok) {
+    // The guide is waiting for you to afford the next step (see updateSpotlight).
+    if (!ok && guideWait && guideWait.cost) {
+      prog = `<span class="goal-progress"><span class="lbl-save">Saving up</span><span class="bar"><i style="width:${Math.round(util.clamp(s.coins / guideWait.cost, 0, 1) * 100)}%"></i></span><b>₵${fmt(s.coins)} / ₵${fmt(guideWait.cost)}</b></span>`;
+    } else if (!ok && guideWait && guideWait.busy) {
+      prog = '<span class="goal-progress"><span class="lbl-save">Waiting for your builder to finish the current job</span></span>';
+    }
+    if (g.progress && !ok && !prog) {
       const [have, need] = g.progress(s);
       prog = `<span class="goal-progress"><span class="bar"><i style="width:${Math.round(util.clamp(have / need, 0, 1) * 100)}%"></i></span><b>${fmt(have)} / ${fmt(need)}</b></span>`;
     }
@@ -6698,6 +6816,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
         <div class="stack">${orders || '<p class="muted empty-note">No requests pinned right now. Watch for someone walking up to the board outside the shop.</p>'}</div>
       </section>
       ${s.merchant ? `<section class="win"><div class="win-head"><h2>On the street</h2></div>${merchantCard()}</section>` : ''}
+      ${regularsSection(s)}
       <section class="win festival">
         <div class="win-head"><h2>Honey Festival</h2>${s.ribbons ? `<span class="muted">${s.ribbons} ribbons · +${s.ribbons * 10}% prices</span>` : ''}</div>
         <p>Once the shop has earned ₵${fmt(D.FESTIVAL_AT)} since the last festival, the town will throw you a Honey Festival. You start over with a fresh garden and keep your Field Guide, cosmetics, gems, ribbons and one keepsake bee. Every ribbon raises sale prices by 10% for good, and the festival pays ${D.GEMS.festival} gems.</p>
@@ -6706,6 +6825,28 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
         ${progress >= 1 ? btn('Plan the festival', 'festival', {}, { cls: 'btn-go' }) : ''}
       </section>`;
   };
+
+  // The town's regulars: who they are, their favourite, and friendship hearts.
+  // Regulars you haven't met yet show as a silhouette with a hint.
+  function regularsSection(s) {
+    const rows = D.REGULARS.map((r) => {
+      const st = (s.regulars || {})[r.id];
+      const met = st && st.visits > 0;
+      const hearts = met ? '♥'.repeat(st.hearts) + '♡'.repeat(5 - st.hearts) : '';
+      const fav = D.good[r.fav];
+      const next = met && st.hearts < 5 ? Object.keys(D.REGULAR_GIFTS).map(Number).find((h) => h > st.hearts) : null;
+      return `<div class="row-item ${met ? '' : 'locked'}">
+        <img class="px person ${met ? '' : 'mystery'}" src="${spr.personURL(r.look)}" alt="" width="32" height="40">
+        <div class="grow"><b>${met ? r.name : '???'}</b> ${met ? `<span class="hearts" title="${st.hearts} of 5 hearts">${hearts}</span>` : ''}
+          <p class="muted">${met ? esc(r.blurb) : s.unlockedGoods[r.fav] ? 'Word is getting around. They might drop in any day now.' : `Might visit once you make ${fav.name}.`}</p>
+          ${met ? `<p class="small">Loves ${goodImg(r.fav, 14)} <b>${fav.name}</b>${next ? ` · gift at ${next} hearts` : st.hearts >= 5 ? ' · best friends!' : ''}</p>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    return `<section class="win"><div class="win-head"><h2>Regulars</h2><span class="muted">Keep their favourite on the shelves</span></div>
+      <p class="muted small">Regulars come back again and again. If their favourite is on a shelf they buy it, leave a 25% tip and grow fonder of the shop (one heart a day). At 3 hearts they bring a thank-you gift; at 5, a rare gem gift.</p>
+      <div class="list">${rows}</div></section>`;
+  }
 
   // ---- STORE ----------------------------------------------------------------
   panels.store = function () {
@@ -6841,7 +6982,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
         <div class="win-head"><h2>About</h2></div>
         <p>Honeycomb Corner is a prototype idle game about a honey shop in a small town. Bees fill their hives, you carry the honey in, and townsfolk buy it. Staff keep things running while you're away (for up to 8 hours).</p>
         <p class="muted small">All art, music and characters are original and drawn in code. Tip: ${esc(util.pick(D.TIPS))}</p>
-        <div class="btn-row">${btn('Replay tutorial', 'tutorial', {}, { cls: 'btn-ghost' })}${btn('Start over', 'reset', {}, { cls: 'btn-danger' })}</div>
+        <div class="btn-row">${btn('Send feedback', 'feedback', {}, { cls: 'btn-go' })}${btn('Replay tutorial', 'tutorial', {}, { cls: 'btn-ghost' })}${btn('Start over', 'reset', {}, { cls: 'btn-danger' })}</div>
       </section>`;
   };
 
@@ -7205,6 +7346,56 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // SEND FEEDBACK (playtest builds)
+  // A short form plus the playtest notes from track.js, shown to the player
+  // before sending. On the public playtest site (hosted on Netlify) it's
+  // sent to Netlify Forms, where the developer reads it. Anywhere else (the
+  // Claude preview, a local file) it can't be sent, so it offers to copy
+  // everything instead, to paste into a message.
+  // ---------------------------------------------------------------------------
+  const canSubmit = () => /\.netlify\.app$/.test(location.hostname) || !!document.querySelector('meta[name="feedback-endpoint"]');
+  function feedbackModal() {
+    const stats = HC.track ? HC.track.summary() : {};
+    let sent = false;
+    openModal({
+      render: () => sent ? `<h2>Thank you!</h2><p>Your feedback was sent. It really helps shape the game.</p><div class="btn-row end">${btn('Back to the shop', 'closeModal', {}, { cls: 'btn-go' })}</div>` : `
+        <h2>Send feedback</h2>
+        <p class="muted">Thanks for playtesting Honeycomb Corner! A few quick questions (all optional):</p>
+        <form class="feedback" data-form="feedback">
+          <label>What did you enjoy?<textarea name="enjoyed" rows="2"></textarea></label>
+          <label>When (if ever) did it get boring or feel slow?<textarea name="bored" rows="2"></textarea></label>
+          <label>Anything confusing?<textarea name="confused" rows="2"></textarea></label>
+          <fieldset><legend>Would you keep playing?</legend>
+            ${['Definitely', 'Probably', 'Not sure', 'Probably not', 'No'].map((t) => `<label class="radio"><input type="radio" name="keepPlaying" value="${t}"> ${t}</label>`).join('')}
+          </fieldset>
+          <label>Your name (optional)<input name="name" maxlength="40"></label>
+          <details><summary>What else gets sent (no personal info)</summary><pre class="fb-stats">${esc(JSON.stringify(stats, null, 1))}</pre></details>
+          <div class="btn-row end">${btn('Not now', 'closeModal', {}, { cls: 'btn-ghost' })}<button class="btn btn-go" type="submit">${canSubmit() ? 'Send' : 'Copy to send'}</button></div>
+        </form>`,
+      onSubmit: (form) => {
+        const data = Object.fromEntries(new FormData(form).entries());
+        data.stats = JSON.stringify(stats);
+        if (!canSubmit()) {
+          // Not on the playtest site: copy everything so it can be pasted.
+          const text = Object.entries(data).map(([k, v]) => k + ': ' + v).join('\n');
+          const done = () => toast('Copied! Paste it into a message to the developer.', 'good');
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => toast('Could not copy automatically.', 'bad'));
+          return;
+        }
+        const body = new URLSearchParams(Object.assign({ 'form-name': 'playtest-feedback' }, data)).toString();
+        fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body })
+          .then((r) => {
+            if (!r.ok) throw new Error(r.status);
+            sent = true;
+            if (HC.track) HC.track.notes().feedbackSent++;
+            renderModal();
+          })
+          .catch(() => toast('Could not send just now. Please try again in a moment.', 'bad'));
+      },
+    });
+  }
+
   function festivalModal() {
     let keep = null;
     openModal({
@@ -7328,6 +7519,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
       case 'setDuty': r = HC.act.setDuty(ds.who, ds.duty); break;
       case 'train': r = HC.act.train(ds.id, ds.track); break;
       case 'rep': return repModal();
+      case 'feedback': return feedbackModal();
       case 'collect': r = HC.act.collect(Number(ds.i)); break;
       case 'collectAll': r = HC.act.collectAll(); break;
       case 'restockNow': r = HC.act.restockNow(); break;
@@ -7418,6 +7610,14 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
 
   // One click listener for the whole page.
   function onClick(e) {
+    // Tapping somewhere other than the flashing guide target pauses the
+    // dimming for a minute (the goal bar keeps showing what to do).
+    if (spotEl && !spotEl.contains(e.target) && !e.target.closest('#goalbar, #textbox, #modal')) {
+      guideSnoozedUntil = Date.now() + 60000;
+      spotEl.classList.remove('spotlight');
+      spotEl = null;
+      document.body.classList.remove('guiding');
+    }
     if (drag.suppressClick) {
       // This click is the end of a bee drag, not a tap.
       drag.suppressClick = false;
@@ -7429,6 +7629,8 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     if (t.type === 'checkbox') return; // handled by onChange
     e.preventDefault();
     if (t.classList.contains('cant') && t.dataset.afford) {
+      // Wanted to skip a timer but couldn't afford it: a playtest signal.
+      if ((t.dataset.act === 'skipBuild' || t.dataset.act === 'skipEgg') && HC.track) HC.track.gemStarved();
       // Greyed-out button: explain why and give it a little shake.
       bus.emit('fail', t.dataset.need || 'Not enough coins.');
       t.classList.remove('shake');
@@ -7653,8 +7855,23 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     const sel = typeof gd.sel === 'function' ? gd.sel(s) : gd.sel;
     return sel ? el.panel.querySelector(sel) : null;
   }
+  // WAITING INSTEAD OF DIMMING (playtest 6): if the button the guide wants is
+  // greyed out (not enough coins yet, or the builder is busy), there's
+  // nothing to press, so the page stays in full colour and the goal bar shows
+  // a "Saving up" bar instead. The flashing comes back once it's affordable.
+  // Tapping anywhere away from the flashing thing also pauses the dimming
+  // for a minute, so it never gets in the way.
+  let guideWait = null; // { cost } while saving up, { busy: true } if the builder is busy
+  let guideSnoozedUntil = 0;
   function updateSpotlight() {
-    const target = guideTarget();
+    let target = guideTarget();
+    guideWait = null;
+    if (target && target.classList.contains('cant')) {
+      const cost = Number(target.dataset.cost || 0);
+      guideWait = S().coins < cost ? { cost } : { busy: true };
+      target = null;
+    }
+    if (Date.now() < guideSnoozedUntil) target = null;
     if (target === spotEl) return;
     if (spotEl) spotEl.classList.remove('spotlight');
     spotEl = target;
@@ -7689,6 +7906,8 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     { id: 'merchant', when: (s) => !!s.merchant, lines: ["A travelling merchant has parked outside. The bees are rare, and the wagon won't stay long."] },
     { id: 'drip', when: () => !!HC.sim.rt.drip, lines: ['A golden drip is glistening on one of your hives. Tap it before it drips away!'] },
     { id: 'boxfull', when: (s) => s.box.length >= f().boxCap(s), lines: ["Your bee box is full. Build or upgrade a hive, or sell bees you don't need."] },
+    // After 20 minutes of play, invite feedback once (the ⚙ menu has it too).
+    { id: 'feedback', when: (s) => s.playTime > 20 * 60, lines: ['Enjoying the shop? If you have a minute, tap ⚙ → Send feedback and tell us what you think. It really helps!'] },
     { id: 'festival', when: (s) => f().festivalRibbons(s) > 0, lines: ['The town wants to throw a Honey Festival in your honour! Take a look in the Town tab.'] },
   ];
   function checkHints() {
@@ -7820,6 +8039,11 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     });
     bus.on('morning', () => toast('Good morning! The shop is open.', 'good'));
     bus.on('special', (g) => toast("Today's special: " + g.name + ' sells for ' + Math.round((D.EVENTS.special.priceMult - 1) * 100) + '% more.', 'good'));
+    // A regular paid (see regularPaid in customers.js).
+    bus.on('regular', (e) => {
+      if (e.heart) toast(`${e.r.name} found their ${D.good[e.r.fav].name}! ♥ ${e.hearts}/5` + (e.gift && e.gift.coins ? ' They left a thank-you gift!' : ''), 'good');
+      else if (!e.gotFav) toastOnce('reg-' + e.r.id, 120, `${e.r.name} couldn't find their ${D.good[e.r.fav].name} today.`, 'bad');
+    });
     bus.on('criticArrived', () => {
       toast('A food critic just walked in!', 'good');
       HC.audio.play('bell');
@@ -7869,6 +8093,137 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
     markDirty: () => (dirty = true),
     get tab() { return tab; },
   };
+})();
+
+</script>
+<script>
+// =============================================================================
+// track.js: PLAYTEST NOTES (a tiny, private "analytics" for playtesters)
+// -----------------------------------------------------------------------------
+// While someone plays, the game quietly keeps a few numbers IN THEIR OWN SAVE:
+//   - how many sessions they've played and how long each lasted
+//   - which calendar days they played (so we can see if they came back)
+//   - how long it took to reach each goal
+//   - how often they wanted to skip a timer but didn't have enough gems
+//     ("gem-starved"), and how often they did skip with gems
+//   - how many gems they earned and spent
+// Nothing is sent anywhere automatically. The numbers are only shared if the
+// player opens "Send feedback" and presses Send; the form shows them exactly
+// what's included first. (See feedbackModal in ui.js.)
+//
+// The notes live in the save as `s.playtest` and survive festivals.
+// =============================================================================
+(function () {
+  const HC = window.HC;
+  const { bus } = HC;
+  const S = () => HC.game;
+
+  // A new session starts if the game was closed for more than 30 minutes.
+  const SESSION_GAP = 30 * 60 * 1000;
+  const today = () => new Date().toISOString().slice(0, 10); // e.g. "2026-09-30"
+
+  // Make sure the save has a notes object (older saves won't).
+  function notes() {
+    const s = S();
+    if (!s.playtest) {
+      s.playtest = {
+        firstPlayed: Date.now(),
+        sessions: 0,
+        sessionSecs: [], // length of each session, in seconds (last 50)
+        days: {}, // calendar days played on
+        goalAt: {}, // goal number → minutes of play when it was claimed
+        gemStarved: 0, // tapped a gem "Finish" button without enough gems
+        gemStarvedAt: [], // which goal they were on each time (last 20)
+        gemSkips: 0, // timers finished with gems
+        gemsSpent: 0,
+        feedbackSent: 0,
+        lastActive: 0,
+      };
+    }
+    return s.playtest;
+  }
+
+  let sessionStart = 0;
+  // Called once at start-up (main.js).
+  function init() {
+    const n = notes();
+    const now = Date.now();
+    if (!n.lastActive || now - n.lastActive > SESSION_GAP) {
+      n.sessions++;
+      n.sessionSecs.push(0);
+      if (n.sessionSecs.length > 50) n.sessionSecs.shift();
+    }
+    sessionStart = now;
+    n.days[today()] = true;
+    n.lastActive = now;
+
+    // Once a second, while the page is visible, add to the session length.
+    setInterval(() => {
+      if (document.hidden) return;
+      const m = notes();
+      const t = Date.now();
+      if (t - m.lastActive > SESSION_GAP) {
+        m.sessions++;
+        m.sessionSecs.push(0);
+      }
+      m.sessionSecs[m.sessionSecs.length - 1] = (m.sessionSecs[m.sessionSecs.length - 1] || 0) + 1;
+      m.days[today()] = true;
+      m.lastActive = t;
+    }, 1000);
+
+    // When a goal is claimed, note how many minutes of play it took.
+    bus.on('goalClaimed', () => {
+      const s = S();
+      notes().goalAt[s.goal] = Math.round(s.playTime / 60);
+    });
+  }
+
+  // ui.js calls this when a gem button is tapped without enough gems.
+  function gemStarved() {
+    const n = notes();
+    n.gemStarved++;
+    n.gemStarvedAt.push((S().goal || 0) + 1);
+    if (n.gemStarvedAt.length > 20) n.gemStarvedAt.shift();
+  }
+  // ...and this when gems are actually spent on a skip.
+  function gemSkip(gems) {
+    const n = notes();
+    n.gemSkips++;
+    n.gemsSpent += gems;
+  }
+
+  // A short, readable summary: this is what "Send feedback" includes.
+  function summary() {
+    const s = S();
+    const n = notes();
+    const days = Object.keys(n.days).sort();
+    const secs = n.sessionSecs.filter((x) => x > 0);
+    const avg = secs.length ? Math.round(secs.reduce((a, b) => a + b, 0) / secs.length / 60) : 0;
+    return {
+      version: 'playtest-6',
+      minutesPlayed: Math.round(s.playTime / 60),
+      sessions: n.sessions,
+      avgSessionMinutes: avg,
+      longestSessionMinutes: secs.length ? Math.round(Math.max(...secs) / 60) : 0,
+      daysPlayed: days.length,
+      cameBackNextDay: days.length > 1,
+      goalReached: (s.goal || 0) + 1,
+      minutesToGoal: n.goalAt,
+      species: Object.keys(s.discovered).length,
+      helpers: Object.keys(s.staff).length,
+      gems: s.gems,
+      gemsEarned: s.stats.gemsEarned || 0,
+      gemsSpentOnSkips: n.gemsSpent,
+      gemSkips: n.gemSkips,
+      gemStarved: n.gemStarved,
+      gemStarvedOnGoals: n.gemStarvedAt,
+      reputation: Math.round(s.rep * 10) / 10,
+      festivals: s.festivals,
+      device: /Mobi|Android|iPhone|iPad/.test(navigator.userAgent) ? 'phone/tablet' : 'computer',
+    };
+  }
+
+  HC.track = { init, notes, gemStarved, gemSkip, summary };
 })();
 
 </script>
@@ -7979,6 +8334,7 @@ body.guiding .goalbar, body.guiding .textbox { position: relative; z-index: 41; 
 
     HC.render.init(document.getElementById('scene'));
     HC.ui.init();
+    HC.track.init(); // playtest notes: sessions, days, goals, gem use (track.js)
 
     if (!isNew && !restored) {
       const away = (Date.now() - (s.lastSeen || Date.now())) / 1000;

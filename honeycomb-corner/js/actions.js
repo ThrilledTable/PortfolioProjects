@@ -343,6 +343,7 @@
       if (s.gems < cost) return fail('Not enough gems.');
       s.gems -= cost;
       s.stats.skips++;
+      if (HC.track) HC.track.gemSkip(cost); // playtest notes (track.js)
       n.t = n.dur;
       n.ready = true;
       return done('The egg is ready to hatch!', 'discover');
@@ -489,6 +490,7 @@
       s.cos = old.cos;
       s.gems = old.gems + D.GEMS.festival;
       s.keeperDuty = old.keeperDuty;
+      s.playtest = old.playtest; // playtest notes carry over (track.js)
       s.playTime = old.playTime;
       s.time = old.time;
       s.clock = old.clock;

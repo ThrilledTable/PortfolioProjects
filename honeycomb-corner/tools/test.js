@@ -523,6 +523,26 @@ test('builds cannot be finished with coins', (HC) => {
   assert(!HC.act.overtime && !HC.builds.overtime);
 });
 
+test('regulars buy their favourite, tip, and gain a heart once a day', (HC) => {
+  const s = HC.game;
+  setDay(HC, 0.1);
+  s.store = { wildflower: 40 };
+  s.shelves[0].qty = 6;
+  HC.sim.rt.spawnT = 1e9;
+  // Mrs. Pemberton loves Wildflower Honey, the only product at the start.
+  const orig = Math.random;
+  Math.random = () => 0.01; // force the next shopper to be a regular
+  HC.sim.rt.spawnT = 0;
+  advance(HC, 0.1);
+  Math.random = orig;
+  HC.sim.rt.spawnT = 1e9;
+  const c = HC.sim.rt.customers.find((x) => x.regular);
+  assert(c, 'a regular walked in');
+  advance(HC, 60);
+  const st = s.regulars[c.regular];
+  assert(st && st.hearts === 1, 'gained a heart');
+});
+
 test('there is one builder: a second build waits', (HC) => {
   const s = HC.game;
   s.coins = 1e5;
