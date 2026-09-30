@@ -78,7 +78,7 @@ All of these are edits to `js/data.js` unless noted. After a change, run the che
 
 **Make an upgrade cheaper or pricier.** In `UPGRADES`: `base` is the first level's price, and `growth` multiplies it each level (2.3 means each level costs 2.3× the previous one). `max` is the top level.
 
-**Make timers shorter or longer.** In `js/sim.js`, find `buildTime`. `12 * cost^0.38` sets the curve; change the `12` to scale every timer, or the `8 * 3600` to cap the longest one (in seconds). Breeding times are `breedTime`, just below `breedCost`.
+**Make timers shorter or longer.** In `js/sim.js`, find `buildTime`. `15 * cost^0.38` sets the curve; change the `15` to scale every timer, or the `8 * 3600` to cap the longest one (in seconds). Breeding times are `breedTime`, just below `breedCost`.
 
 **Change how much honey a hive holds.** In `js/sim.js`: `honeyCap: (h) => 16 + 12 * h.level`. That's 16 jars at level 1, plus 12 per level.
 
