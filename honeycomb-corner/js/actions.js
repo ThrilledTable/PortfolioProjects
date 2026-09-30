@@ -66,8 +66,20 @@
     buyBee(sp) {
       const s = S();
       if (!f().marketUnlocked(s, sp)) return fail('That bee is not for sale yet.');
-      if (!hasRoom()) return fail('No room. Build a hive or expand the bee box.');
       const cost = f().marketPrice(s, sp);
+      // HELPING HAND (see needsHelpingHand in sim.js): the free Meadow Bee
+      // must actually make honey, so it goes into a hive. If every hive is
+      // full, one bee that makes nothing sellable (e.g. a Waxwing) moves to
+      // the bee box to make room, even if the box is already full.
+      if (cost === 0 && sp === 'meadow' && !s.hives.some((h) => h.bees.length < f().hiveCap(h))) {
+        const h = s.hives.find((hv) => hv.bees.some((id) => D.good[D.species[s.bees[id].sp].good].raw));
+        if (h) {
+          const out = h.bees.find((id) => D.good[D.species[s.bees[id].sp].good].raw);
+          h.bees = h.bees.filter((id) => id !== out);
+          s.box.push(out);
+        }
+      }
+      if (!hasRoom()) return fail('No room. Build a hive or expand the bee box.');
       if (!spend(cost)) return fail('Not enough coins.');
       if (cost > 0) s.market[sp] = (s.market[sp] || 0) + 1; // a free helping-hand bee doesn't raise prices
       const isNew = !s.discovered[sp];

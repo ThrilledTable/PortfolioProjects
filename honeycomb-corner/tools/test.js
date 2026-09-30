@@ -589,6 +589,13 @@ test('a helping hand: a free Meadow Bee if nothing you keep makes sellable honey
   assert.strictEqual(HC.sim.f.marketPrice(s, 'meadow'), 0);
   assert(HC.act.buyBee('meadow').ok);
   assert(HC.sim.f.marketPrice(s, 'meadow') > 0, 'only while stuck');
+  // A FULL hive of Waxwings and a full bee box: the free bee still gets in.
+  s.hives[0].bees = [0, 1, 2].map(() => HC.state.makeBee(s, 'waxwing').id);
+  s.box = [];
+  while (s.box.length < HC.sim.f.boxCap(s)) s.box.push(HC.state.makeBee(s, 'waxwing').id);
+  s.coins = 3;
+  assert(HC.act.buyBee('meadow').ok, 'helping hand works with no room');
+  assert(s.hives[0].bees.some((id) => s.bees[id].sp === 'meadow'), 'free bee is in the hive, making honey');
 });
 
 test('there is one builder: a second build waits', (HC) => {

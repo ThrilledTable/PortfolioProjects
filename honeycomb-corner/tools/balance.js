@@ -47,6 +47,8 @@ function run(hours) {
   function bot() {
     const s = HC.game;
     HC.goals.claim();
+    // Stuck with nothing sellable? Take the market's free helping-hand bee.
+    if (f.needsHelpingHand(s)) act.buyBee('meadow');
     // Closing time: a typical player sleeps through to the morning.
     if (f.isNight(s) && !HC.workers.shelvesNeedAny(s)) act.sleep(); // after the Register crew restocks
     // Shelves: best sellable goods first.
