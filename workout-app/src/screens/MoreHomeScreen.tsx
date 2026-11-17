@@ -12,6 +12,9 @@ import { MoreStackParamList } from '../navigation/types';
 import { Exercise } from '../types';
 import { computeStreak, computeThisWeekVolume, computeTotalWorkouts } from '../utils/stats';
 import { convertWeightTotal, formatWeightValue } from '../utils/units';
+// The app manifest is the one place the version is declared; reading it here
+// means a release bumps app.json (and package.json alongside it) and nothing else.
+import appConfig from '../../app.json';
 
 type Props = NativeStackScreenProps<MoreStackParamList, 'MoreHome'>;
 
@@ -122,6 +125,7 @@ export default function MoreHomeScreen({ navigation }: Props) {
           A simple mesocycle-based workout tracker. Your workouts live on this device; sign in
           under Account & Backup to keep a copy in the cloud and share it across your devices.
         </Text>
+        <Text style={styles.versionText}>Version {appConfig.expo.version}</Text>
       </View>
       <Pressable style={styles.dangerRow} onPress={resetAllData}>
         <Ionicons name="trash-outline" size={20} color={colors.danger} />
@@ -158,6 +162,7 @@ const styles = StyleSheet.create({
   section: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md },
   sectionTitle: { color: colors.textPrimary, fontWeight: '700', fontSize: 15, marginBottom: 6 },
   sectionBody: { color: colors.textSecondary, fontSize: 13, lineHeight: 18 },
+  versionText: { color: colors.textMuted, fontSize: 12, marginTop: spacing.sm },
   dangerRow: {
     flexDirection: 'row',
     alignItems: 'center',
