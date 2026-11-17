@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useStore } from '../store/useStore';
 import ScreenContainer from '../components/ScreenContainer';
@@ -404,6 +405,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   const settings = useStore((s) => s.settings);
   const unit = settings.unit;
   const tabNavigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
+  const insets = useSafeAreaInsets();
 
   const meso = active ? mesocycles.find((m) => m.id === active.mesoId) : undefined;
   const day = meso && active ? meso.days[active.dayIndex] : undefined;
@@ -495,7 +497,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
 
   if (!active || !meso || !day) {
     return (
-      <ScreenContainer style={styles.emptyState}>
+      <ScreenContainer insetTop style={styles.emptyState}>
         <Ionicons name="barbell-outline" size={48} color={colors.textMuted} />
         <Text style={styles.emptyTitle}>No active workout plan</Text>
         <Text style={styles.emptySubtitle}>Create or select a workout plan to start logging workouts.</Text>
@@ -699,7 +701,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
 
   return (
     <ScreenContainer>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={styles.headerTitle}>
@@ -769,6 +771,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
             value={session.notes ?? ''}
             onChangeText={(v) => updateSessionNotes(session.id, v)}
             multiline
+            numberOfLines={2}
           />
         </View>
 
@@ -875,7 +878,6 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 56,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
     backgroundColor: colors.surface,
@@ -928,6 +930,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 13,
     minHeight: 36,
+    maxHeight: 88,
   },
   suggestionBadge: {
     alignSelf: 'flex-start',

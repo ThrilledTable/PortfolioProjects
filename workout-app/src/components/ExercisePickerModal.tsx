@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
 import { Exercise, MuscleGroup } from '../types';
 import { colors, radius, spacing } from '../theme/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MuscleTag from './MuscleTag';
 
 export default function ExercisePickerModal({
@@ -22,6 +23,7 @@ export default function ExercisePickerModal({
   const exercises = useStore((s) => s.exercises);
   const [query, setQuery] = useState('');
 
+  const insets = useSafeAreaInsets();
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return exercises.filter((e) => {
@@ -34,7 +36,7 @@ export default function ExercisePickerModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top + spacing.md }]}>
         <View style={styles.header}>
           <Text style={styles.title}>Add Exercise</Text>
           <Pressable onPress={onClose} hitSlop={12}>
@@ -77,7 +79,7 @@ export default function ExercisePickerModal({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingTop: 60, paddingHorizontal: spacing.md },
+  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.md },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

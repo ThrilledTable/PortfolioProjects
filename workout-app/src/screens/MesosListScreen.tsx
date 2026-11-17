@@ -44,7 +44,7 @@ export default function MesosListScreen({ navigation }: Props) {
   };
 
   return (
-    <ScreenContainer style={{ paddingTop: spacing.md, paddingHorizontal: spacing.md }}>
+    <ScreenContainer insetTop extraTop={spacing.md} style={{ paddingHorizontal: spacing.md }}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Workout Builder</Text>
         <Pressable style={styles.addButton} onPress={() => navigation.navigate('PlanBuilder')}>

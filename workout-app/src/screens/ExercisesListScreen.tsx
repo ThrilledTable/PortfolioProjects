@@ -26,7 +26,7 @@ export default function ExercisesListScreen({ navigation }: Props) {
   }, [exercises, query, muscleFilter]);
 
   return (
-    <ScreenContainer style={{ paddingTop: 60, paddingHorizontal: spacing.md }}>
+    <ScreenContainer insetTop extraTop={spacing.md} style={{ paddingHorizontal: spacing.md }}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Exercises</Text>
         <Pressable style={styles.addButton} onPress={() => navigation.navigate('AddExercise')}>
@@ -77,9 +77,12 @@ export default function ExercisesListScreen({ navigation }: Props) {
           >
             <View style={{ flex: 1, gap: 6 }}>
               <Text style={styles.name}>{item.name}</Text>
-              <MuscleTag muscle={item.muscleGroup} />
+              <View style={styles.metaRow}>
+                <MuscleTag muscle={item.muscleGroup} />
+                <Text style={styles.equipment}>{item.equipment}</Text>
+              </View>
             </View>
-            <Text style={styles.equipment}>{item.equipment}</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </Pressable>
         )}
         ListEmptyComponent={<Text style={styles.empty}>No exercises match your filters.</Text>}
@@ -131,6 +134,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   name: { color: colors.textPrimary, fontSize: 16, fontWeight: '600' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   equipment: { color: colors.textSecondary, fontSize: 13 },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: spacing.lg },
 });

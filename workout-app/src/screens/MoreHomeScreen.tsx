@@ -52,7 +52,7 @@ export default function MoreHomeScreen({ navigation }: Props) {
   };
 
   return (
-    <ScreenContainer style={{ paddingTop: spacing.md, paddingHorizontal: spacing.md }}>
+    <ScreenContainer insetTop extraTop={spacing.md} style={{ paddingHorizontal: spacing.md }}>
       <Text style={styles.title}>More</Text>
 
       <View style={styles.statsCard}>

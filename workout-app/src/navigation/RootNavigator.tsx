@@ -51,7 +51,7 @@ function WorkoutStackNavigator() {
 function MesosStackNavigator() {
   return (
     <MesosStack.Navigator screenOptions={screenOptions}>
-      <MesosStack.Screen name="MesosList" component={MesosListScreen} options={{ title: 'Workout Builder' }} />
+      <MesosStack.Screen name="MesosList" component={MesosListScreen} options={{ headerShown: false }} />
       <MesosStack.Screen name="PlanBuilder" component={PlanBuilderScreen} options={{ title: 'New Workout Plan' }} />
       <MesosStack.Screen name="MesoEditor" component={MesoEditorScreen} options={{ title: 'Edit Workout Plan' }} />
     </MesosStack.Navigator>
@@ -61,7 +61,7 @@ function MesosStackNavigator() {
 function ExercisesStackNavigator() {
   return (
     <ExercisesStack.Navigator screenOptions={screenOptions}>
-      <ExercisesStack.Screen name="ExercisesList" component={ExercisesListScreen} options={{ title: 'Exercises' }} />
+      <ExercisesStack.Screen name="ExercisesList" component={ExercisesListScreen} options={{ headerShown: false }} />
       <ExercisesStack.Screen name="ExerciseHistory" component={ExerciseHistoryScreen} options={{ title: 'History' }} />
       <ExercisesStack.Screen name="AddExercise" component={AddExerciseScreen} options={{ title: 'New Exercise', presentation: 'modal' }} />
     </ExercisesStack.Navigator>
@@ -71,7 +71,7 @@ function ExercisesStackNavigator() {
 function MoreStackNavigator() {
   return (
     <MoreStack.Navigator screenOptions={screenOptions}>
-      <MoreStack.Screen name="MoreHome" component={MoreHomeScreen} options={{ title: 'More' }} />
+      <MoreStack.Screen name="MoreHome" component={MoreHomeScreen} options={{ headerShown: false }} />
       <MoreStack.Screen name="History" component={HistoryScreen} options={{ title: 'Workout History' }} />
       <MoreStack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
       <MoreStack.Screen name="Account" component={AccountScreen} options={{ title: 'Account & Backup' }} />
