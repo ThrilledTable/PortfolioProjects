@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radius, spacing } from '../theme/theme';
 
 export type DialogChoiceStyle = 'default' | 'destructive' | 'cancel';
@@ -81,6 +81,8 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
   // The prompt's promise is created before any typing happens, so it cannot
   // close over the final text -- it reads this ref when the dialog settles.
   const draftRef = useRef('');
+  // The request as the resolver needs it, outside React's update queue.
+  const requestRef = useRef<DialogRequest | null>(null);
 
   const [draft, setDraft] = useState('');
   draftRef.current = draft;
@@ -90,23 +92,28 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
       return new Promise<string | null>((resolve) => {
         settled.current = false;
         if (prompt) setDraft(prompt.initialValue);
-        setRequest({ title, message, choices, prompt, resolve });
+        const next = { title, message, choices, prompt, resolve };
+        requestRef.current = next;
+        setRequest(next);
       });
     },
     []
   );
 
-  const settle = useCallback(
-    (value: string | null) => {
-      if (settled.current) return;
-      settled.current = true;
-      setRequest((current) => {
-        current?.resolve(value);
-        return null;
-      });
-    },
-    []
-  );
+  const settle = useCallback((value: string | null) => {
+    if (settled.current) return;
+    settled.current = true;
+    const current = requestRef.current;
+    requestRef.current = null;
+    // Clear first, resolve second, and never from inside a state updater.
+    // Resolving in the updater let one dialog settle the next one: React is
+    // free to run the updater after the following dialog's own setRequest has
+    // landed, and it would then resolve *that* request with this dialog's
+    // answer and wipe it off the screen. Chaining two dialogs -- name, then
+    // equipment -- hits that every time.
+    setRequest(null);
+    current?.resolve(value);
+  }, []);
 
   const api = useMemo<DialogApi>(
     () => ({
@@ -182,7 +189,11 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
                 onSubmitEditing={request.prompt.multiline ? undefined : () => settle('submit')}
               />
             )}
-            <View style={styles.choices}>
+            <ScrollView
+              style={styles.choicesScroll}
+              contentContainerStyle={styles.choices}
+              showsVerticalScrollIndicator={false}
+            >
               {request?.choices.map((choice) => (
                 <Pressable
                   key={choice.value}
@@ -207,7 +218,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
                   </Text>
                 </Pressable>
               ))}
-            </View>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -226,6 +237,7 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 340,
+    maxHeight: '85%',
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
@@ -246,7 +258,10 @@ const styles = StyleSheet.create({
   inputMultiline: { minHeight: 90, textAlignVertical: 'top' },
   title: { color: colors.textPrimary, fontSize: 17, fontWeight: '800' },
   message: { color: colors.textSecondary, fontSize: 14, lineHeight: 20, marginTop: spacing.sm },
-  choices: { marginTop: spacing.lg, gap: spacing.sm },
+  // A long list (picking one of twelve muscle groups, say) would otherwise run
+  // off the bottom of the card with no way to reach the rest.
+  choicesScroll: { marginTop: spacing.lg, flexGrow: 0 },
+  choices: { gap: spacing.sm, paddingBottom: 2 },
   choice: {
     backgroundColor: colors.accent,
     borderRadius: radius.md,
