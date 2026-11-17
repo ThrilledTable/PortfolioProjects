@@ -90,6 +90,13 @@ export interface LoggedSet {
   rir: string;
   logged: boolean;
   type: SetType;
+  /**
+   * Deliberately not done. A skipped set counts as settled so the exercise can
+   * finish, but it is never `logged`, so it adds nothing to volume and nothing
+   * to next week's suggestion. Deleting the set would lose the fact that it was
+   * planned at all; this keeps it.
+   */
+  skipped?: boolean;
 }
 
 export type PainFlag = 'none' | 'mild' | 'sharp';

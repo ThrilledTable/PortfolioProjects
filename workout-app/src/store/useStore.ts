@@ -56,6 +56,8 @@ interface StoreState {
   duplicateMesocycle: (id: string) => void;
   createNextMesocycle: (id: string) => Mesocycle | null;
   swapDayExercise: (mesoId: string, dayId: string, templateExerciseId: string, newExerciseId: string) => void;
+  moveDayExercise: (mesoId: string, dayId: string, templateExerciseId: string, toIndex: number) => void;
+  removeDayExercise: (mesoId: string, dayId: string, templateExerciseId: string) => void;
 
   setActive: (mesoId: string, week: number, dayIndex: number) => void;
   clearActive: () => void;
@@ -78,6 +80,8 @@ interface StoreState {
   ) => void;
   addSet: (sessionId: string, sessionExerciseId: string) => void;
   removeSet: (sessionId: string, sessionExerciseId: string, setId: string) => void;
+  skipRemainingSets: (sessionId: string, sessionExerciseId: string) => void;
+  unskipSet: (sessionId: string, sessionExerciseId: string, setId: string) => void;
   completeSession: (sessionId: string) => void;
   updateSessionNotes: (sessionId: string, notes: string) => void;
   setExercisePain: (sessionId: string, sessionExerciseId: string, pain: PainFlag) => void;
@@ -133,6 +137,48 @@ const makeLoggedSet = (): LoggedSet => ({
   logged: false,
   type: 'working',
 });
+
+/** Rewrite one day of one block, leaving every other block and day untouched. */
+const mapDay = (
+  mesocycles: Mesocycle[],
+  mesoId: string,
+  dayId: string,
+  fn: (day: MesoDay) => MesoDay
+): Mesocycle[] =>
+  mesocycles.map((m) =>
+    m.id !== mesoId ? m : { ...m, days: m.days.map((d) => (d.id !== dayId ? d : fn(d))) }
+  );
+
+/** Rewrite one exercise of one session. */
+const mapSessionExercise = (
+  sessions: WorkoutSession[],
+  sessionId: string,
+  sessionExerciseId: string,
+  fn: (se: SessionExercise) => SessionExercise
+): WorkoutSession[] =>
+  sessions.map((sess) =>
+    sess.id !== sessionId
+      ? sess
+      : {
+          ...sess,
+          exercises: sess.exercises.map((se) => (se.id !== sessionExerciseId ? se : fn(se))),
+        }
+  );
+
+/**
+ * Editing a day rewrites every week of the block, so the sessions already
+ * started for it have to follow. Finished sessions are left exactly as they
+ * were -- they are a record of what was done, not a view of the plan.
+ */
+const mapUnfinishedSessions = (
+  sessions: WorkoutSession[],
+  mesoId: string,
+  dayId: string,
+  fn: (session: WorkoutSession) => WorkoutSession
+): WorkoutSession[] =>
+  sessions.map((sess) =>
+    sess.mesoId !== mesoId || sess.dayId !== dayId || sess.completedAt ? sess : fn(sess)
+  );
 
 const latestOf = (sessions: WorkoutSession[]): WorkoutSession | undefined =>
   sessions.length === 0
@@ -333,24 +379,83 @@ export const useStore = create<StoreState>()(
       },
 
       swapDayExercise: (mesoId, dayId, templateExerciseId, newExerciseId) => {
+        const meso = get().mesocycles.find((m) => m.id === mesoId);
+        const oldExerciseId = meso?.days
+          .find((d) => d.id === dayId)
+          ?.exercises.find((te) => te.id === templateExerciseId)?.exerciseId;
+        if (!oldExerciseId || oldExerciseId === newExerciseId) return;
+
         set((s) => ({
-          mesocycles: s.mesocycles.map((m) =>
-            m.id !== mesoId
-              ? m
-              : {
-                  ...m,
-                  days: m.days.map((d) =>
-                    d.id !== dayId
-                      ? d
-                      : {
-                          ...d,
-                          exercises: d.exercises.map((te) =>
-                            te.id !== templateExerciseId ? te : { ...te, exerciseId: newExerciseId }
-                          ),
-                        }
-                  ),
-                }
-          ),
+          mesocycles: mapDay(s.mesocycles, mesoId, dayId, (d) => ({
+            ...d,
+            exercises: d.exercises.map((te) =>
+              te.id !== templateExerciseId ? te : { ...te, exerciseId: newExerciseId }
+            ),
+          })),
+          // Rows on the workout screen are matched to the plan by exercise id,
+          // so a swap that only touched the plan would make the exercise vanish
+          // from a session already under way. Point the session's own row at the
+          // new lift and clear its numbers -- loads do not carry across lifts.
+          sessions: mapUnfinishedSessions(s.sessions, mesoId, dayId, (sess) => ({
+            ...sess,
+            exercises: sess.exercises.map((se) =>
+              se.exerciseId !== oldExerciseId
+                ? se
+                : {
+                    ...se,
+                    exerciseId: newExerciseId,
+                    painFlag: undefined,
+                    sets: se.sets.map(() => makeLoggedSet()),
+                  }
+            ),
+          })),
+        }));
+      },
+
+      moveDayExercise: (mesoId, dayId, templateExerciseId, toIndex) => {
+        set((s) => ({
+          mesocycles: mapDay(s.mesocycles, mesoId, dayId, (d) => {
+            const from = d.exercises.findIndex((te) => te.id === templateExerciseId);
+            const to = clamp(toIndex, 0, d.exercises.length - 1);
+            if (from === -1 || from === to) return d;
+            const exercises = [...d.exercises];
+            const [moved] = exercises.splice(from, 1);
+            exercises.splice(to, 0, moved);
+            return { ...d, exercises };
+          }),
+        }));
+      },
+
+      removeDayExercise: (mesoId, dayId, templateExerciseId) => {
+        const day = get()
+          .mesocycles.find((m) => m.id === mesoId)
+          ?.days.find((d) => d.id === dayId);
+        const exerciseId = day?.exercises.find((te) => te.id === templateExerciseId)?.exerciseId;
+        if (!day || !exerciseId) return;
+
+        // Sessions track exercises by exercise id, so a day listing the same
+        // lift twice shares one session row between both slots. Only prune that
+        // row once no slot is left pointing at it.
+        const stillInDay = day.exercises.some(
+          (te) => te.id !== templateExerciseId && te.exerciseId === exerciseId
+        );
+
+        set((s) => ({
+          mesocycles: mapDay(s.mesocycles, mesoId, dayId, (d) => ({
+            ...d,
+            exercises: d.exercises.filter((te) => te.id !== templateExerciseId),
+          })),
+          // Drop the row from sessions under way, but only while it holds
+          // nothing: sets already logged are work that happened, and they stay
+          // in the session (and so in history) even once the plan moves on.
+          sessions: stillInDay
+            ? s.sessions
+            : mapUnfinishedSessions(s.sessions, mesoId, dayId, (sess) => ({
+                ...sess,
+                exercises: sess.exercises.filter(
+                  (se) => se.exerciseId !== exerciseId || se.sets.some((st) => st.logged)
+                ),
+              })),
         }));
       },
 
@@ -473,7 +578,8 @@ export const useStore = create<StoreState>()(
                       : {
                           ...se,
                           sets: se.sets.map((st) =>
-                            st.id === setId ? { ...st, [field]: value } : st
+                            // Typing into a skipped set is how you take it back.
+                            st.id === setId ? { ...st, [field]: value, skipped: false } : st
                           ),
                         }
                   ),
@@ -495,7 +601,7 @@ export const useStore = create<StoreState>()(
                       : {
                           ...se,
                           sets: se.sets.map((st) =>
-                            st.id === setId ? { ...st, logged: !st.logged } : st
+                            st.id === setId ? { ...st, logged: !st.logged, skipped: false } : st
                           ),
                         }
                   ),
@@ -561,6 +667,26 @@ export const useStore = create<StoreState>()(
                   ),
                 }
           ),
+        }));
+      },
+
+      skipRemainingSets: (sessionId, sessionExerciseId) => {
+        set((s) => ({
+          sessions: mapSessionExercise(s.sessions, sessionId, sessionExerciseId, (se) => ({
+            ...se,
+            sets: se.sets.map((st) =>
+              st.logged || st.type === 'warmup' ? st : { ...st, skipped: true }
+            ),
+          })),
+        }));
+      },
+
+      unskipSet: (sessionId, sessionExerciseId, setId) => {
+        set((s) => ({
+          sessions: mapSessionExercise(s.sessions, sessionId, sessionExerciseId, (se) => ({
+            ...se,
+            sets: se.sets.map((st) => (st.id === setId ? { ...st, skipped: false } : st)),
+          })),
         }));
       },
 

@@ -16,7 +16,7 @@ import { useDialog } from '../components/DialogProvider';
 import { EffortLevel, Exercise, LoggedSet, MuscleGroup, PainFlag, PumpLevel, SessionExercise, SetType, TemplateExercise, WeightUnit } from '../types';
 import { getAverageLoggedReps, parseRepRange, ProgressionSuggestion, suggestProgression } from '../utils/progression';
 import { formatDuration } from '../utils/format';
-import { computeSessionSummary, isSessionInProgress } from '../utils/sessionSummary';
+import { computeSessionSummary, isExerciseComplete, isSessionInProgress } from '../utils/sessionSummary';
 import { convertWeightTotal, formatWeightValue, parseWeightInput } from '../utils/units';
 import { bestSetOf, computeSuggestedTarget, repsForAlternateWeight, SuggestedTarget, targetFieldValues } from '../utils/suggestion';
 import { restAfterSet, supersetPositions, SupersetPosition } from '../utils/supersets';
@@ -82,29 +82,46 @@ function SetRow({
   onUpdate,
   onToggle,
   onOpenMenu,
+  onUnskip,
 }: {
   set: LoggedSet;
   unit: WeightUnit;
   onUpdate: (field: 'weight' | 'reps', value: string) => void;
   onToggle: () => void;
   onOpenMenu: () => void;
+  onUnskip: () => void;
 }) {
+  const skipped = !!set.skipped && !set.logged;
   return (
     <View style={[styles.setRow, set.type === 'warmup' && styles.setRowWarmup]}>
       <Pressable onPress={onOpenMenu} hitSlop={14} style={styles.setMenuButton}>
         <Ionicons name={SET_TYPE_ICON[set.type]} size={14} color={SET_TYPE_COLOR[set.type]} />
       </Pressable>
-      <WeightInput lbsValue={set.weight} unit={unit} onChangeLbs={(v) => onUpdate('weight', v)} />
-      <TextInput
-        style={styles.setInput}
-        value={set.reps}
-        onChangeText={(v) => onUpdate('reps', v)}
-        placeholder="reps"
-        placeholderTextColor={colors.textMuted}
-        keyboardType="number-pad"
-      />
-      <Pressable style={[styles.logBox, set.logged && styles.logBoxChecked]} onPress={onToggle}>
+      {skipped ? (
+        // The numbers go away, but the row stays: it is still a set you planned
+        // and chose not to do, and one tap puts it back.
+        <Pressable style={styles.skippedFill} onPress={onUnskip}>
+          <Text style={styles.skippedText}>Skipped — tap to restore</Text>
+        </Pressable>
+      ) : (
+        <>
+          <WeightInput lbsValue={set.weight} unit={unit} onChangeLbs={(v) => onUpdate('weight', v)} />
+          <TextInput
+            style={styles.setInput}
+            value={set.reps}
+            onChangeText={(v) => onUpdate('reps', v)}
+            placeholder="reps"
+            placeholderTextColor={colors.textMuted}
+            keyboardType="number-pad"
+          />
+        </>
+      )}
+      <Pressable
+        style={[styles.logBox, set.logged && styles.logBoxChecked, skipped && styles.logBoxSkipped]}
+        onPress={skipped ? onUnskip : onToggle}
+      >
         {set.logged && <Ionicons name="checkmark" size={22} color="#fff" />}
+        {skipped && <Ionicons name="play-skip-forward" size={16} color={colors.textMuted} />}
       </Pressable>
     </View>
   );
@@ -200,6 +217,7 @@ function ExerciseCard({
   onSetLogged,
   onExerciseCompletionCheck,
   supersetPosition,
+  onOpenMenu,
   onEditNote,
 }: {
   exercise: Exercise;
@@ -215,6 +233,7 @@ function ExerciseCard({
   onSetLogged: (restSeconds: number) => void;
   onExerciseCompletionCheck: () => void;
   supersetPosition?: SupersetPosition;
+  onOpenMenu: () => void;
   onEditNote: () => void;
 }) {
   const updateSetField = useStore((s) => s.updateSetField);
@@ -222,6 +241,7 @@ function ExerciseCard({
   const setLoggedSetType = useStore((s) => s.setLoggedSetType);
   const addSet = useStore((s) => s.addSet);
   const removeSet = useStore((s) => s.removeSet);
+  const unskipSet = useStore((s) => s.unskipSet);
   const dialog = useDialog();
 
   const openSetMenu = async (setId: string) => {
@@ -283,18 +303,31 @@ function ExerciseCard({
           <Text style={styles.exerciseEquipment}>{exercise.equipment}</Text>
           <ProgressionBadge suggestion={suggestion} />
         </View>
-        <Pressable onPress={onEditNote} hitSlop={10} style={{ marginRight: spacing.sm }}>
-          <Ionicons
-            name={exercise.note ? 'bookmark' : 'bookmark-outline'}
-            size={20}
-            color={exercise.note ? colors.accent : colors.textSecondary}
-          />
-        </Pressable>
-        <Pressable onPress={onShowForm} hitSlop={10} style={{ marginRight: spacing.sm }}>
+        <Pressable
+          onPress={onShowForm}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={`How to do ${exercise.name}`}
+          style={{ marginRight: spacing.sm }}
+        >
           <Ionicons name="body-outline" size={20} color={colors.textSecondary} />
         </Pressable>
-        <Pressable onPress={onHistory} hitSlop={10} style={{ marginRight: spacing.sm }}>
+        <Pressable
+          onPress={onHistory}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={`History for ${exercise.name}`}
+          style={{ marginRight: spacing.sm }}
+        >
           <Ionicons name="time-outline" size={20} color={colors.textSecondary} />
+        </Pressable>
+        <Pressable
+          onPress={onOpenMenu}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={`Options for ${exercise.name}`}
+        >
+          <Ionicons name="ellipsis-vertical" size={20} color={colors.textSecondary} />
         </Pressable>
       </View>
 
@@ -337,6 +370,7 @@ function ExerciseCard({
             }
           }}
           onOpenMenu={() => openSetMenu(set.id)}
+          onUnskip={() => unskipSet(sessionId, sessionExercise.id, set.id)}
         />
       ))}
 
@@ -360,6 +394,10 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   const setExercisePain = useStore((s) => s.setExercisePain);
   const setMuscleFeedback = useStore((s) => s.setMuscleFeedback);
   const swapDayExercise = useStore((s) => s.swapDayExercise);
+  const moveDayExercise = useStore((s) => s.moveDayExercise);
+  const removeDayExercise = useStore((s) => s.removeDayExercise);
+  const addSet = useStore((s) => s.addSet);
+  const skipRemainingSets = useStore((s) => s.skipRemainingSets);
   const setExerciseNote = useStore((s) => s.setExerciseNote);
   const createNextMesocycle = useStore((s) => s.createNextMesocycle);
   const dialog = useDialog();
@@ -375,6 +413,11 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
   const [swapTarget, setSwapTarget] = useState<{ templateExerciseId: string; muscleGroup: MuscleGroup; exerciseId: string } | null>(null);
   const [formGuideExercise, setFormGuideExercise] = useState<Exercise | null>(null);
 
+  // Any change to the day's line-up has to reach the session: a swap keeps the
+  // count the same, and a reorder keeps the membership the same, so neither
+  // shows up in a length alone.
+  const daySignature = day?.exercises.map((te) => te.exerciseId).join('|') ?? '';
+
   useEffect(() => {
     if (meso && active && day) {
       const id = getOrCreateSession(meso.id, active.week, active.dayIndex);
@@ -382,7 +425,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
     } else {
       setSessionId(null);
     }
-  }, [meso?.id, active?.week, active?.dayIndex, day?.id, day?.exercises.length]);
+  }, [meso?.id, active?.week, active?.dayIndex, day?.id, daySignature]);
 
   const session = sessionId ? sessions.find((s) => s.id === sessionId) : undefined;
 
@@ -540,12 +583,101 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
     setMuscleFeedback(session.id, muscleGroup, { pump, effort });
   };
 
+  const openMoveMenu = async (templateExerciseId: string, index: number) => {
+    const last = day.exercises.length - 1;
+    const choice = await dialog.choose(
+      'Move exercise',
+      [
+        { value: 'up', label: 'Move up', disabled: index === 0 },
+        { value: 'down', label: 'Move down', disabled: index === last },
+        { value: 'top', label: 'Move to top', disabled: index === 0 },
+        { value: 'bottom', label: 'Move to bottom', disabled: index === last },
+        { value: 'cancel', label: 'Cancel', style: 'cancel' },
+      ],
+      `Position ${index + 1} of ${last + 1}. The order belongs to the day, so it applies to every week of this block.`
+    );
+    if (!choice || choice === 'cancel') return;
+    const toIndex = choice === 'up' ? index - 1 : choice === 'down' ? index + 1 : choice === 'top' ? 0 : last;
+    moveDayExercise(meso.id, day.id, templateExerciseId, toIndex);
+  };
+
+  const openExerciseMenu = async (
+    exercise: Exercise,
+    te: TemplateExercise,
+    index: number,
+    sessionExercise: SessionExercise
+  ) => {
+    const working = sessionExercise.sets.filter((st) => st.type !== 'warmup');
+    const hasLoggedSet = working.some((st) => st.logged);
+    const hasSetsToSkip = working.some((st) => !st.logged && !st.skipped);
+
+    const action = await dialog.choose(
+      'Exercise',
+      [
+        { value: 'note', label: exercise.note ? 'Edit note' : 'New note' },
+        { value: 'move', label: 'Move exercise', disabled: day.exercises.length < 2 },
+        { value: 'replace', label: 'Replace' },
+        // Nothing to report until something has actually been lifted.
+        { value: 'pain', label: 'Joint pain', disabled: !hasLoggedSet },
+        { value: 'addset', label: 'Add set' },
+        { value: 'skip', label: 'Skip sets', disabled: !hasSetsToSkip },
+        { value: 'remove', label: 'Remove exercise', style: 'destructive' },
+        { value: 'cancel', label: 'Cancel', style: 'cancel' },
+      ],
+      exercise.name
+    );
+
+    switch (action) {
+      case 'note':
+        await editExerciseNote(exercise);
+        return;
+      case 'move':
+        await openMoveMenu(te.id, index);
+        return;
+      case 'replace':
+        setSwapTarget({
+          templateExerciseId: te.id,
+          muscleGroup: exercise.muscleGroup,
+          exerciseId: te.exerciseId,
+        });
+        return;
+      case 'pain':
+        await promptPain(sessionExercise.id, exercise.name);
+        return;
+      case 'addset':
+        addSet(session.id, sessionExercise.id);
+        return;
+      case 'skip': {
+        const confirmed = await dialog.confirm(
+          'Skip remaining sets',
+          `Marks every set of ${exercise.name} you have not logged as skipped, so the day can be ` +
+            'finished without them. They stay on the list, and a tap puts any of them back.',
+          { confirmLabel: 'Skip Sets' }
+        );
+        if (confirmed) skipRemainingSets(session.id, sessionExercise.id);
+        return;
+      }
+      case 'remove': {
+        const confirmed = await dialog.confirm(
+          'Remove exercise',
+          `Takes ${exercise.name} out of ${day.name} for every week of ${meso.name}. Sets you have ` +
+            'already logged for it stay in your history.',
+          { confirmLabel: 'Remove', destructive: true }
+        );
+        if (confirmed) removeDayExercise(meso.id, day.id, te.id);
+        return;
+      }
+      default:
+        return;
+    }
+  };
+
   const checkExerciseCompletion = async (exercise: Exercise, sessionExercise: SessionExercise) => {
     const fresh = useStore.getState().sessions.find((s) => s.id === session.id);
     if (!fresh) return;
     const se = fresh.exercises.find((e) => e.id === sessionExercise.id);
     if (!se) return;
-    const exerciseDone = se.sets.length > 0 && se.sets.every((s) => s.type === 'warmup' || s.logged);
+    const exerciseDone = isExerciseComplete(se);
 
     if (exerciseDone && se.painFlag === undefined) {
       await promptPain(se.id, exercise.name);
@@ -558,7 +690,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
     if (!latest) return;
     const groupDone = groupExercises.every((ex) => {
       const gse = latest.exercises.find((s) => s.exerciseId === ex.id);
-      return gse && gse.sets.length > 0 && gse.sets.every((s) => s.type === 'warmup' || s.logged);
+      return !!gse && isExerciseComplete(gse);
     });
     if (groupDone && !latest.muscleFeedback?.[exercise.muscleGroup]) {
       await promptMuscleFeedback(exercise.muscleGroup);
@@ -695,6 +827,7 @@ export default function WorkoutHomeScreen({ navigation }: Props) {
                 onSetLogged={startRestTimer}
                 onExerciseCompletionCheck={() => checkExerciseCompletion(exercise, sessionExercise)}
                 supersetPosition={supersetPosition}
+                onOpenMenu={() => openExerciseMenu(exercise, te, idx, sessionExercise)}
                 onEditNote={() => editExerciseNote(exercise)}
               />
               {supersetPosition && !supersetPosition.isLast && (
@@ -942,6 +1075,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logBoxChecked: { backgroundColor: colors.success, borderColor: colors.success },
+  logBoxSkipped: { backgroundColor: colors.inputBackground },
+  skippedFill: {
+    flex: 2,
+    minWidth: 0,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+  },
+  skippedText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   addSetButton: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 4 },
   addSetText: { color: colors.accent, fontWeight: '600', fontSize: 13 },
 });

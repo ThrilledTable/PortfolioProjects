@@ -1,4 +1,4 @@
-import { Exercise, MuscleGroup, WorkoutSession } from '../types';
+import { Exercise, LoggedSet, MuscleGroup, SessionExercise, WorkoutSession } from '../types';
 
 export interface SessionSummary {
   totalSets: number;
@@ -23,6 +23,20 @@ export function computeSessionSummary(
     }
   }
   return { totalSets, totalVolume, muscleCount: muscles.size };
+}
+
+/**
+ * A set needs no further action: it was logged, it was deliberately skipped, or
+ * it is a warm-up, which never gated completion. Skipped sets are never
+ * `logged`, so everything that measures work done ignores them for free.
+ */
+export function isSetSettled(set: LoggedSet): boolean {
+  return set.logged || !!set.skipped || set.type === 'warmup';
+}
+
+/** Every set accounted for, on an exercise that has sets at all. */
+export function isExerciseComplete(sessionExercise: SessionExercise): boolean {
+  return sessionExercise.sets.length > 0 && sessionExercise.sets.every(isSetSettled);
 }
 
 /**

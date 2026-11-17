@@ -8,6 +8,12 @@ export interface DialogChoice<T extends string = string> {
   value: T;
   label: string;
   style?: DialogChoiceStyle;
+  /**
+   * Shown but not selectable. Kept visible rather than hidden so the menu does
+   * not change shape between openings -- the entry is there, it just has
+   * nothing to act on yet.
+   */
+  disabled?: boolean;
 }
 
 interface PromptConfig {
@@ -184,7 +190,9 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
                     styles.choice,
                     choice.style === 'destructive' && styles.choiceDestructive,
                     choice.style === 'cancel' && styles.choiceCancel,
+                    choice.disabled && styles.choiceDisabled,
                   ]}
+                  disabled={choice.disabled}
                   onPress={() => settle(choice.value)}
                 >
                   <Text
@@ -192,6 +200,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
                       styles.choiceText,
                       choice.style === 'destructive' && styles.choiceTextDestructive,
                       choice.style === 'cancel' && styles.choiceTextCancel,
+                      choice.disabled && styles.choiceTextDisabled,
                     ]}
                   >
                     {choice.label}
@@ -250,7 +259,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  choiceDisabled: { backgroundColor: colors.inputBackground, opacity: 0.55 },
   choiceText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  choiceTextDisabled: { color: colors.textMuted },
   choiceTextDestructive: { color: '#fff' },
   choiceTextCancel: { color: colors.textSecondary },
 });
