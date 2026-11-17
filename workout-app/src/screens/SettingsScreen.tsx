@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
 import ScreenContainer from '../components/ScreenContainer';
@@ -85,6 +85,7 @@ export default function SettingsScreen() {
 
   return (
     <ScreenContainer style={{ padding: spacing.md }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xl }}>
       <Text style={styles.label}>Weight Unit</Text>
       <View style={styles.unitRow}>
         {(['lbs', 'kg'] as WeightUnit[]).map((u) => (
@@ -137,6 +138,7 @@ export default function SettingsScreen() {
         Export saves a JSON backup of everything on this device. Import replaces all current data with the
         contents of a previously exported file.
       </Text>
+      </ScrollView>
     </ScreenContainer>
   );
 }

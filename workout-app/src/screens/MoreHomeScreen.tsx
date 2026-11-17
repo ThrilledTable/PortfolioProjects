@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -53,6 +53,7 @@ export default function MoreHomeScreen({ navigation }: Props) {
 
   return (
     <ScreenContainer insetTop extraTop={spacing.md} style={{ paddingHorizontal: spacing.md }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
       <Text style={styles.title}>More</Text>
 
       <View style={styles.statsCard}>
@@ -131,12 +132,17 @@ export default function MoreHomeScreen({ navigation }: Props) {
         <Ionicons name="trash-outline" size={20} color={colors.danger} />
         <Text style={styles.dangerText}>Reset All Data</Text>
       </Pressable>
+      </ScrollView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   title: { color: colors.textPrimary, fontSize: 28, fontWeight: '800', marginBottom: spacing.md },
+  // Expo's web page sets `body { overflow: hidden }`, so there is no page
+  // scroll to fall back on: without a scroller here the end of the screen is
+  // simply unreachable.
+  scrollContent: { paddingBottom: spacing.xl },
   statsCard: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
