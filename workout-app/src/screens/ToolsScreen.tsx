@@ -3,13 +3,77 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import ScreenContainer from '../components/ScreenContainer';
 import { useStore } from '../store/useStore';
 import { colors, radius, spacing } from '../theme/theme';
-import { BAR_OPTIONS, computePlateLoad, PLATE_DENOMINATIONS } from '../utils/plates';
+import {
+  BAR_OPTIONS,
+  computePlateLoad,
+  PLATE_DENOMINATIONS,
+  PlateCount,
+  plateColor,
+  plateRelativeSize,
+} from '../utils/plates';
 import { estimate1RM, weightForReps } from '../utils/suggestion';
+import { WeightUnit } from '../types';
 
 /** Rep counts worth showing a predicted working weight for. */
 const REP_TARGETS = [1, 3, 5, 8, 10, 12, 15];
 
 const round = (n: number) => Math.round(n * 10) / 10;
+
+/** Heights in px for the slim bar at the top of the result card. */
+const BAR_PLATE_MAX_HEIGHT = 64;
+const BAR_PLATE_MIN_HEIGHT = 16;
+
+const plateHeight = (rel: number, max: number, min: number) =>
+  Math.round(min + rel * (max - min));
+
+/**
+ * One sleeve's worth of plates. Heaviest sits against the shaft, so the
+ * outermost plate is the lightest -- which is how they go on in real life.
+ */
+function Sleeve({
+  perSide,
+  unit,
+  side,
+}: {
+  perSide: PlateCount[];
+  unit: WeightUnit;
+  side: 'left' | 'right';
+}) {
+  const plates = perSide.flatMap((p) =>
+    Array.from({ length: p.count }, () => p.weight)
+  );
+  const ordered = side === 'left' ? [...plates].reverse() : plates;
+  return (
+    <>
+      {ordered.map((weight, i) => {
+        const rel = plateRelativeSize(unit, weight);
+        return (
+          <View
+            key={`${side}-${weight}-${i}`}
+            style={{
+              width: Math.round(6 + rel * 4),
+              height: plateHeight(rel, BAR_PLATE_MAX_HEIGHT, BAR_PLATE_MIN_HEIGHT),
+              borderRadius: 2,
+              backgroundColor: plateColor(unit, weight),
+            }}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function BarbellGraphic({ perSide, unit }: { perSide: PlateCount[]; unit: WeightUnit }) {
+  return (
+    <View style={styles.barbell}>
+      <View style={styles.barEndCap} />
+      <Sleeve perSide={perSide} unit={unit} side="left" />
+      <View style={styles.barShaft} />
+      <Sleeve perSide={perSide} unit={unit} side="right" />
+      <View style={styles.barEndCap} />
+    </View>
+  );
+}
 
 function PlateCalculator() {
   const unit = useStore((s) => s.settings.unit);
@@ -70,23 +134,48 @@ function PlateCalculator() {
 
       {load && load.problem !== 'below-bar' && (
         <View style={styles.resultBox}>
+          <BarbellGraphic perSide={load.perSide} unit={unit} />
+
           {load.perSide.length === 0 ? (
             <Text style={styles.resultBig}>Just the bar</Text>
           ) : (
-            <View style={styles.plateRow}>
-              {load.perSide.flatMap((p) =>
-                Array.from({ length: p.count }, (_, i) => (
-                  <View key={`${p.weight}-${i}`} style={styles.plateChip}>
-                    <Text style={styles.plateChipText}>{p.weight}</Text>
-                  </View>
-                ))
-              )}
-            </View>
+            <>
+              <Text style={styles.resultMeta}>per side</Text>
+              <View style={styles.tally}>
+                {load.perSide.map((p, i) => {
+                  const rel = plateRelativeSize(unit, p.weight);
+                  return (
+                    <View
+                      key={p.weight}
+                      style={[styles.tallyRow, i === load.perSide.length - 1 && styles.tallyRowLast]}
+                    >
+                      <View style={styles.tallyGlyphCell}>
+                        <View
+                          style={{
+                            width: Math.round(7 + rel * 4),
+                            height: plateHeight(rel, 38, 14),
+                            borderRadius: 3,
+                            backgroundColor: plateColor(unit, p.weight),
+                          }}
+                        />
+                      </View>
+                      <Text style={styles.tallyWeight}>
+                        {p.weight} <Text style={styles.tallyUnit}>{unit}</Text>
+                      </Text>
+                      <Text style={styles.tallyCount}>× {p.count}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </>
           )}
-          <Text style={styles.resultMeta}>per side</Text>
-          <Text style={styles.resultTotal}>
-            Total on the bar: {load.achievable} {unit}
-          </Text>
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total on the bar</Text>
+            <Text style={styles.totalValue}>
+              {load.achievable} <Text style={styles.tallyUnit}>{unit}</Text>
+            </Text>
+          </View>
           {load.shortBy > 0 && (
             <Text style={styles.warn}>
               {round(load.shortBy)} {unit} short — no smaller plate to split the difference.
@@ -225,20 +314,54 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   resultBig: { color: colors.textPrimary, fontSize: 30, fontWeight: '800' },
-  resultMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
-  resultTotal: { color: colors.textSecondary, fontSize: 13, marginTop: spacing.sm, fontWeight: '600' },
-  plateRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
-  plateChip: {
-    minWidth: 44,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-    borderRadius: radius.sm,
-    backgroundColor: colors.accentMuted,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    alignItems: 'center',
+  resultMeta: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
   },
-  plateChipText: { color: colors.textPrimary, fontWeight: '800', fontSize: 15 },
+  barbell: {
+    // The card centres its children, so without this the row collapses to the
+    // width of the plates and the shaft has nothing to grow into -- a barbell
+    // that reads as a dumbbell.
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: BAR_PLATE_MAX_HEIGHT + 12,
+    gap: 2,
+  },
+  barEndCap: { width: 5, height: 12, borderRadius: 2, backgroundColor: '#4a4a52' },
+  barShaft: { flex: 1, minWidth: 12, height: 6, backgroundColor: '#4a4a52' },
+  tally: { alignSelf: 'stretch', marginTop: spacing.xs },
+  tallyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  tallyRowLast: { borderBottomWidth: 0 },
+  tallyGlyphCell: { width: 26, alignItems: 'center' },
+  tallyWeight: { flex: 1, color: colors.textPrimary, fontSize: 17, fontWeight: '700' },
+  tallyUnit: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
+  tallyCount: { color: colors.textPrimary, fontSize: 19, fontWeight: '800' },
+  totalRow: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.md,
+    marginTop: spacing.sm,
+  },
+  totalLabel: { color: colors.textSecondary, fontSize: 13 },
+  totalValue: { color: colors.textPrimary, fontSize: 20, fontWeight: '800' },
   warn: { color: '#e0b23c', fontSize: 12, marginTop: spacing.sm, textAlign: 'center' },
   table: { alignSelf: 'stretch', marginTop: spacing.md, gap: 2 },
   tableRow: {

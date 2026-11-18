@@ -27,6 +27,47 @@ export const BAR_OPTIONS: Record<WeightUnit, { label: string; weight: number }[]
   ],
 };
 
+/**
+ * The colours most gyms paint their plates, so the drawing on screen maps onto
+ * the rack you are standing at. Size still carries the weight on its own, so
+ * this degrades fine in a gym of plain black iron.
+ */
+export const PLATE_COLORS: Record<WeightUnit, Record<number, string>> = {
+  lbs: {
+    45: '#2f6fdb',
+    35: '#e0b63c',
+    25: '#3f9e5a',
+    10: '#c9c9ce',
+    5: '#d8483f',
+    2.5: '#9a6bd4',
+  },
+  kg: {
+    25: '#d8483f',
+    20: '#2f6fdb',
+    15: '#e0b63c',
+    10: '#3f9e5a',
+    5: '#c9c9ce',
+    2.5: '#9a6bd4',
+    1.25: '#8a8a93',
+  },
+};
+
+/**
+ * Plate diameter relative to the heaviest in the set, near enough to the real
+ * thing to be recognisable. Not derived from the weight: a 2.5 is nowhere near
+ * a eighteenth of a 45 across.
+ */
+export const PLATE_RELATIVE_SIZE: Record<WeightUnit, Record<number, number>> = {
+  lbs: { 45: 1, 35: 0.9, 25: 0.76, 10: 0.52, 5: 0.45, 2.5: 0.34 },
+  kg: { 25: 1, 20: 0.93, 15: 0.84, 10: 0.72, 5: 0.52, 2.5: 0.4, 1.25: 0.3 },
+};
+
+export const plateColor = (unit: WeightUnit, weight: number): string =>
+  PLATE_COLORS[unit][weight] ?? '#7c6cf6';
+
+export const plateRelativeSize = (unit: WeightUnit, weight: number): number =>
+  PLATE_RELATIVE_SIZE[unit][weight] ?? 0.6;
+
 export interface PlateCount {
   weight: number;
   count: number;
