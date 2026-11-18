@@ -26,6 +26,24 @@ export const EQUIPMENT_TYPES = [
 
 export type Equipment = (typeof EQUIPMENT_TYPES)[number];
 
+/**
+ * How you'd narrow things down standing in the gym: what kind of kit is it.
+ * Equipment stays the finer-grained field -- a cable crossover and a leg press
+ * are both machines, but you still want to know which.
+ */
+export const EQUIPMENT_CATEGORIES = ['Free Weight', 'Machine', 'Bodyweight', 'Other'] as const;
+
+export type EquipmentCategory = (typeof EQUIPMENT_CATEGORIES)[number];
+
+export const EQUIPMENT_CATEGORY: Record<Equipment, EquipmentCategory> = {
+  Barbell: 'Free Weight',
+  Dumbbell: 'Free Weight',
+  Cable: 'Machine',
+  Machine: 'Machine',
+  Bodyweight: 'Bodyweight',
+  Other: 'Other',
+};
+
 export interface Exercise {
   id: string;
   name: string;

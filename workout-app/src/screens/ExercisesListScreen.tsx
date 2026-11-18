@@ -7,7 +7,13 @@ import ScreenContainer from '../components/ScreenContainer';
 import MuscleTag from '../components/MuscleTag';
 import { colors, radius, spacing } from '../theme/theme';
 import { ExercisesStackParamList } from '../navigation/types';
-import { MUSCLE_GROUPS, MuscleGroup } from '../types';
+import {
+  EQUIPMENT_CATEGORIES,
+  EQUIPMENT_CATEGORY,
+  EquipmentCategory,
+  MUSCLE_GROUPS,
+  MuscleGroup,
+} from '../types';
 
 type Props = NativeStackScreenProps<ExercisesStackParamList, 'ExercisesList'>;
 
@@ -15,15 +21,24 @@ export default function ExercisesListScreen({ navigation }: Props) {
   const exercises = useStore((s) => s.exercises);
   const [query, setQuery] = useState('');
   const [muscleFilter, setMuscleFilter] = useState<MuscleGroup | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<EquipmentCategory | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return exercises.filter((e) => {
-      if (muscleFilter && e.muscleGroup !== muscleFilter) return false;
-      if (!q) return true;
-      return e.name.toLowerCase().includes(q) || e.muscleGroup.toLowerCase().includes(q);
-    });
-  }, [exercises, query, muscleFilter]);
+    const order = (m: MuscleGroup) => MUSCLE_GROUPS.indexOf(m);
+    return exercises
+      .filter((e) => {
+        if (muscleFilter && e.muscleGroup !== muscleFilter) return false;
+        if (categoryFilter && EQUIPMENT_CATEGORY[e.equipment] !== categoryFilter) return false;
+        if (!q) return true;
+        return e.name.toLowerCase().includes(q) || e.muscleGroup.toLowerCase().includes(q);
+      })
+      // Seed order is append-order, which means nothing to a reader.
+      .sort(
+        (a, b) =>
+          order(a.muscleGroup) - order(b.muscleGroup) || a.name.localeCompare(b.name)
+      );
+  }, [exercises, query, muscleFilter, categoryFilter]);
 
   return (
     <ScreenContainer insetTop extraTop={spacing.md} style={{ paddingHorizontal: spacing.md }}>
@@ -40,6 +55,20 @@ export default function ExercisesListScreen({ navigation }: Props) {
         value={query}
         onChangeText={setQuery}
       />
+      <View style={styles.categoryRow}>
+        {EQUIPMENT_CATEGORIES.map((c) => (
+          <Pressable
+            key={c}
+            style={[styles.categoryChip, categoryFilter === c && styles.filterChipSelected]}
+            onPress={() => setCategoryFilter(categoryFilter === c ? null : c)}
+          >
+            <Text style={[styles.filterChipText, categoryFilter === c && styles.filterChipTextSelected]}>
+              {c}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -94,6 +123,17 @@ export default function ExercisesListScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
   title: { color: colors.textPrimary, fontSize: 28, fontWeight: '800' },
+  categoryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
+  categoryChip: {
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 9,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
   addButton: {
     width: 40,
     height: 40,

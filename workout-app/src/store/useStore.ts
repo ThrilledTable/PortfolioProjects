@@ -17,7 +17,7 @@ import {
   BodyweightEntry,
   Settings,
 } from '../types';
-import { SEED_EXERCISES } from '../data/seedExercises';
+import { SEED_EXERCISES, SEED_VERSION } from '../data/seedExercises';
 import { genId } from '../utils/id';
 import { buildNextMesocycle } from '../utils/nextMesocycle';
 
@@ -45,6 +45,8 @@ interface StoreState {
   sessions: WorkoutSession[];
   active: ActivePosition | null;
   settings: Settings;
+  /** Which release's starter exercises this install has already been given. */
+  seedVersion: number;
 
   addExercise: (data: Omit<Exercise, 'id' | 'custom'>) => Exercise;
   deleteExercise: (id: string) => void;
@@ -137,6 +139,19 @@ const makeLoggedSet = (): LoggedSet => ({
   logged: false,
   type: 'working',
 });
+
+/**
+ * Hand an existing install the starter exercises added since it was seeded.
+ * Saved entries win, so a note or a rename you made survives, and this runs
+ * only while the saved version is behind -- so anything deleted afterwards
+ * does not reappear on the next launch.
+ */
+const topUpSeeds = (saved: Exercise[] | undefined, savedVersion: number | undefined): Exercise[] => {
+  if (!saved) return SEED_EXERCISES;
+  if (savedVersion === SEED_VERSION) return saved;
+  const have = new Set(saved.map((e) => e.id));
+  return [...saved, ...SEED_EXERCISES.filter((e) => !have.has(e.id))];
+};
 
 /** Rewrite one day of one block, leaving every other block and day untouched. */
 const mapDay = (
@@ -287,6 +302,7 @@ export const useStore = create<StoreState>()(
   persist(
     (set, get) => ({
       exercises: SEED_EXERCISES,
+      seedVersion: SEED_VERSION,
       mesocycles: [],
       sessions: [],
       active: null,
@@ -828,6 +844,7 @@ export const useStore = create<StoreState>()(
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({
         exercises: s.exercises,
+        seedVersion: s.seedVersion,
         mesocycles: s.mesocycles,
         sessions: s.sessions,
         active: s.active,
@@ -838,7 +855,13 @@ export const useStore = create<StoreState>()(
       // key added after a user's data was written would come back undefined.
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Partial<StoreState>;
-        return { ...current, ...saved, settings: withSettingsDefaults(saved.settings) };
+        return {
+          ...current,
+          ...saved,
+          settings: withSettingsDefaults(saved.settings),
+          exercises: topUpSeeds(saved.exercises, saved.seedVersion),
+          seedVersion: SEED_VERSION,
+        };
       },
     }
   )

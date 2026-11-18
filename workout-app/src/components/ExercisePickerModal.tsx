@@ -2,7 +2,16 @@ import React, { useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
-import { EQUIPMENT_TYPES, Equipment, Exercise, MUSCLE_GROUPS, MuscleGroup } from '../types';
+import {
+  EQUIPMENT_CATEGORIES,
+  EQUIPMENT_CATEGORY,
+  EQUIPMENT_TYPES,
+  Equipment,
+  EquipmentCategory,
+  Exercise,
+  MUSCLE_GROUPS,
+  MuscleGroup,
+} from '../types';
 import { colors, radius, spacing } from '../theme/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MuscleTag from './MuscleTag';
@@ -23,17 +32,23 @@ export default function ExercisePickerModal({
   const exercises = useStore((s) => s.exercises);
   const addExercise = useStore((s) => s.addExercise);
   const [query, setQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<EquipmentCategory | null>(null);
 
   const insets = useSafeAreaInsets();
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return exercises.filter((e) => {
+    const matches = exercises.filter((e) => {
       if (muscleGroupFilter && e.muscleGroup !== muscleGroupFilter) return false;
+      if (categoryFilter && EQUIPMENT_CATEGORY[e.equipment] !== categoryFilter) return false;
       if (excludeExerciseId && e.id === excludeExerciseId) return false;
       if (!q) return true;
       return e.name.toLowerCase().includes(q) || e.muscleGroup.toLowerCase().includes(q);
     });
-  }, [exercises, query, muscleGroupFilter, excludeExerciseId]);
+    const order = (m: MuscleGroup) => MUSCLE_GROUPS.indexOf(m);
+    return [...matches].sort(
+      (a, b) => order(a.muscleGroup) - order(b.muscleGroup) || a.name.localeCompare(b.name)
+    );
+  }, [exercises, query, muscleGroupFilter, categoryFilter, excludeExerciseId]);
 
   // Built inline rather than through a dialog: react-native-web portals every
   // Modal in mount order, so a dialog opened from here lands *underneath* this
@@ -143,6 +158,17 @@ export default function ExercisePickerModal({
           </ScrollView>
         ) : (
         <>
+        <View style={styles.categoryRow}>
+          {EQUIPMENT_CATEGORIES.map((c) => (
+            <Pressable
+              key={c}
+              style={[styles.categoryChip, categoryFilter === c && styles.chipSelected]}
+              onPress={() => setCategoryFilter(categoryFilter === c ? null : c)}
+            >
+              <Text style={[styles.chipText, categoryFilter === c && styles.chipTextSelected]}>{c}</Text>
+            </Pressable>
+          ))}
+        </View>
         <TextInput
           style={styles.search}
           placeholder="Search exercises"
@@ -251,6 +277,17 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  categoryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
+  categoryChip: {
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 9,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
   chip: {
     paddingHorizontal: spacing.md,
     paddingVertical: 8,
